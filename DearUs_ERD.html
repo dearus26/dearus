@@ -1,0 +1,518 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dear Us ERD</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap">
+<style>
+  :root {
+    --cream: #FEF7EE; --beige: #CDB69C; --gold: #D9A869; --brown: #6F5139; --ink: #3A2A1F;
+    --paper: #FFFCF7; --panel: #F7EDE0;
+  }
+  * { box-sizing: border-box; }
+  html { color-scheme: light; }
+  body { margin: 0; background: var(--cream); color: var(--ink);
+    font-family: "Noto Sans KR", "Pretendard", "Malgun Gothic", system-ui, sans-serif; line-height: 1.6; }
+  main { max-width: 1120px; margin: 0 auto; padding: 40px 16px 72px; }
+  h1, h2 { font-family: "Noto Serif KR", "Nanum Myeongjo", serif; margin: 0; }
+  h1 { font-size: 28px; }
+  h1 small { font-family: "Noto Sans KR", sans-serif; font-size: 13px; font-weight: 400; color: var(--brown); margin-left: 10px; }
+  h2 { font-size: 20px; }
+  h2 span { color: var(--gold); margin-right: 8px; }
+  .lede { margin: 6px 0 0; color: var(--brown); font-size: 14px; }
+  .lede a { color: var(--brown); }
+  section { margin-top: 40px; border-top: 1px solid var(--beige); padding-top: 22px; }
+  figure { margin: 16px 0 0; }
+  .scroll { overflow-x: auto; }
+  .scroll svg { display: block; width: 100%; min-width: 900px; height: auto; color: var(--brown); }
+  figcaption { margin-top: 10px; font-size: 13.5px; color: var(--brown); max-width: 80ch; }
+  figcaption b { color: var(--ink); }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 12px 0 0; font-size: 12.5px; color: var(--brown); }
+  .legend i { display: inline-block; width: 14px; height: 14px; border-radius: 4px; vertical-align: -2px; margin-right: 6px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; margin-top: 16px; }
+  .card-box { background: var(--panel); border: 1px solid var(--beige); border-radius: 12px; padding: 14px 18px; font-size: 13.5px; }
+  .card-box h3 { margin: 0 0 6px; font-size: 14.5px; }
+  .card-box p { margin: 4px 0; }
+  .card-box ul { margin: 6px 0 0; padding-left: 18px; }
+  .card-box li { margin: 3px 0; }
+  code { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 12px; background: rgba(205,182,156,.28); padding: 1px 5px; border-radius: 4px; }
+  .notes { margin: 16px 0 0; padding: 14px 18px 14px 34px; background: var(--panel); border: 1px solid var(--beige); border-radius: 12px; font-size: 13.5px; }
+  .notes li { margin: 3px 0; }
+
+  /* svg */
+  .mono { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; }
+  .tbl { fill: var(--paper); stroke: var(--beige); stroke-width: 1.4; }
+  .th-rec { fill: var(--brown); }
+  .th-hub { fill: var(--gold); }
+  .th-couple { fill: var(--ink); }
+  .tname { font-size: 13px; font-weight: 700; }
+  .tname-rec, .tname-couple { fill: var(--cream); }
+  .tname-hub { fill: var(--ink); }
+  .cname { font-size: 12px; fill: var(--ink); }
+  .ctype { font-size: 10.5px; fill: var(--brown); text-anchor: end; }
+  .sep { stroke: var(--beige); stroke-width: 1; opacity: .55; }
+  .bdg-PK, .bdg-PF { fill: var(--gold); }
+  .bdg-FK { fill: var(--beige); }
+  .bdg-ENC { fill: var(--ink); }
+  .btxt { font-size: 8.5px; font-weight: 700; text-anchor: middle; fill: var(--ink); }
+  .btxt-ENC { fill: var(--cream); }
+  .edge { stroke: currentColor; stroke-width: 1.6; fill: none; }
+  .edge.dash { stroke-dasharray: 5 4; }
+  .card { font-size: 11px; font-weight: 700; fill: var(--ink); }
+  .lane { font-size: 11px; fill: var(--brown); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Dear Us ERD<small>PostgreSQL 17 · 테이블 11개 · 기획서와 <a href="DearUs_기능블록도.html" style="color:#6F5139">기능 블록도</a> 기준 초안</small></h1>
+  <p class="lede">일기, 카톡 요약, 페르소나 분석(재사용 저장), 대화, 커플 접근 제어가 어떻게 연결되는지 한 장에 모았습니다. 카톡 원본을 담는 테이블이 없다는 점이 이 설계의 핵심입니다.</p>
+
+  <section>
+    <h2><span>1</span>관계도</h2>
+    <figure>
+      <div class="scroll">
+<svg viewBox="0 0 1110 810" role="img" aria-label="열한 개 테이블의 관계도. users를 중심으로 일기, 카톡 업로드, 페르소나 분석, 대화, 커플 테이블이 연결되고, 카톡 원본을 담는 테이블은 없다">
+<g>
+<rect class="tbl" x="30" y="40" width="235" height="76" rx="10"/>
+<path class="th th-rec" d="M30,70 V50 Q30,40 40,40 H255 Q265,40 265,50 V70 Z"/>
+<text class="tname tname-rec mono" x="42" y="60">diary_emotions</text>
+<rect class="bdg bdg-PF" x="38" y="74" width="38" height="12" rx="3"/>
+<text class="btxt btxt-PF" x="57" y="83.2">PK·FK</text>
+<text class="cname mono" x="82" y="84.2">diary_id</text>
+<text class="ctype" x="255" y="84">uuid</text>
+<line class="sep" x1="38" y1="90" x2="257" y2="90"/>
+<rect class="bdg bdg-PK" x="38" y="94" width="22" height="12" rx="3"/>
+<text class="btxt btxt-PK" x="49" y="103.2">PK</text>
+<text class="cname mono" x="66" y="104.2">emotion</text>
+<text class="ctype" x="255" y="104">varchar</text>
+</g>
+<g>
+<rect class="tbl" x="30" y="290" width="235" height="156" rx="10"/>
+<path class="th th-rec" d="M30,320 V300 Q30,290 40,290 H255 Q265,290 265,300 V320 Z"/>
+<text class="tname tname-rec mono" x="42" y="310">diaries</text>
+<rect class="bdg bdg-PK" x="38" y="324" width="22" height="12" rx="3"/>
+<text class="btxt btxt-PK" x="49" y="333.2">PK</text>
+<text class="cname mono" x="66" y="334.2">id</text>
+<text class="ctype" x="255" y="334">uuid</text>
+<line class="sep" x1="38" y1="340" x2="257" y2="340"/>
+<rect class="bdg bdg-FK" x="38" y="344" width="22" height="12" rx="3"/>
+<text class="btxt btxt-FK" x="49" y="353.2">FK</text>
+<text class="cname mono" x="66" y="354.2">user_id</text>
+<text class="ctype" x="255" y="354">uuid</text>
+<line class="sep" x1="38" y1="360" x2="257" y2="360"/>
+<text class="cname mono" x="66" y="374.2">diary_date</text>
+<text class="ctype" x="255" y="374">date</text>
+<line class="sep" x1="38" y1="380" x2="257" y2="380"/>
+<text class="cname mono" x="66" y="394.2">content</text>
+<text class="ctype" x="255" y="394">text</text>
+<line class="sep" x1="38" y1="400" x2="257" y2="400"/>
+<text class="cname mono" x="66" y="414.2">created_at</text>
+<text class="ctype" x="255" y="414">timestamptz</text>
+<line class="sep" x1="38" y1="420" x2="257" y2="420"/>
+<text class="cname mono" x="66" y="434.2">updated_at</text>
+<text class="ctype" x="255" y="434">timestamptz</text>
+</g>
+<g>
+<rect class="tbl" x="30" y="590" width="235" height="196" rx="10"/>
+<path class="th th-rec" d="M30,620 V600 Q30,590 40,590 H255 Q265,590 265,600 V620 Z"/>
+<text class="tname tname-rec mono" x="42" y="610">kakao_weekly_summaries</text>
+<rect class="bdg bdg-PK" x="38" y="624" width="22" height="12" rx="3"/>
+<text class="btxt btxt-PK" x="49" y="633.2">PK</text>
+<text class="cname mono" x="66" y="634.2">id</text>
+<text class="ctype" x="255" y="634">uuid</text>
+<line class="sep" x1="38" y1="640" x2="257" y2="640"/>
+<rect class="bdg bdg-FK" x="38" y="644" width="22" height="12" rx="3"/>
+<text class="btxt btxt-FK" x="49" y="653.2">FK</text>
+<text class="cname mono" x="66" y="654.2">upload_id</text>
+<text class="ctype" x="255" y="654">uuid</text>
+<line class="sep" x1="38" y1="660" x2="257" y2="660"/>
+<text class="cname mono" x="66" y="674.2">week_start</text>
+<text class="ctype" x="255" y="674">date</text>
+<line class="sep" x1="38" y1="680" x2="257" y2="680"/>
+<rect class="bdg bdg-ENC" x="38" y="684" width="28" height="12" rx="3"/>
+<text class="btxt btxt-ENC" x="52" y="693.2">ENC</text>
+<text class="cname mono" x="72" y="694.2">summary_enc</text>
+<text class="ctype" x="255" y="694">bytea</text>
+<line class="sep" x1="38" y1="700" x2="257" y2="700"/>
+<rect class="bdg bdg-ENC" x="38" y="704" width="28" height="12" rx="3"/>
+<text class="btxt btxt-ENC" x="52" y="713.2">ENC</text>
+<text class="cname mono" x="72" y="714.2">traits_enc</text>
+<text class="ctype" x="255" y="714">bytea</text>
+<line class="sep" x1="38" y1="720" x2="257" y2="720"/>
+<rect class="bdg bdg-ENC" x="38" y="724" width="28" height="12" rx="3"/>
+<text class="btxt btxt-ENC" x="52" y="733.2">ENC</text>
+<text class="cname mono" x="72" y="734.2">sample_enc</text>
+<text class="ctype" x="255" y="734">bytea</text>
+<line class="sep" x1="38" y1="740" x2="257" y2="740"/>
+<text class="cname mono" x="66" y="754.2">created_at</text>
+<text class="ctype" x="255" y="754">timestamptz</text>
+<line class="sep" x1="38" y1="760" x2="257" y2="760"/>
+<text class="cname mono" x="66" y="774.2">expires_at</text>
+<text class="ctype" x="255" y="774">timestamptz</text>
+</g>
+<g>
+<rect class="tbl" x="300" y="40" width="235" height="156" rx="10"/>
+<path class="th th-couple" d="M300,70 V50 Q300,40 310,40 H525 Q535,40 535,50 V70 Z"/>
+<text class="tname tname-couple mono" x="312" y="60">couple_members</text>
+<rect class="bdg bdg-PF" x="308" y="74" width="38" height="12" rx="3"/>
+<text class="btxt btxt-PF" x="327" y="83.2">PK·FK</text>
+<text class="cname mono" x="352" y="84.2">couple_id</text>
+<text class="ctype" x="525" y="84">uuid</text>
+<line class="sep" x1="308" y1="90" x2="527" y2="90"/>
+<rect class="bdg bdg-PF" x="308" y="94" width="38" height="12" rx="3"/>
+<text class="btxt btxt-PF" x="327" y="103.2">PK·FK</text>
+<text class="cname mono" x="352" y="104.2">user_id</text>
+<text class="ctype" x="525" y="104">uuid</text>
+<line class="sep" x1="308" y1="110" x2="527" y2="110"/>
+<text class="cname mono" x="336" y="124.2">role</text>
+<text class="ctype" x="525" y="124">varchar</text>
+<line class="sep" x1="308" y1="130" x2="527" y2="130"/>
+<text class="cname mono" x="336" y="144.2">joined_at</text>
+<text class="ctype" x="525" y="144">timestamptz</text>
+<line class="sep" x1="308" y1="150" x2="527" y2="150"/>
+<text class="cname mono" x="336" y="164.2">consented_at</text>
+<text class="ctype" x="525" y="164">timestamptz?</text>
+<line class="sep" x1="308" y1="170" x2="527" y2="170"/>
+<text class="cname mono" x="336" y="184.2">revoked_at</text>
+<text class="ctype" x="525" y="184">timestamptz?</text>
+</g>
+<g>
+<rect class="tbl" x="300" y="290" width="235" height="176" rx="10"/>
+<path class="th th-rec" d="M300,320 V300 Q300,290 310,290 H525 Q535,290 535,300 V320 Z"/>
+<text class="tname tname-rec mono" x="312" y="310">users</text>
+<rect class="bdg bdg-PK" x="308" y="324" width="22" height="12" rx="3"/>
+<text class="btxt btxt-PK" x="319" y="333.2">PK</text>
+<text class="cname mono" x="336" y="334.2">id</text>
+<text class="ctype" x="525" y="334">uuid</text>
+<line class="sep" x1="308" y1="340" x2="527" y2="340"/>
+<text class="cname mono" x="336" y="354.2">provider</text>
+<text class="ctype" x="525" y="354">varchar</text>
+<line class="sep" x1="308" y1="360" x2="527" y2="360"/>
+<text class="cname mono" x="336" y="374.2">provider_user_id</text>
+<text class="ctype" x="525" y="374">varchar</text>
+<line class="sep" x1="308" y1="380" x2="527" y2="380"/>
+<text class="cname mono" x="336" y="394.2">nickname</text>
+<text class="ctype" x="525" y="394">varchar</text>
+<line class="sep" x1="308" y1="400" x2="527" y2="400"/>
+<text class="cname mono" x="336" y="414.2">ai_consent_at</text>
+<text class="ctype" x="525" y="414">timestamptz?</text>
+<line class="sep" x1="308" y1="420" x2="527" y2="420"/>
+<text class="cname mono" x="336" y="434.2">ai_revoked_at</text>
+<text class="ctype" x="525" y="434">timestamptz?</text>
+<line class="sep" x1="308" y1="440" x2="527" y2="440"/>
+<text class="cname mono" x="336" y="454.2">created_at</text>
+<text class="ctype" x="525" y="454">timestamptz</text>
+</g>
+<g>
+<rect class="tbl" x="300" y="590" width="235" height="176" rx="10"/>
+<path class="th th-rec" d="M300,620 V600 Q300,590 310,590 H525 Q535,590 535,600 V620 Z"/>
+<text class="tname tname-rec mono" x="312" y="610">kakao_uploads</text>
+<rect class="bdg bdg-PK" x="308" y="624" width="22" height="12" rx="3"/>
+<text class="btxt btxt-PK" x="319" y="633.2">PK</text>
+<text class="cname mono" x="336" y="634.2">id</text>
+<text class="ctype" x="525" y="634">uuid</text>
+<line class="sep" x1="308" y1="640" x2="527" y2="640"/>
+<rect class="bdg bdg-FK" x="308" y="644" width="22" height="12" rx="3"/>
+<text class="btxt btxt-FK" x="319" y="653.2">FK</text>
+<text class="cname mono" x="336" y="654.2">user_id</text>
+<text class="ctype" x="525" y="654">uuid</text>
+<line class="sep" x1="308" y1="660" x2="527" y2="660"/>
+<text class="cname mono" x="336" y="674.2">uploaded_at</text>
+<text class="ctype" x="525" y="674">timestamptz</text>
+<line class="sep" x1="308" y1="680" x2="527" y2="680"/>
+<text class="cname mono" x="336" y="694.2">period_start</text>
+<text class="ctype" x="525" y="694">date</text>
+<line class="sep" x1="308" y1="700" x2="527" y2="700"/>
+<text class="cname mono" x="336" y="714.2">period_end</text>
+<text class="ctype" x="525" y="714">date</text>
+<line class="sep" x1="308" y1="720" x2="527" y2="720"/>
+<text class="cname mono" x="336" y="734.2">status</text>
+<text class="ctype" x="525" y="734">varchar</text>
+<line class="sep" x1="308" y1="740" x2="527" y2="740"/>
+<text class="cname mono" x="336" y="754.2">expires_at</text>
+<text class="ctype" x="525" y="754">timestamptz</text>
+</g>
+<g>
+<rect class="tbl" x="570" y="40" width="235" height="176" rx="10"/>
+<path class="th th-couple" d="M570,70 V50 Q570,40 580,40 H795 Q805,40 805,50 V70 Z"/>
+<text class="tname tname-couple mono" x="582" y="60">couples</text>
+<rect class="bdg bdg-PK" x="578" y="74" width="22" height="12" rx="3"/>
+<text class="btxt btxt-PK" x="589" y="83.2">PK</text>
+<text class="cname mono" x="606" y="84.2">id</text>
+<text class="ctype" x="795" y="84">uuid</text>
+<line class="sep" x1="578" y1="90" x2="797" y2="90"/>
+<text class="cname mono" x="606" y="104.2">invite_code</text>
+<text class="ctype" x="795" y="104">varchar</text>
+<line class="sep" x1="578" y1="110" x2="797" y2="110"/>
+<text class="cname mono" x="606" y="124.2">code_expires_at</text>
+<text class="ctype" x="795" y="124">timestamptz</text>
+<line class="sep" x1="578" y1="130" x2="797" y2="130"/>
+<text class="cname mono" x="606" y="144.2">status</text>
+<text class="ctype" x="795" y="144">varchar</text>
+<line class="sep" x1="578" y1="150" x2="797" y2="150"/>
+<text class="cname mono" x="606" y="164.2">created_at</text>
+<text class="ctype" x="795" y="164">timestamptz</text>
+<line class="sep" x1="578" y1="170" x2="797" y2="170"/>
+<text class="cname mono" x="606" y="184.2">connected_at</text>
+<text class="ctype" x="795" y="184">timestamptz?</text>
+<line class="sep" x1="578" y1="190" x2="797" y2="190"/>
+<text class="cname mono" x="606" y="204.2">disconnected_at</text>
+<text class="ctype" x="795" y="204">timestamptz?</text>
+</g>
+<g>
+<rect class="tbl" x="570" y="290" width="235" height="236" rx="10"/>
+<path class="th th-hub" d="M570,320 V300 Q570,290 580,290 H795 Q805,290 805,300 V320 Z"/>
+<text class="tname tname-hub mono" x="582" y="310">persona_analyses</text>
+<rect class="bdg bdg-PK" x="578" y="324" width="22" height="12" rx="3"/>
+<text class="btxt btxt-PK" x="589" y="333.2">PK</text>
+<text class="cname mono" x="606" y="334.2">id</text>
+<text class="ctype" x="795" y="334">uuid</text>
+<line class="sep" x1="578" y1="340" x2="797" y2="340"/>
+<rect class="bdg bdg-FK" x="578" y="344" width="22" height="12" rx="3"/>
+<text class="btxt btxt-FK" x="589" y="353.2">FK</text>
+<text class="cname mono" x="606" y="354.2">user_id</text>
+<text class="ctype" x="795" y="354">uuid</text>
+<line class="sep" x1="578" y1="360" x2="797" y2="360"/>
+<text class="cname mono" x="606" y="374.2">anchor_date</text>
+<text class="ctype" x="795" y="374">date</text>
+<line class="sep" x1="578" y1="380" x2="797" y2="380"/>
+<text class="cname mono" x="606" y="394.2">window_days</text>
+<text class="ctype" x="795" y="394">smallint</text>
+<line class="sep" x1="578" y1="400" x2="797" y2="400"/>
+<rect class="bdg bdg-ENC" x="578" y="404" width="28" height="12" rx="3"/>
+<text class="btxt btxt-ENC" x="592" y="413.2">ENC</text>
+<text class="cname mono" x="612" y="414.2">analysis_enc</text>
+<text class="ctype" x="795" y="414">bytea</text>
+<line class="sep" x1="578" y1="420" x2="797" y2="420"/>
+<text class="cname mono" x="606" y="434.2">source_digest</text>
+<text class="ctype" x="795" y="434">varchar(64)</text>
+<line class="sep" x1="578" y1="440" x2="797" y2="440"/>
+<text class="cname mono" x="606" y="454.2">diary_count</text>
+<text class="ctype" x="795" y="454">int</text>
+<line class="sep" x1="578" y1="460" x2="797" y2="460"/>
+<text class="cname mono" x="606" y="474.2">kakao_weeks</text>
+<text class="ctype" x="795" y="474">int</text>
+<line class="sep" x1="578" y1="480" x2="797" y2="480"/>
+<text class="cname mono" x="606" y="494.2">model</text>
+<text class="ctype" x="795" y="494">varchar</text>
+<line class="sep" x1="578" y1="500" x2="797" y2="500"/>
+<text class="cname mono" x="606" y="514.2">analyzed_at</text>
+<text class="ctype" x="795" y="514">timestamptz</text>
+</g>
+<g>
+<rect class="tbl" x="840" y="40" width="235" height="156" rx="10"/>
+<path class="th th-rec" d="M840,70 V50 Q840,40 850,40 H1065 Q1075,40 1075,50 V70 Z"/>
+<text class="tname tname-rec mono" x="852" y="60">reports</text>
+<rect class="bdg bdg-PK" x="848" y="74" width="22" height="12" rx="3"/>
+<text class="btxt btxt-PK" x="859" y="83.2">PK</text>
+<text class="cname mono" x="876" y="84.2">id</text>
+<text class="ctype" x="1065" y="84">uuid</text>
+<line class="sep" x1="848" y1="90" x2="1067" y2="90"/>
+<rect class="bdg bdg-FK" x="848" y="94" width="22" height="12" rx="3"/>
+<text class="btxt btxt-FK" x="859" y="103.2">FK</text>
+<text class="cname mono" x="876" y="104.2">session_id</text>
+<text class="ctype" x="1065" y="104">uuid</text>
+<line class="sep" x1="848" y1="110" x2="1067" y2="110"/>
+<text class="cname mono" x="876" y="124.2">past_concern</text>
+<text class="ctype" x="1065" y="124">text</text>
+<line class="sep" x1="848" y1="130" x2="1067" y2="130"/>
+<text class="cname mono" x="876" y="144.2">present_change</text>
+<text class="ctype" x="1065" y="144">text</text>
+<line class="sep" x1="848" y1="150" x2="1067" y2="150"/>
+<text class="cname mono" x="876" y="164.2">one_line_summary</text>
+<text class="ctype" x="1065" y="164">varchar</text>
+<line class="sep" x1="848" y1="170" x2="1067" y2="170"/>
+<text class="cname mono" x="876" y="184.2">created_at</text>
+<text class="ctype" x="1065" y="184">timestamptz</text>
+</g>
+<g>
+<rect class="tbl" x="840" y="290" width="235" height="196" rx="10"/>
+<path class="th th-rec" d="M840,320 V300 Q840,290 850,290 H1065 Q1075,290 1075,300 V320 Z"/>
+<text class="tname tname-rec mono" x="852" y="310">chat_sessions</text>
+<rect class="bdg bdg-PK" x="848" y="324" width="22" height="12" rx="3"/>
+<text class="btxt btxt-PK" x="859" y="333.2">PK</text>
+<text class="cname mono" x="876" y="334.2">id</text>
+<text class="ctype" x="1065" y="334">uuid</text>
+<line class="sep" x1="848" y1="340" x2="1067" y2="340"/>
+<rect class="bdg bdg-FK" x="848" y="344" width="22" height="12" rx="3"/>
+<text class="btxt btxt-FK" x="859" y="353.2">FK</text>
+<text class="cname mono" x="876" y="354.2">user_id</text>
+<text class="ctype" x="1065" y="354">uuid</text>
+<line class="sep" x1="848" y1="360" x2="1067" y2="360"/>
+<rect class="bdg bdg-FK" x="848" y="364" width="22" height="12" rx="3"/>
+<text class="btxt btxt-FK" x="859" y="373.2">FK</text>
+<text class="cname mono" x="876" y="374.2">persona_owner_id</text>
+<text class="ctype" x="1065" y="374">uuid</text>
+<line class="sep" x1="848" y1="380" x2="1067" y2="380"/>
+<rect class="bdg bdg-FK" x="848" y="384" width="22" height="12" rx="3"/>
+<text class="btxt btxt-FK" x="859" y="393.2">FK</text>
+<text class="cname mono" x="876" y="394.2">couple_id</text>
+<text class="ctype" x="1065" y="394">uuid?</text>
+<line class="sep" x1="848" y1="400" x2="1067" y2="400"/>
+<rect class="bdg bdg-FK" x="848" y="404" width="22" height="12" rx="3"/>
+<text class="btxt btxt-FK" x="859" y="413.2">FK</text>
+<text class="cname mono" x="876" y="414.2">analysis_id</text>
+<text class="ctype" x="1065" y="414">uuid?</text>
+<line class="sep" x1="848" y1="420" x2="1067" y2="420"/>
+<text class="cname mono" x="876" y="434.2">anchor_date</text>
+<text class="ctype" x="1065" y="434">date</text>
+<line class="sep" x1="848" y1="440" x2="1067" y2="440"/>
+<text class="cname mono" x="876" y="454.2">started_at</text>
+<text class="ctype" x="1065" y="454">timestamptz</text>
+<line class="sep" x1="848" y1="460" x2="1067" y2="460"/>
+<text class="cname mono" x="876" y="474.2">ended_at</text>
+<text class="ctype" x="1065" y="474">timestamptz?</text>
+</g>
+<g>
+<rect class="tbl" x="840" y="590" width="235" height="156" rx="10"/>
+<path class="th th-rec" d="M840,620 V600 Q840,590 850,590 H1065 Q1075,590 1075,600 V620 Z"/>
+<text class="tname tname-rec mono" x="852" y="610">chat_messages</text>
+<rect class="bdg bdg-PK" x="848" y="624" width="22" height="12" rx="3"/>
+<text class="btxt btxt-PK" x="859" y="633.2">PK</text>
+<text class="cname mono" x="876" y="634.2">id</text>
+<text class="ctype" x="1065" y="634">bigint</text>
+<line class="sep" x1="848" y1="640" x2="1067" y2="640"/>
+<rect class="bdg bdg-FK" x="848" y="644" width="22" height="12" rx="3"/>
+<text class="btxt btxt-FK" x="859" y="653.2">FK</text>
+<text class="cname mono" x="876" y="654.2">session_id</text>
+<text class="ctype" x="1065" y="654">uuid</text>
+<line class="sep" x1="848" y1="660" x2="1067" y2="660"/>
+<text class="cname mono" x="876" y="674.2">seq</text>
+<text class="ctype" x="1065" y="674">int</text>
+<line class="sep" x1="848" y1="680" x2="1067" y2="680"/>
+<text class="cname mono" x="876" y="694.2">role</text>
+<text class="ctype" x="1065" y="694">varchar</text>
+<line class="sep" x1="848" y1="700" x2="1067" y2="700"/>
+<text class="cname mono" x="876" y="714.2">content</text>
+<text class="ctype" x="1065" y="714">text</text>
+<line class="sep" x1="848" y1="720" x2="1067" y2="720"/>
+<text class="cname mono" x="876" y="734.2">created_at</text>
+<text class="ctype" x="1065" y="734">timestamptz</text>
+</g>
+
+<path class="edge" d="M130,116 V290"/>
+<text class="card" x="136" y="130" text-anchor="start">N</text>
+<text class="card" x="136" y="284" text-anchor="start">1</text>
+<path class="edge" d="M300,340 H265"/>
+<text class="card" x="294" y="334" text-anchor="end">1</text>
+<text class="card" x="271" y="334" text-anchor="start">N</text>
+<path class="edge" d="M360,466 V590"/>
+<text class="card" x="366" y="482" text-anchor="start">1</text>
+<text class="card" x="366" y="584" text-anchor="start">N</text>
+<path class="edge" d="M300,650 H265"/>
+<text class="card" x="294" y="644" text-anchor="end">1</text>
+<text class="card" x="271" y="644" text-anchor="start">N</text>
+<path class="edge" d="M420,290 V196"/>
+<text class="card" x="426" y="284" text-anchor="start">1</text>
+<text class="card" x="426" y="212" text-anchor="start">N</text>
+<path class="edge" d="M535,80 H570"/>
+<text class="card" x="541" y="74" text-anchor="start">N</text>
+<text class="card" x="564" y="74" text-anchor="end">1</text>
+<path class="edge" d="M535,340 H570"/>
+<text class="card" x="541" y="334" text-anchor="start">1</text>
+<text class="card" x="564" y="334" text-anchor="end">N</text>
+<path class="edge dash" d="M805,400 H840"/>
+<text class="card" x="811" y="394" text-anchor="start">1</text>
+<text class="card" x="834" y="394" text-anchor="end">N</text>
+<path class="edge dash" d="M805,100 H822 V370 H840"/>
+<text class="card" x="811" y="94" text-anchor="start">1</text>
+<text class="card" x="834" y="364" text-anchor="end">N</text>
+<path class="edge dash" d="M960,196 V290"/>
+<text class="card" x="966" y="212" text-anchor="start">0..1</text>
+<text class="card" x="966" y="284" text-anchor="start">1</text>
+<path class="edge" d="M1000,486 V590"/>
+<text class="card" x="1006" y="502" text-anchor="start">1</text>
+<text class="card" x="1006" y="584" text-anchor="start">N</text>
+<path class="edge" d="M510,466 V546 H900 V487"/>
+<text class="card" x="516" y="482" text-anchor="start">1</text>
+<text class="card" x="906" y="502" text-anchor="start">N</text>
+<path class="edge" d="M470,466 V562 H940 V487"/>
+<text class="card" x="476" y="482" text-anchor="start">1</text>
+<text class="card" x="946" y="502" text-anchor="start">N</text>
+
+<text class="lane" x="560" y="541">chat_sessions.user_id — 대화하는 사람</text>
+<text class="lane" x="560" y="577">chat_sessions.persona_owner_id — 페르소나 주인 (개인 모드는 user_id와 같음)</text>
+</svg>
+      </div>
+      <div class="legend">
+        <span><i style="background:#6F5139"></i>일기 · 카톡 · 대화</span>
+        <span><i style="background:#D9A869"></i>페르소나 분석 (재사용 저장소)</span>
+        <span><i style="background:#3A2A1F"></i>커플 접근 제어</span>
+        <span><b>PK·FK</b> 기본키이면서 외래키</span>
+        <span><b>ENC</b> 암호화 저장 컬럼</span>
+        <span><b>?</b> 비어 있을 수 있음</span>
+        <span><b>점선</b> 선택적 관계</span>
+      </div>
+      <figcaption><b>한 줄 요약:</b> <code>users</code>가 중심이고, 대화(<code>chat_sessions</code>)는 “누가 말하는가”와 “누구의 페르소나인가”를 따로 가리킵니다. 개인 모드는 두 값이 같고 커플 모드는 다릅니다(<code>couple_id</code>가 채워짐). 금색 <code>persona_analyses</code>는 말투 분석 결과를 저장해 두는 곳이라, 같은 시점의 대화는 Gemini를 다시 부르지 않고 이 행을 재사용합니다.</figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <h2><span>2</span>핵심 규칙</h2>
+    <div class="cards">
+      <div class="card-box">
+        <h3>분석 결과 재사용</h3>
+        <p><code>persona_analyses</code>의 유일 키는 <code>(user_id, anchor_date, window_days)</code>입니다. <code>window_days</code>는 14(전후 2주)입니다.</p>
+        <ul>
+          <li>바로가기(1 · 6 · 12개월 전)는 <code>anchor_date</code>를 그 주 월요일로 맞춥니다. 직접 고른 날짜는 그대로 씁니다.</li>
+          <li><code>source_digest</code> = 해시(구간 내 일기의 <code>id, updated_at</code> + 겹치는 <code>kakao_weekly_summaries</code>의 <code>id, created_at</code>)</li>
+          <li>키와 digest가 모두 같으면 재사용, 다르면 다시 분석해 같은 행을 덮어씁니다. 일기를 고치거나 지우면, 또는 그 기간 카톡을 올리면 digest가 달라집니다.</li>
+        </ul>
+      </div>
+      <div class="card-box">
+        <h3>카톡 원본은 어디에도 없음</h3>
+        <p><code>kakao_uploads</code>에는 파일이나 본문을 담는 컬럼이 없습니다. 주 단위 요약(<code>summary_enc</code>, <code>traits_enc</code>, <code>sample_enc</code>)만 남습니다.</p>
+        <ul>
+          <li>요약은 마스킹한 본인 발화에서 만든 것이고, 상대 메시지는 저장하지 않습니다.</li>
+          <li><code>expires_at</code> = 업로드일 + 1년. 배치가 지난 행을 지우고, 업로드 행을 지우면 요약도 함께 지워집니다.</li>
+          <li><code>sample_enc</code>의 대표 문장도 마스킹된 것입니다.</li>
+        </ul>
+      </div>
+      <div class="card-box">
+        <h3>커플 접근 규칙</h3>
+        <p>상대의 <code>persona_analyses</code>를 볼 수 있는 조건은 다음 세 가지가 모두 참일 때입니다.</p>
+        <ul>
+          <li><code>couples.status = 'CONNECTED'</code></li>
+          <li><code>couple_members</code> 두 행 모두 <code>consented_at</code>이 채워져 있음</li>
+          <li>두 행 모두 <code>revoked_at</code>이 비어 있음</li>
+        </ul>
+        <p>한 사용자는 활성 커플을 하나만 가집니다. <code>couple_members(user_id)</code>에 <code>WHERE revoked_at IS NULL</code> 조건의 부분 유니크 인덱스를 둡니다.</p>
+        <p>철회 · 해제 시 해당 <code>couple_id</code>의 <code>chat_sessions</code>(와 메시지 · 리포트)를 지우고 접근을 끊습니다.</p>
+      </div>
+      <div class="card-box">
+        <h3>삭제와 보관</h3>
+        <ul>
+          <li>회원 탈퇴 시 <code>users</code> 행을 지우면 모든 테이블이 <code>ON DELETE CASCADE</code>로 즉시 지워집니다.</li>
+          <li>예외로 <code>chat_sessions.analysis_id</code>는 <code>ON DELETE SET NULL</code>입니다. 분석 행이 재분석으로 바뀌어도 대화 기록은 남기 위해서입니다.</li>
+          <li>암호화는 애플리케이션 레벨(AES-GCM 가정)이고, 키는 Render 환경변수에 둡니다. <code>*_enc</code> 컬럼만 해당합니다.</li>
+          <li>컬럼 이름과 테이블 이름은 snake_case이고 코드 식별자 규칙(<code>dearus</code>)을 따릅니다.</li>
+        </ul>
+      </div>
+      <div class="card-box">
+        <h3>한 번에 보는 대화 흐름</h3>
+        <ul>
+          <li>시점 선택 → <code>persona_analyses</code> 조회 (키 + digest 확인)</li>
+          <li>없거나 다르면 → 일기(<code>diaries</code>) + 겹치는 주 요약 읽기 → Gemini 분석 → 같은 행에 저장</li>
+          <li><code>chat_sessions</code> 생성 (<code>analysis_id</code> 연결) → <code>chat_messages</code> 누적</li>
+          <li>대화 종료 → <code>reports</code> 한 행 (세션당 하나)</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span>3</span>가정한 부분</h2>
+    <ul class="notes">
+      <li><b>일기는 하루 한 건</b> — <code>diaries</code>에 <code>(user_id, diary_date)</code> 유일 제약을 두었습니다. 하루에 여러 번 쓸 수 있다면 제약을 빼야 하고, 캘린더 작성 표시는 그대로 날짜 기준입니다.</li>
+      <li><b>감정 태그는 여러 개</b> — 한 일기에 여러 태그를 붙일 수 있게 <code>diary_emotions</code>를 따로 뒀습니다. 태그는 마스터 테이블 없이 코드의 enum(<code>JOY, SAD, TIRED</code> 등)으로 관리합니다. 하나만 고르는 방식이면 <code>diaries.emotion</code> 컬럼으로 줄일 수 있습니다.</li>
+      <li><b>일기 본문과 대화 내용의 암호화</b> — 기획서 7장은 요약 · 말투 특징만 암호화한다고 적었습니다. <code>diaries.content</code>와 <code>chat_messages.content</code>는 평문으로 두었습니다. 암호화하려면 컬럼을 <code>*_enc</code>로 바꿔야 합니다.</li>
+      <li><b>커플 철회 시 본인 분석은 유지</b> — 철회하면 그 커플의 대화 · 리포트를 지우지만, 상대가 본 적이 있는 내 <code>persona_analyses</code> 행은 개인 모드에서도 쓰므로 남겨 둡니다. “관련 분석 데이터 파기”(기획서 6.3)를 더 넓게 해석한다면 규칙이 달라집니다.</li>
+      <li><b>없는 것</b> — 위기 신호 감지 기록(기획서 5.6), 로그인 갱신 토큰 저장, 이용 시간 집계 전용 테이블은 넣지 않았습니다. 이용 시간은 <code>chat_sessions</code>의 시작 · 종료 시각으로 계산할 수 있습니다.</li>
+      <li><b>커플 리포트 확장</b> — 기획서 9장의 “연인에게 물어보면 좋을 질문”은 아직 검토 중이라 <code>reports</code>에 컬럼을 두지 않았습니다.</li>
+    </ul>
+  </section>
+</main>
+</body>
+</html>

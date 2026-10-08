@@ -1,0 +1,29 @@
+# 의존성 · 렌더링 산출물
+node_modules/
+tools/render/
+
+# 마크다운은 README.md만 올립니다
+*.md
+!README.md
+
+# 환경변수 · 비밀 값 (.env.example 같은 예시 파일은 허용)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# 발표 · 문서 파일
+*.ppt
+*.pptx
+*.doc
+*.docx
+*.xls
+*.xlsx
+*.hwp
+*.hwpx
+*.pdf
+
+# OS · 편집기
+.DS_Store
+Thumbs.db
