@@ -19,6 +19,14 @@ spring:
   flyway:
     enabled: true
 
+app:
+  jwt:
+    secret: ${JWT_SECRET}
+    ttl-days: 14
+  auth:
+    # 로컬 개발에서만 true. 가짜 로그인(POST /auth/dev)을 켜요. 배포 서버에서는 꺼 두어요.
+    dev-login-enabled: ${DEV_LOGIN_ENABLED:false}
+
 server:
   port: ${PORT:8080}
 
