@@ -1,0 +1,29 @@
+spring:
+  application:
+    name: dearus
+  config:
+    # server/.env 가 있으면 읽어요 (DB 주소 · 비밀번호). .env는 git에 올라가지 않아요.
+    import: optional:file:.env[.properties]
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    hikari:
+      # Supabase Session pooler는 동시에 붙을 수 있는 연결 수가 적어서, 여럿이 로컬에서 켜도 모자라지 않게 작게 둬요
+      maximum-pool-size: 5
+  jpa:
+    open-in-view: false
+    hibernate:
+      # 테이블은 Flyway(db/migration)로만 만들고, 코드의 엔티티가 테이블과 맞는지만 검사해요
+      ddl-auto: validate
+  flyway:
+    enabled: true
+
+server:
+  port: ${PORT:8080}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
