@@ -9,7 +9,7 @@ const T = [
   { id: 'diaries', x: 30, y: 290, kind: 'rec', cols: [
     ['id', 'uuid', 'PK'], ['user_id', 'uuid', 'FK'], ['diary_date', 'date', ''],
     ['content', 'text', ''], ['created_at', 'timestamptz', ''], ['updated_at', 'timestamptz', ''] ] },
-  { id: 'kakao_weekly_summaries', x: 30, y: 590, kind: 'rec', cols: [
+  { id: 'messenger_weekly_summaries', x: 30, y: 590, kind: 'rec', cols: [
     ['id', 'uuid', 'PK'], ['upload_id', 'uuid', 'FK'], ['week_start', 'date', ''],
     ['summary_enc', 'bytea', 'ENC'], ['traits_enc', 'bytea', 'ENC'], ['sample_enc', 'bytea', 'ENC'],
     ['created_at', 'timestamptz', ''], ['expires_at', 'timestamptz', ''] ] },
@@ -20,11 +20,12 @@ const T = [
   { id: 'users', x: 300, y: 290, kind: 'rec', cols: [
     ['id', 'uuid', 'PK'], ['provider', 'varchar', ''], ['provider_user_id', 'varchar', ''],
     ['nickname', 'varchar', ''], ['ai_consent_at', 'timestamptz?', ''], ['ai_revoked_at', 'timestamptz?', ''],
-    ['created_at', 'timestamptz', ''] ] },
-  { id: 'kakao_uploads', x: 300, y: 590, kind: 'rec', cols: [
+    ['notifications_opt_in', 'boolean', ''], ['created_at', 'timestamptz', ''] ] },
+  { id: 'messenger_uploads', x: 300, y: 590, kind: 'rec', cols: [
     ['id', 'uuid', 'PK'], ['user_id', 'uuid', 'FK'], ['uploaded_at', 'timestamptz', ''],
-    ['period_start', 'date?', ''], ['period_end', 'date?', ''], ['status', 'varchar', ''],
-    ['utterance_count', 'int?', ''], ['masked_count', 'int?', ''],
+    ['status', 'varchar', ''], ['photo_count', 'int', ''],
+    ['period_start', 'date?', ''], ['period_end', 'date?', ''],
+    ['masked_count', 'int?', ''], ['user_masked_count', 'int?', ''],
     ['expires_at', 'timestamptz', ''] ] },
 
   { id: 'couples', x: 570, y: 40, kind: 'couple', cols: [
@@ -34,19 +35,30 @@ const T = [
   { id: 'persona_analyses', x: 570, y: 290, kind: 'hub', cols: [
     ['id', 'uuid', 'PK'], ['user_id', 'uuid', 'FK'], ['anchor_date', 'date', ''],
     ['window_days', 'smallint', ''], ['analysis_enc', 'bytea', 'ENC'], ['source_digest', 'varchar(64)', ''],
-    ['diary_count', 'int', ''], ['kakao_weeks', 'int', ''], ['model', 'varchar', ''],
+    ['diary_count', 'int', ''], ['messenger_weeks', 'int', ''], ['model', 'varchar', ''],
     ['analyzed_at', 'timestamptz', ''] ] },
 
   { id: 'reports', x: 840, y: 40, kind: 'rec', cols: [
-    ['id', 'uuid', 'PK'], ['session_id', 'uuid', 'FK'], ['past_concern', 'text', ''],
-    ['present_change', 'text', ''], ['one_line_summary', 'varchar', ''], ['created_at', 'timestamptz', ''] ] },
+    ['id', 'uuid', 'PK'], ['session_id', 'uuid', 'FK'], ['past_concern', 'text?', ''],
+    ['present_change', 'text?', ''], ['one_line_summary', 'varchar', ''],
+    ['memory_summary', 'text?', ''], ['gap_summary', 'varchar?', ''], ['created_at', 'timestamptz', ''] ] },
   { id: 'chat_sessions', x: 840, y: 290, kind: 'rec', cols: [
     ['id', 'uuid', 'PK'], ['user_id', 'uuid', 'FK'], ['persona_owner_id', 'uuid', 'FK'],
     ['couple_id', 'uuid?', 'FK'], ['analysis_id', 'uuid?', 'FK'], ['anchor_date', 'date', ''],
+    ['window_days', 'smallint', ''], ['shortcut_key', 'varchar?', ''],
     ['started_at', 'timestamptz', ''], ['ended_at', 'timestamptz?', ''] ] },
   { id: 'chat_messages', x: 840, y: 590, kind: 'rec', cols: [
     ['id', 'bigint', 'PK'], ['session_id', 'uuid', 'FK'], ['seq', 'int', ''],
     ['role', 'varchar', ''], ['content', 'text', ''], ['created_at', 'timestamptz', ''] ] },
+
+  { id: 'messenger_photos', x: 570, y: 590, kind: 'rec', cols: [
+    ['id', 'uuid', 'PK'], ['upload_id', 'uuid', 'FK'], ['seq', 'smallint', ''],
+    ['status', 'varchar', ''], ['created_at', 'timestamptz', ''] ] },
+  { id: 'mask_regions', x: 570, y: 770, kind: 'rec', cols: [
+    ['id', 'uuid', 'PK'], ['photo_id', 'uuid', 'FK'], ['kind', 'varchar', ''],
+    ['source', 'varchar', ''], ['applied', 'boolean', ''],
+    ['x', 'real', ''], ['y', 'real', ''], ['width', 'real', ''], ['height', 'real', ''],
+    ['created_at', 'timestamptz', ''] ] },
 ];
 
 const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -79,17 +91,19 @@ function tableSvg(t) {
 const E = [
   { d: 'M130,116 V290', l: [['N', 136, 130, 's'], ['1', 136, 284, 's']] },
   { d: 'M300,340 H265', l: [['1', 294, 334, 'e'], ['N', 271, 334, 's']] },
-  { d: 'M360,466 V590', l: [['1', 366, 482, 's'], ['N', 366, 584, 's']] },
+  { d: 'M360,486 V590', l: [['1', 366, 502, 's'], ['N', 366, 584, 's']] },
   { d: 'M300,650 H265', l: [['1', 294, 644, 'e'], ['N', 271, 644, 's']] },
   { d: 'M420,290 V196', l: [['1', 426, 284, 's'], ['N', 426, 212, 's']] },
   { d: 'M535,80 H570', l: [['N', 541, 74, 's'], ['1', 564, 74, 'e']] },
   { d: 'M535,340 H570', l: [['1', 541, 334, 's'], ['N', 564, 334, 'e']] },
   { d: 'M805,400 H840', dash: true, l: [['1', 811, 394, 's'], ['N', 834, 394, 'e']] },
   { d: 'M805,100 H822 V370 H840', dash: true, l: [['1', 811, 94, 's'], ['N', 834, 364, 'e']] },
-  { d: 'M960,196 V290', dash: true, l: [['0..1', 966, 212, 's'], ['1', 966, 284, 's']] },
-  { d: 'M1000,486 V590', l: [['1', 1006, 502, 's'], ['N', 1006, 584, 's']] },
-  { d: 'M510,466 V546 H900 V487', l: [['1', 516, 482, 's'], ['N', 906, 502, 's']] },
-  { d: 'M470,466 V562 H940 V487', l: [['1', 476, 482, 's'], ['N', 946, 502, 's']] },
+  { d: 'M960,236 V290', dash: true, l: [['0..1', 966, 254, 's'], ['1', 966, 284, 's']] },
+  { d: 'M1000,526 V590', l: [['1', 1006, 542, 's'], ['N', 1006, 584, 's']] },
+  { d: 'M510,486 V546 H900 V527', l: [['1', 516, 502, 's'], ['N', 906, 540, 's']] },
+  { d: 'M470,486 V562 H940 V527', l: [['1', 476, 502, 's'], ['N', 946, 540, 's']] },
+  { d: 'M535,650 H570', l: [['1', 541, 644, 's'], ['N', 564, 644, 'e']] },
+  { d: 'M650,726 V770', l: [['1', 656, 742, 's'], ['N', 656, 764, 's']] },
 ];
 
 function edgeSvg(e) {
@@ -100,11 +114,11 @@ function edgeSvg(e) {
   return s;
 }
 
-const svg = `<svg viewBox="0 0 1110 830" role="img" aria-label="열한 개 테이블의 관계도. users를 중심으로 일기, 카톡 업로드, 페르소나 분석, 대화, 커플 테이블이 연결되고, 카톡 원본을 담는 테이블은 없다">
+const svg = `<svg viewBox="0 0 1110 1030" role="img" aria-label="열세 개 테이블의 관계도. users를 중심으로 일기, 메신저 업로드(사진 · 가림 영역), 페르소나 분석, 대화, 커플 테이블이 연결되고, 원본 사진을 담는 테이블은 없다">
 ${T.map(tableSvg).join('')}
 ${E.map(edgeSvg).join('')}
 <text class="lane" x="560" y="541">chat_sessions.user_id — 대화하는 사람</text>
-<text class="lane" x="560" y="577">chat_sessions.persona_owner_id — 페르소나 주인 (개인 모드는 user_id와 같음)</text>
+<text class="lane" x="560" y="577">chat_sessions.persona_owner_id — 페르소나 주인 (지금은 항상 user_id와 같음)</text>
 </svg>`;
 
 const html = `<!doctype html>
@@ -175,8 +189,8 @@ const html = `<!doctype html>
 </head>
 <body>
 <main>
-  <h1>Dear Us ERD<small>PostgreSQL 17 · 테이블 11개 · 기획서와 <a href="DearUs_기능블록도.html" style="color:#6F5139">기능 블록도</a> 기준 초안</small></h1>
-  <p class="lede">일기, 카톡 요약, 페르소나 분석(재사용 저장), 대화, 커플 접근 제어가 어떻게 연결되는지 한 장에 모았습니다. 카톡 원본을 담는 테이블이 없다는 점이 이 설계의 핵심입니다.</p>
+  <h1>Dear Us ERD<small>PostgreSQL 17 · 테이블 13개 · 기획서와 <a href="DearUs_기능블록도.html" style="color:#6F5139">기능 블록도</a> 기준 초안</small></h1>
+  <p class="lede">일기, 메신저 요약, 페르소나 분석(재사용 저장), 대화, 커플 접근 제어가 어떻게 연결되는지 한 장에 모았습니다. 메신저 원본 사진을 담는 컬럼이 없다는 점이 이 설계의 핵심입니다. 2026.10.14 스토리보드(메신저 캡처 업로드 · 검수, 하루 단위 대화, 커플 같은 날 비교) 기준으로 고쳤습니다.</p>
 
   <section>
     <h2><span>1</span>관계도</h2>
@@ -185,7 +199,7 @@ const html = `<!doctype html>
 ${svg}
       </div>
       <div class="legend">
-        <span><i style="background:#6F5139"></i>일기 · 카톡 · 대화</span>
+        <span><i style="background:#6F5139"></i>일기 · 메신저 · 대화</span>
         <span><i style="background:#D9A869"></i>페르소나 분석 (재사용 저장소)</span>
         <span><i style="background:#3A2A1F"></i>커플 접근 제어</span>
         <span><b>PK·FK</b> 기본키이면서 외래키</span>
@@ -193,7 +207,7 @@ ${svg}
         <span><b>?</b> 비어 있을 수 있음</span>
         <span><b>점선</b> 선택적 관계</span>
       </div>
-      <figcaption><b>한 줄 요약:</b> <code>users</code>가 중심이고, 대화(<code>chat_sessions</code>)는 “누가 말하는가”와 “누구의 페르소나인가”를 따로 가리킵니다. 개인 모드는 두 값이 같고 커플 모드는 다릅니다(<code>couple_id</code>가 채워짐). 금색 <code>persona_analyses</code>는 말투 분석 결과를 저장해 두는 곳이라, 같은 시점의 대화는 Gemini를 다시 부르지 않고 이 행을 재사용합니다.</figcaption>
+      <figcaption><b>한 줄 요약:</b> <code>users</code>가 중심이고, 대화(<code>chat_sessions</code>)는 각자 자기 기록으로 만든 페르소나와 합니다(<code>persona_owner_id</code>는 지금 항상 <code>user_id</code>와 같습니다). 커플 모드에서는 <code>couple_id</code>만 채워지고, 같은 날의 두 세션을 각자의 <code>reports</code>로 짝지어 비교합니다. 금색 <code>persona_analyses</code>는 말투 분석 결과를 저장해 두는 곳이라, 같은 구간의 대화는 Gemini를 다시 부르지 않고 이 행을 재사용합니다. 메신저 사진은 가림 검수 동안만 <code>messenger_photos</code> · <code>mask_regions</code>에 좌표로 남고, 분석이 끝나면 지웁니다.</figcaption>
     </figure>
   </section>
 
@@ -202,25 +216,26 @@ ${svg}
     <div class="cards">
       <div class="card-box">
         <h3>분석 결과 재사용</h3>
-        <p><code>persona_analyses</code>의 유일 키는 <code>(user_id, anchor_date, window_days)</code>입니다. <code>window_days</code>는 14(전후 2주)입니다.</p>
+        <p><code>persona_analyses</code>의 유일 키는 <code>(user_id, anchor_date, window_days)</code>입니다. <code>window_days</code>는 14(전후 2주) 또는 0(그날 하루)입니다.</p>
         <ul>
-          <li>바로가기(1 · 6 · 12개월 전)는 <code>anchor_date</code>를 그 주 월요일로 맞춥니다. 직접 고른 날짜는 그대로 씁니다.</li>
-          <li><code>source_digest</code> = 해시(구간 내 일기의 <code>id, updated_at</code> + 겹치는 <code>kakao_weekly_summaries</code>의 <code>id, created_at</code>)</li>
-          <li>키와 digest가 모두 같으면 재사용, 다르면 다시 분석해 같은 행을 덮어씁니다. 일기를 고치거나 지우면, 또는 그 기간 카톡을 올리면 digest가 달라집니다.</li>
+          <li>바로가기(1 · 6 · 12개월 전)는 <code>anchor_date</code>를 그 주 월요일로 맞추고 <code>window_days = 14</code>입니다. 캘린더에서 직접 고른 날짜는 그대로 쓰고 <code>window_days = 0</code>(그날 하루의 일기)입니다.</li>
+          <li><code>source_digest</code> = 해시(구간 내 일기의 <code>id, updated_at</code> + 겹치는 <code>messenger_weekly_summaries</code>의 <code>id, created_at</code>)</li>
+          <li>키와 digest가 모두 같으면 재사용, 다르면 다시 분석해 같은 행을 덮어씁니다. 일기를 고치거나 지우면, 또는 그 기간 메신저 캡처를 올리면 digest가 달라집니다.</li>
         </ul>
       </div>
       <div class="card-box">
-        <h3>카톡 원본은 어디에도 없음</h3>
-        <p><code>kakao_uploads</code>에는 파일이나 본문을 담는 컬럼이 없습니다. 주 단위 요약(<code>summary_enc</code>, <code>traits_enc</code>, <code>sample_enc</code>)만 남습니다.</p>
+        <h3>메신저 원본 사진은 어디에도 없음</h3>
+        <p><code>messenger_uploads</code> · <code>messenger_photos</code>에는 사진 파일이나 글자를 담는 컬럼이 없습니다. 주 단위 요약(<code>summary_enc</code>, <code>traits_enc</code>, <code>sample_enc</code>)만 남습니다.</p>
         <ul>
-          <li>요약은 마스킹한 본인 발화에서 만든 것이고, 상대 메시지는 저장하지 않습니다.</li>
+          <li>가림 영역은 좌표(0~1 비율), 종류, 자동/직접 여부만 <code>mask_regions</code>에 둡니다. 가린 글자의 내용은 저장하지 않습니다.</li>
+          <li>원본 사진은 가림 검수가 끝날 때까지만 서버 임시 파일에 있고(DB가 아닙니다), 끝나면 지웁니다. 분석이 끝나면 <code>messenger_photos</code> · <code>mask_regions</code> 행도 지우고 개수만 <code>messenger_uploads</code>에 남깁니다.</li>
+          <li>요약은 가린 사진에서 내 말풍선만 읽어 만든 것이고, 상대 메시지는 저장하지 않습니다.</li>
           <li><code>expires_at</code> = 업로드일 + 1년. 배치가 지난 행을 지우고, 업로드 행을 지우면 요약도 함께 지워집니다.</li>
-          <li><code>sample_enc</code>의 대표 문장도 마스킹된 것입니다.</li>
         </ul>
       </div>
       <div class="card-box">
         <h3>커플 접근 규칙</h3>
-        <p>상대의 <code>persona_analyses</code>를 볼 수 있는 조건은 다음 세 가지가 모두 참일 때입니다.</p>
+        <p>상대의 같은 날 기억 요약(<code>reports.memory_summary</code>)과 두 사람의 간극(<code>gap_summary</code>)을 볼 수 있는 조건은 다음 세 가지가 모두 참일 때입니다. 두 사람의 <code>chat_sessions</code> 중 <code>couple_id</code>와 <code>anchor_date</code> · <code>window_days</code>가 같은 2건의 리포트를 짝지어 비교합니다.</p>
         <ul>
           <li><code>couples.status = 'CONNECTED'</code></li>
           <li><code>couple_members</code> 두 행 모두 <code>consented_at</code>이 채워져 있음</li>
@@ -241,10 +256,11 @@ ${svg}
       <div class="card-box">
         <h3>한 번에 보는 대화 흐름</h3>
         <ul>
-          <li>시점 선택 → <code>persona_analyses</code> 조회 (키 + digest 확인)</li>
+          <li>시점 선택(바로가기 또는 캘린더 날짜) → <code>persona_analyses</code> 조회 (키 + digest 확인)</li>
           <li>없거나 다르면 → 일기(<code>diaries</code>) + 겹치는 주 요약 읽기 → Gemini 분석 → 같은 행에 저장</li>
           <li><code>chat_sessions</code> 생성 (<code>analysis_id</code> 연결) → <code>chat_messages</code> 누적</li>
           <li>대화 종료 → <code>reports</code> 한 행 (세션당 하나)</li>
+          <li>“과거의 나” 탭의 대화 목록은 <code>chat_sessions</code>를 최근 메시지 순으로 보여주고, 다시 들어갈 수 있습니다.</li>
         </ul>
       </div>
     </div>
@@ -256,9 +272,14 @@ ${svg}
       <li><b>일기는 하루 한 건</b> — <code>diaries</code>에 <code>(user_id, diary_date)</code> 유일 제약을 두었습니다. 하루에 여러 번 쓸 수 있다면 제약을 빼야 하고, 캘린더 작성 표시는 그대로 날짜 기준입니다.</li>
       <li><b>감정 태그는 여러 개</b> — 한 일기에 여러 태그를 붙일 수 있게 <code>diary_emotions</code>를 따로 뒀습니다. 태그는 마스터 테이블 없이 코드의 enum(<code>JOY, SAD, TIRED</code> 등)으로 관리합니다. 하나만 고르는 방식이면 <code>diaries.emotion</code> 컬럼으로 줄일 수 있습니다.</li>
       <li><b>일기 본문과 대화 내용의 암호화</b> — 기획서 7장은 요약 · 말투 특징만 암호화한다고 적었습니다. <code>diaries.content</code>와 <code>chat_messages.content</code>는 평문으로 두었습니다. 암호화하려면 컬럼을 <code>*_enc</code>로 바꿔야 합니다.</li>
-      <li><b>커플 철회 시 본인 분석은 유지</b> — 철회하면 그 커플의 대화 · 리포트를 지우지만, 상대가 본 적이 있는 내 <code>persona_analyses</code> 행은 개인 모드에서도 쓰므로 남겨 둡니다. “관련 분석 데이터 파기”(기획서 6.3)를 더 넓게 해석한다면 규칙이 달라집니다.</li>
-      <li><b>없는 것</b> — 위기 신호 감지 기록(기획서 5.6), 로그인 갱신 토큰 저장, 이용 시간 집계 전용 테이블은 넣지 않았습니다. 이용 시간은 <code>chat_sessions</code>의 시작 · 종료 시각으로 계산할 수 있습니다.</li>
-      <li><b>카톡 업로드의 숫자 컬럼</b> — 분석 완료 화면이 보여주는 “사용한 내 발화 수”와 “가려진 민감정보 건수”를 <code>utterance_count</code>, <code>masked_count</code>로 저장합니다. 개인을 식별하는 값이 아니라 개수뿐입니다. 분석은 업로드 뒤에 진행되므로 처리 중에는 이 두 컬럼과 <code>period_start</code>, <code>period_end</code>가 비어 있을 수 있습니다.</li>
+      <li><b>커플 철회 시 본인 분석은 유지</b> — 철회하면 그 커플의 대화 · 리포트(기억 요약 · 간극)를 지우지만, 내 <code>persona_analyses</code> 행은 개인 모드에서도 쓰므로 남겨 둡니다. “관련 분석 데이터 파기”(기획서 6.3)를 더 넓게 해석한다면 규칙이 달라집니다.</li>
+      <li><b>커플 모드는 “같은 날 비교”</b> — 스토리보드의 커플 흐름이 상대 페르소나와 대화하는 방식에서 “각자 자기 과거의 나와 대화한 뒤 두 요약을 비교”하는 방식으로 바뀌었다고 읽었습니다. 그래서 비교용 새 테이블 없이 <code>reports</code>에 <code>memory_summary</code>(그날의 기억)와 <code>gap_summary</code>(두 사람의 간극)를 두었고, 이 경우 <code>past_concern</code> · <code>present_change</code>는 비워 둡니다. 상대 페르소나와 대화하는 기능이 남아 있다면 <code>persona_owner_id</code>가 다시 필요합니다.</li>
+      <li><b>하루 단위 대화</b> — 캘린더에서 날짜를 탭하면 그날 하루의 기록으로 페르소나를 만들기 때문에 <code>window_days = 0</code> 행이 생깁니다. 메신저 요약은 주 단위라 하루로 자를 수 없어서, 이때 그 날이 속한 주의 요약을 쓸지는 정해지지 않았습니다.</li>
+      <li><b>대화 목록 칩</b> — “과거의 나” 목록의 “1개월”, “1년” 같은 칩을 위해 <code>chat_sessions.shortcut_key</code>(<code>ONE_MONTH</code> 등, 날짜를 직접 골랐으면 비어 있음)를 두었습니다.</li>
+      <li><b>없는 것</b> — 위기 신호 감지 기록(기획서 5.6), 로그인 갱신 토큰 저장, 이용 시간 집계 전용 테이블, 푸시 알림용 기기 토큰 저장(알림 보내는 방식이 정해지지 않았습니다)은 넣지 않았습니다. 이용 시간은 <code>chat_sessions</code>의 시작 · 종료 시각으로 계산할 수 있습니다.</li>
+      <li><b>동의 시각은 하나</b> — 서비스 이용 동의 화면은 필수 3개(이용약관 · 개인정보 · AI 분석)를 한 번에 받으므로 시각을 <code>users.ai_consent_at</code> 하나에 기록합니다. 철회는 AI 분석 동의만 대상이고 <code>ai_revoked_at</code>에 기록하며, 철회한 뒤 다시 동의하면 <code>ai_consent_at</code>을 새로 기록하고 <code>ai_revoked_at</code>을 비웁니다. 선택 항목인 알림만 <code>notifications_opt_in</code> 컬럼을 추가했습니다. 이용약관과 개인정보 동의 시각을 따로 남겨야 하면 컬럼을 나눠야 합니다.</li>
+      <li><b>메신저 업로드의 숫자 컬럼</b> — 분석 완료 화면이 보여주는 “읽은 대화 캡처 N장”, “가려진 민감정보 N건(직접 N건)”을 <code>photo_count</code>, <code>masked_count</code>, <code>user_masked_count</code>로 저장합니다. 개인을 식별하는 값이 아니라 개수뿐입니다. 분석은 가림 확인 뒤에 진행되므로 처리 중에는 <code>masked_count</code> · <code>user_masked_count</code>와 <code>period_start</code>, <code>period_end</code>가 비어 있을 수 있습니다.</li>
+      <li><b>가림 영역과 원본 사진</b> — 사진 한 장을 <code>messenger_photos</code> 한 행으로, 가린 곳(또는 가림 후보)을 <code>mask_regions</code> 한 행으로 둡니다. <code>kind</code>는 전화 · 계좌 · 주소 · 이메일 · 이름 · 학교명 같은 종류, <code>source</code>는 자동(<code>AUTO</code>) 또는 직접(<code>USER</code>), <code>applied</code>는 실제로 가렸는지(이름처럼 애매한 후보는 사용자가 스위치로 결정)입니다. 가림은 사진 픽셀에 적용되어 되돌릴 수 없고, 원본 사진은 DB가 아니라 서버 임시 파일입니다. 글자를 읽는 방법(OCR)과 임시 파일 위치는 아직 정해지지 않았습니다.</li>
       <li><b>커플 리포트 확장</b> — 기획서 9장의 “연인에게 물어보면 좋을 질문”은 아직 검토 중이라 <code>reports</code>에 컬럼을 두지 않았습니다.</li>
     </ul>
   </section>

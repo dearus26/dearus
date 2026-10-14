@@ -19,20 +19,26 @@ info:
 
     ## 흐름 요약
 
+    - **로그인 · 동의:** `POST /auth/{provider}` → 응답의 `user.needsConsent`가 `true`면 동의 화면을 보여주고 `PUT /me/consent`로 동의를 기록해요. 설정에서 철회는 `DELETE /me/consent`예요.
     - **일기:** `POST /diaries` → 홈에서 `GET /diaries?from&to`로 한 달치를 받아 캘린더에 표시해요.
-    - **카톡:** `POST /uploads/kakao`(202) → `GET /uploads/kakao/{id}`를 1~2초 간격으로 조회해 `DONE`이 되면 분석 완료 화면을 보여줘요.
-    - **대화:** `GET /personas/shortcuts` · `preview` · `timeline`으로 시점을 고르고 → `POST /chats`로 세션을 만들고(필요하면 `PREPARING`) → `POST /chats/{id}/messages`(SSE)로 대화하고 → `POST /chats/{id}/end` → `GET /chats/{id}/report`.
-    - **커플:** `POST /couples/invite` → 상대가 `POST /couples/join` → 각자 `POST /couples/consent` → `owner=partner`로 시점 조회 · 대화 → 철회는 `POST /couples/revoke`.
+    - **메신저(카톡 등) 업로드:** 스토리보드가 txt 파일이 아니라 캡처 사진을 올리고 자동 가림 · 검수 · 직접 가리기를 거치는 흐름으로 바뀌어서, 이 구간은 카톡 단계에서 다시 설계해요. 아래 `/uploads/kakao`는 예전 txt 방식 초안이에요. 예전 방식은 `POST /uploads/kakao`(202) → `GET /uploads/kakao/{id}`를 1~2초 간격으로 조회해 `DONE`이 되면 분석 완료 화면을 보여줘요.
+    - **대화:** 하단 탭 "과거의 나"에서 `GET /chats`로 지난 대화 목록을 보고 다시 들어가거나, 새로 하려면 `GET /personas/shortcuts`(1개월 · 6개월 · 1년 전, 전후 2주)나 `GET /personas/preview`(캘린더에서 고른 날, 그날 하루)로 시점을 고르고 → `POST /chats`로 세션을 만들고(필요하면 `PREPARING`) → `POST /chats/{id}/messages`(SSE)로 대화하고 → `POST /chats/{id}/end` → `GET /chats/{id}/report`.
+    - **커플:** `POST /couples/invite` → 상대가 `POST /couples/invite/accept` → 각자 `POST /couples/consent` → `GET /couples/days`로 함께 볼 날을 고르고 → 각자 `POST /chats`(`forCouple: true`)로 그날의 나와 대화한 뒤 끝내면 → `GET /couples/comparisons`로 두 사람의 기억과 간극을 보고 → 철회는 `POST /couples/revoke`.
 
     ## 기술스택 문서와 달라진 점
 
     - `POST /chats`는 세션 생성만 하고, 스트리밍은 `POST /chats/{chatId}/messages`로 옮겼어요. 시점 분석이 오래 걸릴 수 있어서 "준비 중" 상태를 따로 둬야 했어요.
-    - 코드 입력 화면용 `POST /couples/join`, 시점 선택용 `/personas/*`, 설정 화면용 `/me`를 추가했어요.
+    - 코드 입력 화면용 `POST /couples/invite/accept`, 시점 선택용 `/personas/*`, "과거의 나" 목록용 `GET /chats`, 커플 같은 날 비교용 `/couples/days` · `/couples/comparisons`, 설정 화면용 `/me`를 추가했어요.
 
     ## 결정한 것
 
-    - **ERD 반영 완료:** `kakao_uploads`에 `utterance_count`(사용한 내 발화 수)와 `masked_count`(가려진 민감정보 건수)를 추가했어요. 분석은 업로드 뒤에 진행돼서 이 두 컬럼과 `period_start`, `period_end`는 처리 중에 비어 있을 수 있어요(ERD의 `?`).
-    - **카톡 "내 이름":** 카톡 txt에는 참여자가 여러 명이라 어느 쪽이 나인지 알아야 해요. 스토리보드에는 입력 칸이 없어서, 서버가 `422 KAKAO_SPEAKER_REQUIRED`와 후보 이름 목록을 돌려주면 앱이 고르는 화면을 하나 더 보여줘요.
+    - **ERD 반영:** 분석 완료 화면의 "읽은 대화 캡처 N장 · 가려진 민감정보 N건(직접 N건)"에 맞춰 업로드 테이블을 `messenger_uploads`로 바꾸고 `photo_count`, `masked_count`, `user_masked_count`를 두었어요(예전 `utterance_count`는 없앴어요). 사진과 가림 영역은 `messenger_photos`, `mask_regions`예요. 분석은 가림 확인 뒤에 진행돼서 `masked_count`와 `period_start`, `period_end`는 처리 중에 비어 있을 수 있어요(ERD의 `?`).
+    - **카톡 "내 이름"(txt 방식 전용):** 아래 `/uploads/kakao`에 있는 `422 KAKAO_SPEAKER_REQUIRED` 처리는 txt 방식의 약속이에요. 캡처 사진 방식에서는 "내 말풍선만 사용해요"를 말풍선의 위치 · 색으로 가려내야 해서 이 항목이 필요 없어질 가능성이 커요. 카톡 단계에서 확정해요.
+    - **동의 기록:** 스토리보드의 "서비스 이용 동의" 화면은 필수 3개(이용약관 · 개인정보 · AI 분석)를 한 번에 받고 "동의 시각을 기록"해요. 그래서 시각은 `users.ai_consent_at` 하나에 기록하고, 선택 항목인 알림만 `users.notifications_opt_in` 컬럼을 추가했어요. 스토리보드에 적힌 `POST /users/consent`는 내 계정 API를 `/me` 아래로 모으려고 `PUT /me/consent`로 정했어요. 이용약관과 개인정보 동의 시각을 따로 남겨야 하면 그때 컬럼을 나눠요.
+    - **동의 철회:** 설정의 철회는 AI 분석 동의만 대상이에요(`DELETE /me/consent`). 철회하면 AI를 부르는 API는 403 `AI_CONSENT_REQUIRED`가 되고, 일기는 계속 쓸 수 있어요. 기획서 7장대로 저장된 분석 데이터는 즉시 지워야 하고, 해당 테이블을 만들 때 함께 구현해요.
+    - **시점은 두 가지:** 바로가기(1개월 · 6개월 · 1년 전)는 그 무렵 **전후 2주**(`scope: AROUND`, 기준일은 그 주 월요일), 캘린더에서 날짜를 직접 고르면 그날 **하루**(`scope: DAY`, 기준일은 그 날짜 그대로)의 기록으로 그때의 나를 만들어요. 스토리보드가 슬라이더 · 막대 그래프를 없애고 이렇게 바뀌어서 `/personas/timeline`은 지웠어요.
+    - **홈에는 바로가기 카드가 없어요:** 홈은 감정 색 점이 찍힌 캘린더와 "오늘의 일기 쓰기"뿐이고, 시점 고르기는 "과거의 나" 탭에서 시작해요. 감정 색은 `GET /diaries`의 `emotions`로 그려요.
+    - **커플 모드는 "같은 날 비교":** 스토리보드가 상대 페르소나와 대화하는 방식에서, 각자 자기 과거의 나와 대화한 뒤 두 사람의 기억을 나란히 보는 방식(`함께 볼 날 고르기` → `두 시점 비교`)으로 바뀐 것으로 읽었어요. 그래서 대화 상대는 항상 나(`persona_owner_id`는 `user_id`와 같아요)이고, 비교는 두 세션의 리포트를 짝지어서 해요.
 
     ## 팀원과 확인할 것
 
@@ -40,6 +46,11 @@ info:
     2. **일기의 위기 신호 감지는 뺐어요:** 일기 저장은 3초 안에 끝나야 해서(기획서 4.2) AI 호출을 붙이지 않았어요. 대화 중 감지(`safety` 이벤트)만 있어요.
     3. **`couples.status` 값:** `PENDING`, `CONNECTED`, `DISCONNECTED` 세 가지를 쓴다고 가정했어요. `EXPIRED`는 `code_expires_at`로 계산해서 응답에만 나와요.
     4. **상담전화 번호:** `safety` 이벤트로 내려주는 번호(109 · 1577-0199)는 발표 전에 공식 안내로 확인해야 해요.
+    5. **카톡 업로드는 구현 단계에서 다시 고쳐요:** 스토리보드가 txt 파일이 아니라 메신저 캡처 사진을 올리고, 글자를 읽어 자동으로 가린 뒤 사용자가 검수 · 직접 가리는 흐름(`POST /uploads/messenger`, `mask_regions`, `messenger_weekly_summaries`)으로 바뀌었어요. 지금의 `/uploads/kakao` 명세와 ERD는 카톡 단계에서 이 흐름에 맞춰 새로 정해요.
+    6. **스토리보드의 "연결" 칸과 이름이 다른 곳:** `POST /users/consent`(명세는 `PUT /me/consent`), `diary_entries`(명세 · ERD는 `diaries`)예요. 스토리보드 쪽을 명세 이름으로 맞춰 주세요.
+    7. **커플 모드 개념을 확인해 주세요:** 위 "같은 날 비교"로 읽은 게 맞는지, 그리고 커플 "동의 안내" 문구("상대방이 ... '과거의 회원님'과 대화하게 됩니다")가 새 흐름(상대가 내 과거와 대화하는 게 아니라 내 그날의 기억 요약을 보는 것)과 맞는지 확인이 필요해요. 이 문구는 앱 화면과 기획서 6.2에 같이 있어서 한꺼번에 고쳐야 해요.
+    8. **사진 속 글자를 읽는 방법(OCR):** "가린 사진만 AI로 보낸다"는 약속을 지키려면 가리기 위한 글자 읽기를 Gemini가 아닌 곳에서 해야 해요. 서버 안의 오픈소스 엔진(예 Tesseract)이나 기기 안 라이브러리 같은 후보가 있고 아직 정해지지 않았어요. 카톡 단계 첫 결정이에요.
+    9. **하루 단위 대화에 메신저 요약을 쓸까요:** 메신저 요약은 주 단위라 하루로 자를 수 없어서, 그날이 속한 주의 요약을 쓸지(`DAY`일 때도) 정해야 해요. 지금 명세는 쓰지 않고 그날의 일기만 쓰는 것으로 가정했어요.
 
 servers:
   - url: http://localhost:8080
@@ -58,7 +69,7 @@ tags:
   - name: diaries
     description: 일기 · 캘린더
   - name: uploads
-    description: 카톡 대화 업로드
+    description: 메신저 대화 업로드 (스토리보드가 캡처 사진 · 검수 흐름으로 바뀌어 카톡 단계에서 다시 설계해요. 지금 항목은 예전 txt 방식이에요)
   - name: personas
     description: 시점 선택 · 기록량
   - name: chats
@@ -83,6 +94,10 @@ paths:
         | `kakao` | 카카오 SDK의 access token |
         | `google` | 구글 로그인의 ID token |
         | `apple` | 애플 로그인의 identity token |
+        | `dev` | 개발용 가짜 로그인. 아무 문자열이나 넣어요. 같은 문자열이면 같은 사용자예요 |
+
+        `dev`는 서버에 `DEV_LOGIN_ENABLED=true`일 때만 켜지고(로컬 개발용), 꺼져 있으면 404예요. 배포 서버에서는 꺼 둬요.
+        `kakao` · `google` · `apple`은 제공자 토큰 검증을 붙이기 전까지 501(`AUTH_PROVIDER_NOT_READY`)을 돌려줘요.
       x-schedule: 10월 3~4주
       x-screen: 로그인
       security: []
@@ -92,7 +107,7 @@ paths:
           required: true
           schema:
             type: string
-            enum: [kakao, google, apple]
+            enum: [kakao, google, apple, dev]
       requestBody:
         required: true
         content:
@@ -101,13 +116,25 @@ paths:
               $ref: '#/components/schemas/AuthRequest'
       responses:
         '200':
-          description: 로그인 성공
+          description: 로그인 성공. `user.needsConsent`가 `true`면 서비스 이용 동의 화면(`PUT /me/consent`)으로 보내요
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AuthResponse'
         '401':
           description: 제공자 토큰이 올바르지 않아요 (`AUTH_PROVIDER_TOKEN_INVALID`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: 없는 로그인 방식이거나, 꺼져 있는 `dev` 로그인이에요 (`NOT_FOUND`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '501':
+          description: 아직 준비 중인 로그인 방식이에요 (`AUTH_PROVIDER_NOT_READY`)
           content:
             application/json:
               schema:
@@ -142,6 +169,56 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  /me/consent:
+    put:
+      tags: [me]
+      operationId: giveConsent
+      summary: 서비스 이용 동의
+      description: |
+        로그인 직후 "서비스 이용 동의" 화면의 "동의하고 시작하기"예요. 로그인 응답의 `user.needsConsent`가 `true`인 사용자에게만 보여주고, 이미 동의한 계정은 이 화면을 건너뛰어요.
+
+        - 필수 3개(`terms` 이용약관, `privacy` 개인정보 수집 · 이용, `aiAnalysis` 일기 · 대화 내용 AI 분석)가 모두 `true`여야 해요. 하나라도 아니면 400(`VALIDATION_FAILED`, `details.fields`)이에요.
+        - `notifications`(일기 작성 알림 받기, 선택)는 안 보내면 지금 설정을 그대로 둬요.
+        - 동의 시각은 한 번만 기록해요(`users.ai_consent_at`). 이미 유효한 동의에 다시 불러도 시각은 그대로고 알림 설정만 바뀌어요. 철회한 뒤 다시 동의하면 시각을 새로 기록하고 철회를 지워요.
+      x-schedule: 10월 3~4주
+      x-screen: 약관 · 동의
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserConsentRequest'
+      responses:
+        '200':
+          description: 갱신된 내 정보
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    delete:
+      tags: [me]
+      operationId: revokeAiConsent
+      summary: AI 분석 동의 철회
+      description: |
+        설정의 "동의 철회"예요. AI 분석 동의만 철회하고, 이후 AI를 부르는 API(메신저 업로드 · 대화 · 리포트)는 403 `AI_CONSENT_REQUIRED`를 돌려줘요. 일기 쓰기와 조회는 계속 쓸 수 있어요.
+        저장된 분석 데이터(메신저 요약 · 페르소나 분석)는 즉시 지워요(기획서 7장). 이미 철회했거나 동의한 적이 없으면 아무것도 바꾸지 않고 현재 상태를 돌려줘요.
+        다시 쓰려면 `PUT /me/consent`로 동의해요.
+      x-schedule: 10월 3~4주
+      x-screen: 설정
+      responses:
+        '200':
+          description: '갱신된 내 정보 (`aiConsentActive: false`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
   /me/usage/today:
     get:
       tags: [me]
@@ -169,7 +246,7 @@ paths:
       summary: 기간별 일기 목록
       description: |
         홈 캘린더가 한 달치를 받아 작성한 날에 ●를 표시하고, 날짜를 누르면 같은 응답의 내용을 보여줘요.
-        앱에서 쓴 일기만 나와요. 카톡만 올린 날은 포함되지 않아요.
+        앱에서 쓴 일기만 나와요. 메신저만 올린 날은 포함되지 않아요.
         기간은 최대 93일이에요.
       x-schedule: 10월 3~4주
       x-screen: 홈
@@ -309,7 +386,7 @@ paths:
                   description: 카톡 내보내기 `.txt`. 최대 10MB
                 consent:
                   type: boolean
-                  description: '"위 내용을 이해했고 대화 분석에 동의해요" 체크 여부. `true`가 아니면 거절해요. 서버는 `users.ai_consent_at`을 기록해요'
+                  description: '"위 내용을 이해했고 대화 분석에 동의해요" 체크 여부. `true`가 아니면 400 `CONSENT_REQUIRED`예요. 로그인 직후 동의와는 별개로 올릴 때마다 한 번 더 확인하는 거예요'
                 speakerName:
                   type: string
                   description: 대화에서 내 이름. 참여자가 한 명뿐이면 생략해도 돼요
@@ -331,6 +408,8 @@ paths:
                 $ref: '#/components/schemas/Error'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/AiConsentRequired'
         '413':
           description: 파일이 너무 커요 (`FILE_TOO_LARGE`)
           content:
@@ -412,37 +491,34 @@ paths:
     get:
       tags: [personas]
       operationId: getShortcuts
-      summary: 바로가기 카드 3개
+      summary: 바로가기 3개
       description: |
-        1개월 · 6개월 · 1년 전 카드예요. 기준일(`anchorDate`)은 서버가 **그 주 월요일**로 맞춰서 내려줘요(같은 주에는 같은 분석을 재사용하기 위해서예요).
-        앱은 카드를 누르면 받은 `anchorDate`를 그대로 `POST /chats`에 넘겨요.
-        `owner=partner`는 연결된 연인의 카드예요.
+        "시점 고르기" 화면의 1개월 · 6개월 · 1년 전 바로가기예요. 바로가기는 그 무렵 **전후 2주**(`scope: AROUND`)의 기록으로 그때의 나를 만들어요.
+        기준일(`anchorDate`)은 서버가 **그 주 월요일**로 맞춰서 내려줘요(같은 주에는 같은 분석을 재사용하기 위해서예요).
+        앱은 바로가기를 누르면 받은 `anchorDate`와 `scope`, `key`를 그대로 `POST /chats`에 넘겨요.
       x-schedule: 11월 1~2주
-      x-screen: 홈, 상대의 시점 고르기
-      parameters:
-        - $ref: '#/components/parameters/Owner'
+      x-screen: 시점 고르기
       responses:
         '200':
-          description: 카드 3개 (1개월 → 1년 순서)
+          description: 바로가기 3개 (1개월 → 1년 순서)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ShortcutList'
         '401':
           $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/CoupleAccessDenied'
 
   /personas/preview:
     get:
       tags: [personas]
       operationId: previewPersona
-      summary: 고른 시점의 기록량
+      summary: 고른 날짜의 기록량
       description: |
-        직접 고른 날짜는 그대로 `anchorDate`가 돼요(주 단위로 맞추지 않아요). 그 날짜 전후 2주 범위의 일기 건수와 카톡 주 수, 기록 수준을 알려줘요.
-        슬라이더를 움직일 때마다 부를 수 있어서 AI를 호출하지 않는 가벼운 조회예요.
+        캘린더에서 날짜를 직접 고르면 그날 **하루**(`scope: DAY`)의 기록으로 그날의 나를 만들어요. 그 하루의 일기 건수와 감정 태그, 기록 수준을 알려줘요("10월 4일의 나 · 화남 · 일기 1건").
+        `scope=AROUND`로 부르면 그 날짜 전후 2주 범위를 보여줘요(바로가기와 같은 구간).
+        직접 고른 날짜는 그대로 `anchorDate`가 돼요(주 단위로 맞추지 않아요). AI를 호출하지 않는 가벼운 조회예요.
       x-schedule: 11월 1~2주
-      x-screen: 시점 고르기, 상대의 시점 고르기
+      x-screen: 시점 고르기
       parameters:
         - name: anchor
           in: query
@@ -451,8 +527,14 @@ paths:
           schema:
             type: string
             format: date
-          example: '2026-07-06'
-        - $ref: '#/components/parameters/Owner'
+          example: '2026-10-04'
+        - name: scope
+          in: query
+          description: '`DAY`는 그날 하루, `AROUND`는 전후 2주'
+          schema:
+            type: string
+            enum: [DAY, AROUND]
+            default: DAY
       responses:
         '200':
           description: 기록량
@@ -468,32 +550,28 @@ paths:
                 $ref: '#/components/schemas/Error'
         '401':
           $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/CoupleAccessDenied'
 
-  /personas/timeline:
+  /chats:
     get:
-      tags: [personas]
-      operationId: getTimeline
-      summary: 최근 1년 주간 기록량
-      description: 시점 고르기 화면의 막대 그래프예요. 오래된 주부터 이번 주까지 52개를 돌려줘요.
-      x-schedule: 11월 1~2주
-      x-screen: 시점 고르기
-      parameters:
-        - $ref: '#/components/parameters/Owner'
+      tags: [chats]
+      operationId: listChats
+      summary: 과거의 나 목록
+      description: |
+        하단 탭 "과거의 나"의 대화 목록이에요. 최근에 대화한 순서(`lastMessageAt` 내림차순)로 최대 50개를 돌려줘요.
+        항목을 누르면 `GET /chats/{chatId}`와 `GET /chats/{chatId}/messages`로 지난 대화를 보고, 끝나지 않은 세션이면 이어서 대화해요.
+        목록이 비어 있으면(첫 방문) 앱은 이 화면을 건너뛰고 바로 시점 고르기로 가요.
+        커플 모드에서 만든 세션(`mode: COUPLE`)은 이 목록에 넣지 않는 것으로 가정했어요.
+      x-schedule: 11월 1~3주
+      x-screen: 과거의 나 목록
       responses:
         '200':
-          description: 주간 기록량
+          description: 대화 목록
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Timeline'
+                $ref: '#/components/schemas/ChatList'
         '401':
           $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/CoupleAccessDenied'
-
-  /chats:
     post:
       tags: [chats]
       operationId: createChat
@@ -505,9 +583,10 @@ paths:
         2. 아니면 `PREPARING`으로 돌려주고, 서버가 기록 모으기 → 민감정보 가리기 → 말투 분석 → 페르소나 만들기를 진행해요. 앱은 `GET /chats/{chatId}`를 1~2초 간격으로 조회해요 (`preparingStep`으로 로딩 화면의 단계를 표시해요).
         3. `READY`가 되면 페르소나의 첫 인사가 `seq` 1번 메시지로 들어 있어요. `GET /chats/{chatId}/messages`로 가져와요.
 
-        `owner=partner`면 연인의 과거와 대화해요. 커플이 `CONNECTED`이고 양측이 동의했고 철회가 없을 때만 가능해요.
+        `scope`는 시점 고르기에서 정해져요. 바로가기는 `AROUND`(전후 2주, `shortcutKey`도 함께 보내요), 캘린더에서 고른 날은 `DAY`(그날 하루)예요.
+        `forCouple: true`는 커플 모드의 "같은 날 비교"를 위한 세션이에요. 대화 상대는 여전히 내 과거의 나이고, 커플이 `CONNECTED`이고 양측이 동의했고 철회가 없을 때만 만들 수 있어요.
       x-schedule: 11월 1~3주
-      x-screen: 불러오는 중, Time-Slip Chat, 상대의 시점 고르기
+      x-screen: 불러오는 중, Time-Slip Chat, 함께 볼 날 고르기
       requestBody:
         required: true
         content:
@@ -530,7 +609,11 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
-          $ref: '#/components/responses/CoupleAccessDenied'
+          description: 커플 비교를 열 수 없어요(`COUPLE_ACCESS_DENIED`, `forCouple`일 때) 또는 AI 분석 동의가 없어요(`AI_CONSENT_REQUIRED`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /chats/{chatId}:
     parameters:
@@ -649,6 +732,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/AiConsentRequired'
         '409':
           description: 대화할 수 없는 상태예요 (`CHAT_NOT_READY`, `CHAT_ENDED`)
           content:
@@ -696,10 +781,10 @@ paths:
       operationId: getReport
       summary: 회고 리포트
       description: |
-        당시 고민 · 현재 변화 · 한 줄 요약 3개 항목이에요 (세션당 1건). 아직 만드는 중이면 202를 돌려주니 1~2초 뒤에 다시 불러요.
-        커플 모드 리포트도 같은 형태이고, 화면 문구(그때의 고민 / 지금과 달라진 점)만 다르게 보여줘요.
+        개인 모드는 당시 고민 · 현재 변화 · 한 줄 요약 3개 항목이에요 (세션당 1건). 아직 만드는 중이면 202를 돌려주니 1~2초 뒤에 다시 불러요.
+        커플 모드(`forCouple`) 세션의 리포트는 3개 항목 대신 "그날의 기억"(`memorySummary`)과 한 줄 요약이에요. 두 사람의 기억을 나란히 보는 화면은 `GET /couples/comparisons`가 따로 만들어 줘요.
       x-schedule: 11월 2~3주
-      x-screen: 회고 리포트, 커플 리포트
+      x-screen: 회고 리포트, 두 시점 비교
       responses:
         '200':
           description: 리포트
@@ -729,7 +814,7 @@ paths:
       summary: 내 커플 상태
       description: |
         초대 코드 화면(상대가 입력하길 기다리는 중), 동의 화면(양쪽 동의 상태), 설정(연결됨 표시)이 모두 이 응답으로 그려져요.
-        기다리는 화면에서는 3~5초 간격으로 조회해요.
+        기다리는 화면에서는 3~5초 간격으로 조회해요. 연결이 없으면 `status: NONE`이고 "아직 만든 코드가 없어요" 상태를 보여줘요.
       x-schedule: 11월 3주
       x-screen: 초대 코드 연결, 동의 안내, 설정
       responses:
@@ -748,8 +833,8 @@ paths:
       operationId: createInvite
       summary: 초대 코드 만들기
       description: |
-        코드는 24시간 동안 유효해요. 이미 만든 코드가 아직 유효하면 같은 코드를 돌려줘요. 만료됐으면 새로 만들어요.
-        이미 연결된 커플이 있으면 409예요.
+        "초대 코드 만들기" 버튼을 누른 시점에 코드를 발급해요(화면에 들어올 때는 만들지 않아요). 코드는 24시간 동안 유효해요.
+        이미 만든 코드가 아직 유효하면 같은 코드를 돌려줘요. 만료됐으면 새로 만들어요. 이미 연결된 커플이 있으면 409예요.
       x-schedule: 11월 3주
       x-screen: 초대 코드 연결
       responses:
@@ -768,12 +853,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /couples/join:
+  /couples/invite/accept:
     post:
       tags: [couples]
-      operationId: joinCouple
+      operationId: acceptInvite
       summary: 받은 코드 입력하기
-      description: 연결만 되고 상대 페르소나는 아직 열리지 않아요. 둘 다 동의해야 열려요.
+      description: |
+        받은 초대 코드를 입력해 연결해요. iOS와 Android 어느 쪽에서도 같은 방식이에요. 연결만 되고, 둘 다 동의해야 같은 날 비교를 열 수 있어요.
       x-schedule: 11월 3주
       x-screen: 초대 코드 연결 ("코드 입력하기" 탭)
       requestBody:
@@ -781,7 +867,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/JoinRequest'
+              $ref: '#/components/schemas/AcceptInviteRequest'
       responses:
         '200':
           description: '연결됨 (`status: CONNECTED`)'
@@ -822,7 +908,7 @@ paths:
       operationId: giveCouplesConsent
       summary: 커플 모드 동의
       description: |
-        내 동의를 기록해요(`couple_members.consented_at`). 두 사람이 모두 동의하면 응답의 `partnerPersonaOpen`이 `true`가 돼요.
+        내 동의를 기록해요(`couple_members.consented_at`). 두 사람이 모두 동의하면 응답의 `compareOpen`이 `true`가 돼요.
         이미 동의했으면 같은 결과를 돌려줘요.
       x-schedule: 11월 3주
       x-screen: 동의 안내
@@ -848,13 +934,90 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  /couples/days:
+    get:
+      tags: [couples]
+      operationId: listCoupleDays
+      summary: 함께 볼 수 있는 날
+      description: |
+        "함께 볼 날 고르기" 화면이에요. 두 사람의 일기가 모두 있는 날만 돌려줘요. 그중 감정 태그가 대비되는 날(특히 다툰 날)을 서버가 먼저 추천해요(`recommended: true`).
+        한 달치를 받아 캘린더에 표시하고, 추천한 날은 맨 위 카드로 보여줘요. 연결됨 + 양측 동의 + 철회 없음일 때만 열려요(아니면 403 `COUPLE_ACCESS_DENIED`).
+        1개월 · 6개월 · 1년 전으로 비교하는 경우는 `GET /personas/shortcuts`의 바로가기를 같이 써요.
+        초안이에요. 커플 단계에서 스토리보드와 다시 맞춰요.
+      x-schedule: 11월 3주
+      x-screen: 함께 볼 날 고르기
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          required: true
+          description: 이 날짜를 포함해요. 최대 93일이에요
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: 두 사람의 일기가 모두 있는 날 (날짜 오름차순)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CoupleDayList'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/CoupleAccessDenied'
+
+  /couples/comparisons:
+    get:
+      tags: [couples]
+      operationId: getCoupleComparison
+      summary: 같은 날 두 사람의 기억 비교
+      description: |
+        "두 시점 비교" 화면이에요. 같은 날(`anchorDate` · `scope`)에 대해 각자 자기 과거의 나와 나눈 대화(`POST /chats`의 `forCouple: true` 세션)를 같은 틀("그날의 기억")로 요약해 나란히 보여주고, 두 사람의 간극을 한 줄로 합쳐 줘요.
+        두 사람 모두 대화를 끝내야 `READY`가 돼요. 한쪽만 끝냈으면 `WAITING_PARTNER`이고 상대의 기억은 아직 비어 있어요.
+        연결됨 + 양측 동의 + 철회 없음일 때만 열려요. 철회하면 이 비교와 두 세션 · 리포트를 모두 지워요.
+        초안이에요. 커플 단계에서 스토리보드와 다시 맞춰요.
+      x-schedule: 11월 3주
+      x-screen: 두 시점 비교
+      parameters:
+        - name: anchorDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: scope
+          in: query
+          schema:
+            type: string
+            enum: [DAY, AROUND]
+            default: DAY
+      responses:
+        '200':
+          description: 비교 상태와 내용
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CoupleComparison'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/CoupleAccessDenied'
+
   /couples/revoke:
     post:
       tags: [couples]
       operationId: revokeCouple
       summary: 동의 철회 · 연결 해제
       description: |
-        상대의 접근을 바로 끊고, 이 커플의 대화와 리포트를 지워요. 내 일기와 개인 모드 기록, 내 분석 결과는 그대로 남아요.
+        상대의 접근을 바로 끊고, 이 커플의 대화와 리포트(기억 요약 · 간극)를 지워요. 내 일기와 개인 모드 기록, 내 분석 결과는 그대로 남아요.
         되돌릴 수 없어요.
       x-schedule: 11월 3주
       x-screen: 동의 철회
@@ -876,14 +1039,6 @@ components:
       bearerFormat: JWT
 
   parameters:
-    Owner:
-      name: owner
-      in: query
-      description: 누구의 기록으로 볼지. `partner`는 연결된 연인이고, 커플 조건을 만족해야 해요
-      schema:
-        type: string
-        enum: [me, partner]
-        default: me
     ChatId:
       name: chatId
       in: path
@@ -943,6 +1098,16 @@ components:
             code: AI_UNAVAILABLE
             message: 지금은 답하기 어려워요. 잠시 뒤에 다시 해 주세요.
 
+    AiConsentRequired:
+      description: AI 분석 동의가 없거나 철회했어요 (`AI_CONSENT_REQUIRED`). `PUT /me/consent`로 다시 동의해야 해요
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: AI_CONSENT_REQUIRED
+            message: AI 분석 동의가 필요해요.
+
   schemas:
     Error:
       type: object
@@ -996,14 +1161,14 @@ components:
           $ref: '#/components/schemas/User'
     User:
       type: object
-      required: [id, provider, nickname, createdAt]
+      required: [id, provider, nickname, aiConsentActive, needsConsent, notificationsOptIn, createdAt]
       properties:
         id:
           type: string
           format: uuid
         provider:
           type: string
-          enum: [kakao, google, apple]
+          enum: [kakao, google, apple, dev]
         nickname:
           type: string
           example: 서연
@@ -1011,14 +1176,43 @@ components:
           type: string
           format: date-time
           nullable: true
-          description: 대화 분석 동의 시각. 아직 동의하지 않았으면 `null`
+          description: 서비스 이용 동의(필수 3개)를 받은 시각. 아직 동의하지 않았으면 `null`. 철회 뒤 다시 동의하면 새로 기록해요
         aiRevokedAt:
           type: string
           format: date-time
           nullable: true
+          description: AI 분석 동의를 철회한 시각. 철회하지 않았거나 다시 동의했으면 `null`
+        aiConsentActive:
+          type: boolean
+          description: AI 분석 동의가 유효한지. 카톡 업로드 · 대화 · 리포트처럼 AI를 부르는 기능은 `true`일 때만 쓸 수 있어요 (아니면 403 `AI_CONSENT_REQUIRED`)
+        needsConsent:
+          type: boolean
+          description: 서비스 이용 동의 화면을 아직 거치지 않았어요. `true`면 로그인 직후 동의 화면을 보여줘요. 한 번 동의했다가 철회한 사람은 `false`예요
+        notificationsOptIn:
+          type: boolean
+          description: 일기 작성 알림을 받겠다고 했는지 (동의 화면의 선택 항목)
         createdAt:
           type: string
           format: date-time
+    UserConsentRequest:
+      type: object
+      required: [terms, privacy, aiAnalysis]
+      properties:
+        terms:
+          type: boolean
+          enum: [true]
+          description: 이용약관 (필수)
+        privacy:
+          type: boolean
+          enum: [true]
+          description: 개인정보 수집 · 이용 (필수)
+        aiAnalysis:
+          type: boolean
+          enum: [true]
+          description: 일기 · 대화 내용 AI 분석(Gemini) (필수). 가린 내용만 AI로 보내고 학습에는 쓰이지 않아요
+        notifications:
+          type: boolean
+          description: 일기 작성 알림 받기 (선택). 안 보내면 지금 설정 그대로예요
     Usage:
       type: object
       required: [date, chatMinutes, recommendedMinutes]
@@ -1117,6 +1311,7 @@ components:
     # ───────── 카톡 업로드 ─────────
     KakaoUpload:
       type: object
+      description: 예전 txt 방식 초안이에요. 메신저 캡처 업로드 흐름은 카톡 단계에서 새로 설계해요
       required: [id, status, uploadedAt, originalDeleted]
       properties:
         id:
@@ -1181,47 +1376,66 @@ components:
       type: string
       enum: [NONE, LOW, ENOUGH, RICH]
       description: |
-        선택한 시점 전후 2주의 기록이 얼마나 되는지예요. 앱은 enum만 보고 문구를 골라요. 기준은 서버가 정해요. 아래 표는 임시 초안이고, 팀원과 상의해서 확정할 예정이에요.
+        선택한 구간에 기록이 얼마나 있는지예요. 앱은 enum만 보고 문구를 골라요. 기준은 서버가 정해요. 아래 표는 임시 초안이고, 팀원과 상의해서 확정할 예정이에요.
 
-        | 값 | 초안 기준 | 홈 카드 | 시점 고르기 | 대화 상단 정확도 |
+        | 값 | 초안 기준 (`AROUND`, 전후 2주) | 초안 기준 (`DAY`, 그날 하루) | 시점 고르기 문구 | 대화 상단 정확도 |
         |---|---|---|---|---|
-        | `NONE` | 일기 0건, 카톡 0주 | 기록 없음 | 기록이 없어요 | 낮음 |
-        | `LOW` | 일기 1~4건이고 카톡 0주 | 기록 부족 | 부족해요 | 낮음 |
-        | `ENOUGH` | 일기 5~9건 또는 카톡 1주 이상 | (표시 없음) | 충분해요 | 보통 |
-        | `RICH` | 일기 10건 이상 | 기록 풍부 | 풍부해요 | 높음 |
+        | `NONE` | 일기 0건, 메신저 0주 | 일기 0건 | 기록이 없어요 | 낮음 |
+        | `LOW` | 일기 1~4건이고 메신저 0주 | (쓰지 않음) | 부족해요 | 낮음 |
+        | `ENOUGH` | 일기 5~9건 또는 메신저 1주 이상 | 일기 1건 | 충분해요 (`DAY`는 "전후 기록이 적어 정확도는 보통일 수 있어요") | 보통 |
+        | `RICH` | 일기 10건 이상 | (쓰지 않음) | 풍부해요 | 높음 |
 
         `NONE`이나 `LOW`여도 대화는 할 수 있고, 앱이 "기록이 부족해 정확도가 낮을 수 있어요"를 보여줘요.
+    PersonaScope:
+      type: string
+      enum: [DAY, AROUND]
+      description: |
+        그때의 나를 만드는 데 쓰는 기록의 범위예요.
+        `AROUND`는 기준일 전후 2주(바로가기 1개월 · 6개월 · 1년 전), `DAY`는 기준일 그날 하루(캘린더에서 직접 고른 날)예요. ERD의 `persona_analyses.window_days`는 `AROUND`가 14, `DAY`가 0이에요.
+    ShortcutKey:
+      type: string
+      enum: [ONE_MONTH, SIX_MONTHS, ONE_YEAR]
+      description: 바로가기 종류. "과거의 나" 목록의 "1개월", "1년" 같은 칩에 써요
     PersonaWindow:
       type: object
-      required: [anchorDate, windowStart, windowEnd, diaryCount, kakaoWeeks, level]
+      required: [anchorDate, scope, windowStart, windowEnd, diaryCount, messengerWeeks, level]
       properties:
         anchorDate:
           type: string
           format: date
           description: 기준일. 바로가기는 그 주 월요일, 직접 고른 날짜는 그대로
+        scope:
+          $ref: '#/components/schemas/PersonaScope'
         windowStart:
           type: string
           format: date
-          description: 기준일 14일 전
+          description: '`AROUND`는 기준일 14일 전, `DAY`는 기준일 그대로'
         windowEnd:
           type: string
           format: date
-          description: 기준일 14일 뒤. 오늘을 넘으면 오늘로 줄여요
+          description: '`AROUND`는 기준일 14일 뒤(오늘을 넘으면 오늘로 줄여요), `DAY`는 기준일 그대로'
         diaryCount:
           type: integer
-          example: 9
-        kakaoWeeks:
+          example: 1
+        messengerWeeks:
           type: integer
-          description: 이 범위와 겹치는 주의 카톡 요약 수
-          example: 4
+          description: 이 범위와 겹치는 주의 메신저 요약 수. `DAY`는 쓰지 않는 것으로 가정해서 항상 0이에요
+          example: 0
+        emotions:
+          type: array
+          description: 그날의 감정 태그. `DAY`일 때만 채워지고 캘린더 점 색과 "10월 4일의 나 · 화남"에 써요
+          items:
+            $ref: '#/components/schemas/Emotion'
         level:
           $ref: '#/components/schemas/RecordLevel'
       example:
-        anchorDate: '2026-07-06'
-        windowStart: '2026-06-22'
-        windowEnd: '2026-07-20'
-        diaryCount: 9
-        kakaoWeeks: 4
+        anchorDate: '2026-10-04'
+        scope: DAY
+        windowStart: '2026-10-04'
+        windowEnd: '2026-10-04'
+        diaryCount: 1
+        messengerWeeks: 0
+        emotions: [ANGRY]
         level: ENOUGH
     Shortcut:
       allOf:
@@ -1230,74 +1444,40 @@ components:
           required: [key]
           properties:
             key:
-              type: string
-              enum: [ONE_MONTH, SIX_MONTHS, ONE_YEAR]
+              $ref: '#/components/schemas/ShortcutKey'
     ShortcutList:
       type: object
-      required: [owner, items]
+      required: [items]
       properties:
-        owner:
-          type: string
-          enum: [me, partner]
         items:
           type: array
           minItems: 3
           maxItems: 3
           items:
             $ref: '#/components/schemas/Shortcut'
-    Timeline:
-      type: object
-      required: [owner, weeks]
-      properties:
-        owner:
-          type: string
-          enum: [me, partner]
-        weeks:
-          type: array
-          description: 오래된 주 → 이번 주, 52개
-          items:
-            type: object
-            required: [weekStart, diaryCount, hasKakao]
-            properties:
-              weekStart:
-                type: string
-                format: date
-                description: 그 주 월요일
-              diaryCount:
-                type: integer
-              hasKakao:
-                type: boolean
-                description: 그 주의 카톡 요약이 있는지
 
     # ───────── 대화 · 리포트 ─────────
-    PersonaOwner:
-      type: object
-      required: [userId, nickname, isMe]
-      description: 페르소나의 주인. 개인 모드는 나, 커플 모드는 연인이에요 (`chat_sessions.persona_owner_id`)
-      properties:
-        userId:
-          type: string
-          format: uuid
-        nickname:
-          type: string
-          example: 서연
-        isMe:
-          type: boolean
     ChatCreate:
       type: object
-      required: [anchorDate]
+      required: [anchorDate, scope]
       properties:
         anchorDate:
           type: string
           format: date
-          description: '`/personas/shortcuts`가 준 값 또는 직접 고른 날짜. 오늘로부터 365일 전 ~ 오늘'
-        owner:
-          type: string
-          enum: [me, partner]
-          default: me
+          description: '`/personas/shortcuts`가 준 값 또는 캘린더에서 직접 고른 날짜. 오늘로부터 365일 전 ~ 오늘'
+        scope:
+          $ref: '#/components/schemas/PersonaScope'
+        shortcutKey:
+          allOf:
+            - $ref: '#/components/schemas/ShortcutKey'
+          description: 바로가기로 시작했을 때만 보내요. 직접 고른 날짜면 생략해요
+        forCouple:
+          type: boolean
+          default: false
+          description: 커플 모드의 같은 날 비교를 위한 세션이면 `true`. 커플이 연결 · 양측 동의 상태여야 해요
     ChatSession:
       type: object
-      required: [id, status, mode, personaOwner, anchorDate, windowStart, windowEnd, level, startedAt]
+      required: [id, status, mode, scope, anchorDate, windowStart, windowEnd, level, startedAt]
       properties:
         id:
           type: string
@@ -1324,8 +1504,12 @@ components:
           type: string
           format: uuid
           nullable: true
-        personaOwner:
-          $ref: '#/components/schemas/PersonaOwner'
+        scope:
+          $ref: '#/components/schemas/PersonaScope'
+        shortcutKey:
+          type: string
+          nullable: true
+          enum: [ONE_MONTH, SIX_MONTHS, ONE_YEAR, null]
         anchorDate:
           type: string
           format: date
@@ -1351,16 +1535,77 @@ components:
         failureCode: null
         mode: PERSONAL
         coupleId: null
-        personaOwner:
-          userId: 3a2b1c0d-9e8f-4a7b-8c6d-5e4f3a2b1c0d
-          nickname: 서연
-          isMe: true
-        anchorDate: '2026-07-06'
-        windowStart: '2026-06-22'
-        windowEnd: '2026-07-20'
+        scope: AROUND
+        shortcutKey: ONE_MONTH
+        anchorDate: '2026-09-07'
+        windowStart: '2026-08-24'
+        windowEnd: '2026-09-21'
         level: ENOUGH
         startedAt: '2026-10-06T21:30:00+09:00'
         endedAt: null
+    ChatListItem:
+      type: object
+      required: [id, scope, anchorDate, level, status, startedAt, lastMessageAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        scope:
+          $ref: '#/components/schemas/PersonaScope'
+        shortcutKey:
+          type: string
+          nullable: true
+          enum: [ONE_MONTH, SIX_MONTHS, ONE_YEAR, null]
+          description: 바로가기로 시작했으면 "1개월" 같은 칩에 써요. 날짜를 직접 골랐으면 `null`이에요
+        anchorDate:
+          type: string
+          format: date
+          description: '"10월 4일의 나", "3개월 전의 나" 같은 제목은 앱이 `scope` · `anchorDate`로 만들어요'
+        emotions:
+          type: array
+          description: 그날의 감정 태그 (`DAY`일 때만)
+          items:
+            $ref: '#/components/schemas/Emotion'
+        level:
+          $ref: '#/components/schemas/RecordLevel'
+        status:
+          type: string
+          enum: [PREPARING, READY, FAILED]
+        lastMessagePreview:
+          type: string
+          nullable: true
+          description: 마지막 메시지 한 줄 미리보기. 아직 대화가 없으면 `null`
+        lastMessageAt:
+          type: string
+          format: date-time
+          description: 마지막 메시지 시각. 대화가 없으면 세션을 만든 시각
+        startedAt:
+          type: string
+          format: date-time
+        endedAt:
+          type: string
+          format: date-time
+          nullable: true
+      example:
+        id: 5b8c0d1e-2f3a-4b4c-9d5e-6f7a8b9c0d1e
+        scope: DAY
+        shortcutKey: null
+        anchorDate: '2026-10-04'
+        emotions: [ANGRY]
+        level: ENOUGH
+        status: READY
+        lastMessagePreview: 그날 진짜 많이 속상했어, 근데 말을 못 꺼내겠더라
+        lastMessageAt: '2026-10-05T21:10:00+09:00'
+        startedAt: '2026-10-05T21:00:00+09:00'
+        endedAt: null
+    ChatList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChatListItem'
     ChatMessage:
       type: object
       required: [id, seq, role, content, createdAt]
@@ -1455,7 +1700,7 @@ components:
           enum: [GENERATING, READY]
     Report:
       type: object
-      required: [id, chatId, mode, personaOwner, anchorDate, durationMinutes, pastConcern, presentChange, oneLineSummary, createdAt]
+      required: [id, chatId, mode, scope, anchorDate, durationMinutes, oneLineSummary, createdAt]
       properties:
         id:
           type: string
@@ -1466,24 +1711,30 @@ components:
         mode:
           type: string
           enum: [PERSONAL, COUPLE]
-        personaOwner:
-          $ref: '#/components/schemas/PersonaOwner'
+        scope:
+          $ref: '#/components/schemas/PersonaScope'
         anchorDate:
           type: string
           format: date
-          description: '"3개월 전의 나", "6개월 전의 도윤"의 몇 개월 전은 앱이 이 날짜로 계산해요'
+          description: '"3개월 전의 나", "10월 4일의 나"의 날짜는 앱이 이 값으로 만들어요'
         durationMinutes:
           type: integer
           example: 18
         pastConcern:
           type: string
-          description: 당시 고민 (커플 모드 화면에서는 "그때의 고민")
+          nullable: true
+          description: 당시 고민. 개인 모드에만 있고 커플 모드 세션은 `null`이에요
         presentChange:
           type: string
-          description: 현재 변화 (커플 모드 화면에서는 "지금과 달라진 점")
+          nullable: true
+          description: 현재 변화. 개인 모드에만 있고 커플 모드 세션은 `null`이에요
         oneLineSummary:
           type: string
           maxLength: 100
+        memorySummary:
+          type: string
+          nullable: true
+          description: '"내가 기억하는 그날". 커플 모드 세션에만 있어요'
         createdAt:
           type: string
           format: date-time
@@ -1491,15 +1742,13 @@ components:
         id: 9e8d7c6b-5a49-4837-a625-140f3e2d1c0b
         chatId: 5b8c0d1e-2f3a-4b4c-9d5e-6f7a8b9c0d1e
         mode: PERSONAL
-        personaOwner:
-          userId: 3a2b1c0d-9e8f-4a7b-8c6d-5e4f3a2b1c0d
-          nickname: 서연
-          isMe: true
+        scope: AROUND
         anchorDate: '2026-07-06'
         durationMinutes: 18
         pastConcern: 학기 말에 진로가 정해지지 않아 막막했지만, 겉으로는 티를 내지 않았어요.
         presentChange: 지금은 방향을 조금 잡았고, 걱정을 혼자 안고 있지 않게 됐어요.
         oneLineSummary: 막막함은 줄고, 해 본 일은 늘었어요.
+        memorySummary: null
         createdAt: '2026-10-06T21:49:00+09:00'
     ReportPending:
       type: object
@@ -1512,7 +1761,7 @@ components:
     # ───────── 커플 ─────────
     CoupleState:
       type: object
-      required: [status, partnerPersonaOpen]
+      required: [status, compareOpen]
       properties:
         status:
           type: string
@@ -1566,9 +1815,9 @@ components:
           type: string
           format: date-time
           nullable: true
-        partnerPersonaOpen:
+        compareOpen:
           type: boolean
-          description: 상대의 과거와 대화할 수 있는지. 연결됨 + 양측 동의 + 철회 없음일 때만 `true`
+          description: 같은 날 비교(함께 볼 날 고르기 · 두 시점 비교)를 열 수 있는지. 연결됨 + 양측 동의 + 철회 없음일 때만 `true`
       example:
         status: CONNECTED
         coupleId: 2c3d4e5f-6a7b-4c8d-9e0f-1a2b3c4d5e6f
@@ -1581,8 +1830,8 @@ components:
           nickname: 도윤
           consented: true
         connectedAt: '2026-10-06T19:40:00+09:00'
-        partnerPersonaOpen: true
-    JoinRequest:
+        compareOpen: true
+    AcceptInviteRequest:
       type: object
       required: [inviteCode]
       properties:
@@ -1598,3 +1847,87 @@ components:
           type: boolean
           enum: [true]
           description: 동의 화면의 체크 후 "동의하고 계속하기"를 눌렀을 때 `true`. 철회는 `POST /couples/revoke`로 해요
+    CoupleDay:
+      type: object
+      required: [date, myEmotions, partnerEmotions, recommended]
+      properties:
+        date:
+          type: string
+          format: date
+        myEmotions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Emotion'
+        partnerEmotions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Emotion'
+        recommended:
+          type: boolean
+          description: 감정 태그가 대비되는 날(특히 다툰 날)이라 서버가 먼저 추천하는 날
+      example:
+        date: '2026-10-04'
+        myEmotions: [ANGRY]
+        partnerEmotions: [ANGRY]
+        recommended: true
+    CoupleDayList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CoupleDay'
+    CoupleComparison:
+      type: object
+      required: [status, anchorDate, scope]
+      properties:
+        status:
+          type: string
+          enum: [NOT_STARTED, IN_PROGRESS, WAITING_PARTNER, READY]
+          description: |
+            `NOT_STARTED` 내가 아직 이 날의 나와 대화하지 않았어요, `IN_PROGRESS` 대화 중이에요,
+            `WAITING_PARTNER` 나는 끝냈고 상대를 기다려요, `READY` 두 사람이 모두 끝나서 비교할 수 있어요
+        anchorDate:
+          type: string
+          format: date
+        scope:
+          $ref: '#/components/schemas/PersonaScope'
+        chatId:
+          type: string
+          format: uuid
+          nullable: true
+          description: 내 세션 ID. 아직 시작하지 않았으면 `null`
+        me:
+          type: object
+          nullable: true
+          description: '"내가 기억하는 그날"'
+          properties:
+            memorySummary:
+              type: string
+              nullable: true
+        partner:
+          type: object
+          nullable: true
+          description: '"도윤이 기억하는 그날". 상대가 끝나기 전에는 `memorySummary`가 `null`이에요'
+          properties:
+            nickname:
+              type: string
+            memorySummary:
+              type: string
+              nullable: true
+        gapSummary:
+          type: string
+          nullable: true
+          description: '"두 사람의 간극" 한 줄. `READY`일 때만 있어요'
+      example:
+        status: READY
+        anchorDate: '2026-10-04'
+        scope: DAY
+        chatId: 5b8c0d1e-2f3a-4b4c-9d5e-6f7a8b9c0d1e
+        me:
+          memorySummary: 먼저 연락을 끊은 건 서운해서였는데, 그 마음을 설명하지 못해서 더 화가 났어요.
+        partner:
+          nickname: 도윤
+          memorySummary: 갑자기 연락이 끊겨서 무슨 잘못을 했는지 몰라 불안했고, 그래서 다그치듯 물었어요.
+        gapSummary: 서운함은 침묵으로, 불안함은 다그침으로 전해졌어요.
