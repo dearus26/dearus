@@ -23,7 +23,8 @@ const T = [
     ['created_at', 'timestamptz', ''] ] },
   { id: 'kakao_uploads', x: 300, y: 590, kind: 'rec', cols: [
     ['id', 'uuid', 'PK'], ['user_id', 'uuid', 'FK'], ['uploaded_at', 'timestamptz', ''],
-    ['period_start', 'date', ''], ['period_end', 'date', ''], ['status', 'varchar', ''],
+    ['period_start', 'date?', ''], ['period_end', 'date?', ''], ['status', 'varchar', ''],
+    ['utterance_count', 'int?', ''], ['masked_count', 'int?', ''],
     ['expires_at', 'timestamptz', ''] ] },
 
   { id: 'couples', x: 570, y: 40, kind: 'couple', cols: [
@@ -99,7 +100,7 @@ function edgeSvg(e) {
   return s;
 }
 
-const svg = `<svg viewBox="0 0 1110 810" role="img" aria-label="열한 개 테이블의 관계도. users를 중심으로 일기, 카톡 업로드, 페르소나 분석, 대화, 커플 테이블이 연결되고, 카톡 원본을 담는 테이블은 없다">
+const svg = `<svg viewBox="0 0 1110 830" role="img" aria-label="열한 개 테이블의 관계도. users를 중심으로 일기, 카톡 업로드, 페르소나 분석, 대화, 커플 테이블이 연결되고, 카톡 원본을 담는 테이블은 없다">
 ${T.map(tableSvg).join('')}
 ${E.map(edgeSvg).join('')}
 <text class="lane" x="560" y="541">chat_sessions.user_id — 대화하는 사람</text>
@@ -257,6 +258,7 @@ ${svg}
       <li><b>일기 본문과 대화 내용의 암호화</b> — 기획서 7장은 요약 · 말투 특징만 암호화한다고 적었습니다. <code>diaries.content</code>와 <code>chat_messages.content</code>는 평문으로 두었습니다. 암호화하려면 컬럼을 <code>*_enc</code>로 바꿔야 합니다.</li>
       <li><b>커플 철회 시 본인 분석은 유지</b> — 철회하면 그 커플의 대화 · 리포트를 지우지만, 상대가 본 적이 있는 내 <code>persona_analyses</code> 행은 개인 모드에서도 쓰므로 남겨 둡니다. “관련 분석 데이터 파기”(기획서 6.3)를 더 넓게 해석한다면 규칙이 달라집니다.</li>
       <li><b>없는 것</b> — 위기 신호 감지 기록(기획서 5.6), 로그인 갱신 토큰 저장, 이용 시간 집계 전용 테이블은 넣지 않았습니다. 이용 시간은 <code>chat_sessions</code>의 시작 · 종료 시각으로 계산할 수 있습니다.</li>
+      <li><b>카톡 업로드의 숫자 컬럼</b> — 분석 완료 화면이 보여주는 “사용한 내 발화 수”와 “가려진 민감정보 건수”를 <code>utterance_count</code>, <code>masked_count</code>로 저장합니다. 개인을 식별하는 값이 아니라 개수뿐입니다. 분석은 업로드 뒤에 진행되므로 처리 중에는 이 두 컬럼과 <code>period_start</code>, <code>period_end</code>가 비어 있을 수 있습니다.</li>
       <li><b>커플 리포트 확장</b> — 기획서 9장의 “연인에게 물어보면 좋을 질문”은 아직 검토 중이라 <code>reports</code>에 컬럼을 두지 않았습니다.</li>
     </ul>
   </section>

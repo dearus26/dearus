@@ -2,7 +2,7 @@
 node_modules/
 tools/render/
 
-# 마크다운은 README.md만 올립니다
+# 마크다운은 README.md만 올려요
 *.md
 !README.md
 
@@ -12,6 +12,38 @@ tools/render/
 !.env.example
 *.pem
 *.key
+
+# 앱 서명 · 외부 서비스 키 (카카오 · 구글 · 애플 로그인, EAS 빌드)
+*.jks
+*.keystore
+*.p8
+*.p12
+*.mobileprovision
+google-services.json
+GoogleService-Info.plist
+
+# 서버 로컬 설정 (비밀번호 · API 키가 들어가요)
+application-local.*
+application-secret.*
+
+# 앱 (Expo / React Native)
+# ios/, android/는 npx expo prebuild로 만들어지는 폴더라 올리지 않아요
+.expo/
+app/dist/
+app/web-build/
+app/ios/
+app/android/
+expo-env.d.ts
+*.tsbuildinfo
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# 서버 (Spring Boot / Gradle)
+.gradle/
+build/
+out/
+*.class
 
 # 발표 · 문서 파일
 *.ppt
@@ -24,6 +56,11 @@ tools/render/
 *.hwpx
 *.pdf
 
-# OS · 편집기
+# 로그 · 편집기 · OS
+*.log
+.idea/
+*.iml
+.vscode/
+.claude/settings.local.json
 .DS_Store
 Thumbs.db

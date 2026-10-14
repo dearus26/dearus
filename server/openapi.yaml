@@ -1,0 +1,1600 @@
+openapi: 3.0.3
+info:
+  title: Dear Us API
+  version: 0.1.0-draft
+  description: |
+    앱(`app/`)과 서버(`server/`)가 주고받는 요청 · 응답 형태 초안이에요.
+    ERD(`DearUs_ERD.html`), 기능 블록도(`DearUs_기능블록도.html`), 스토리보드(`DearUs_스토리보드.html`)의 화면별 데이터를 기준으로 정했어요.
+
+    ## 공통 규칙
+
+    | 항목 | 규칙 |
+    |---|---|
+    | 형식 | JSON(UTF-8). 필드 이름은 camelCase, enum 값은 UPPER_SNAKE_CASE |
+    | 날짜 | 날짜만 필요하면 `2026-10-06`, 시각은 ISO 8601에 시간대를 붙여요 (`2026-10-06T21:30:00+09:00`). 서버는 한국 시간(+09:00)으로 내려줘요 |
+    | ID | 일기 · 세션 · 커플 등은 UUID 문자열, 채팅 메시지는 정수 `seq`로 순서를 매겨요 |
+    | 인증 | `Authorization: Bearer <JWT>`. 로그인 API만 헤더가 없어요. 갱신 토큰은 없고(ERD에 저장 테이블이 없어요), 만료되면 401을 받고 다시 로그인해요 |
+    | 오류 | 모든 오류는 `{ code, message, details? }` 형태예요. `code`로 분기하고 `message`는 그대로 화면에 보여줘도 되는 해요체 문장이에요 |
+    | 기준 | `x-schedule`은 일정표(10월~12월)에서 서버가 만들 시기, `x-screen`은 이 API를 쓰는 스토리보드 화면이에요 |
+
+    ## 흐름 요약
+
+    - **일기:** `POST /diaries` → 홈에서 `GET /diaries?from&to`로 한 달치를 받아 캘린더에 표시해요.
+    - **카톡:** `POST /uploads/kakao`(202) → `GET /uploads/kakao/{id}`를 1~2초 간격으로 조회해 `DONE`이 되면 분석 완료 화면을 보여줘요.
+    - **대화:** `GET /personas/shortcuts` · `preview` · `timeline`으로 시점을 고르고 → `POST /chats`로 세션을 만들고(필요하면 `PREPARING`) → `POST /chats/{id}/messages`(SSE)로 대화하고 → `POST /chats/{id}/end` → `GET /chats/{id}/report`.
+    - **커플:** `POST /couples/invite` → 상대가 `POST /couples/join` → 각자 `POST /couples/consent` → `owner=partner`로 시점 조회 · 대화 → 철회는 `POST /couples/revoke`.
+
+    ## 기술스택 문서와 달라진 점
+
+    - `POST /chats`는 세션 생성만 하고, 스트리밍은 `POST /chats/{chatId}/messages`로 옮겼어요. 시점 분석이 오래 걸릴 수 있어서 "준비 중" 상태를 따로 둬야 했어요.
+    - 코드 입력 화면용 `POST /couples/join`, 시점 선택용 `/personas/*`, 설정 화면용 `/me`를 추가했어요.
+
+    ## 결정한 것
+
+    - **ERD 반영 완료:** `kakao_uploads`에 `utterance_count`(사용한 내 발화 수)와 `masked_count`(가려진 민감정보 건수)를 추가했어요. 분석은 업로드 뒤에 진행돼서 이 두 컬럼과 `period_start`, `period_end`는 처리 중에 비어 있을 수 있어요(ERD의 `?`).
+    - **카톡 "내 이름":** 카톡 txt에는 참여자가 여러 명이라 어느 쪽이 나인지 알아야 해요. 스토리보드에는 입력 칸이 없어서, 서버가 `422 KAKAO_SPEAKER_REQUIRED`와 후보 이름 목록을 돌려주면 앱이 고르는 화면을 하나 더 보여줘요.
+
+    ## 팀원과 확인할 것
+
+    1. **기록 수준(`RecordLevel`) 기준:** 앱은 enum만 보여주고 기준은 서버가 정해요. 스키마 설명의 기준은 임시 초안이고, 팀원과 상의해서 정할 예정이에요.
+    2. **일기의 위기 신호 감지는 뺐어요:** 일기 저장은 3초 안에 끝나야 해서(기획서 4.2) AI 호출을 붙이지 않았어요. 대화 중 감지(`safety` 이벤트)만 있어요.
+    3. **`couples.status` 값:** `PENDING`, `CONNECTED`, `DISCONNECTED` 세 가지를 쓴다고 가정했어요. `EXPIRED`는 `code_expires_at`로 계산해서 응답에만 나와요.
+    4. **상담전화 번호:** `safety` 이벤트로 내려주는 번호(109 · 1577-0199)는 발표 전에 공식 안내로 확인해야 해요.
+
+servers:
+  - url: http://localhost:8080
+    description: 로컬 개발
+  - url: https://{host}
+    description: 배포 서버 (Render). 주소가 정해지기 전이라 임시 값이에요
+    variables:
+      host:
+        default: dearus-server.onrender.com
+
+tags:
+  - name: auth
+    description: 소셜 로그인
+  - name: me
+    description: 내 계정 · 사용 시간
+  - name: diaries
+    description: 일기 · 캘린더
+  - name: uploads
+    description: 카톡 대화 업로드
+  - name: personas
+    description: 시점 선택 · 기록량
+  - name: chats
+    description: Time-Slip Chat · 회고 리포트
+  - name: couples
+    description: 커플 모드
+
+security:
+  - bearerAuth: []
+
+paths:
+  /auth/{provider}:
+    post:
+      tags: [auth]
+      operationId: login
+      summary: 소셜 로그인
+      description: |
+        소셜 SDK에서 받은 토큰을 서버가 제공자에게 검증하고 JWT를 발급해요. 처음이면 계정을 만들어요.
+
+        | provider | `token`에 담을 값 |
+        |---|---|
+        | `kakao` | 카카오 SDK의 access token |
+        | `google` | 구글 로그인의 ID token |
+        | `apple` | 애플 로그인의 identity token |
+      x-schedule: 10월 3~4주
+      x-screen: 로그인
+      security: []
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [kakao, google, apple]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthRequest'
+      responses:
+        '200':
+          description: 로그인 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: 제공자 토큰이 올바르지 않아요 (`AUTH_PROVIDER_TOKEN_INVALID`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /me:
+    get:
+      tags: [me]
+      operationId: getMe
+      summary: 내 정보
+      x-schedule: 10월 3~4주
+      x-screen: 홈 인사말, 설정
+      responses:
+        '200':
+          description: 내 정보
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    delete:
+      tags: [me]
+      operationId: deleteMe
+      summary: 회원 탈퇴
+      description: 계정과 모든 데이터를 바로 지워요 (ERD의 `ON DELETE CASCADE`). 되돌릴 수 없어요.
+      x-schedule: 10월 3~4주
+      x-screen: 설정
+      responses:
+        '204':
+          description: 삭제 완료
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /me/usage/today:
+    get:
+      tags: [me]
+      operationId: getTodayUsage
+      summary: 오늘 대화 시간
+      description: |
+        `chat_sessions`의 시작 · 종료 시각으로 계산해요. 진행 중인 세션은 지금까지의 시간을 더해요.
+        권장 시간(30분)은 스토리보드의 "하루 30분 권장" 문구를 그대로 가정한 값이에요.
+      x-schedule: 11월 1~3주
+      x-screen: Time-Slip Chat 상단 안내
+      responses:
+        '200':
+          description: 오늘 사용량
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Usage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /diaries:
+    get:
+      tags: [diaries]
+      operationId: listDiaries
+      summary: 기간별 일기 목록
+      description: |
+        홈 캘린더가 한 달치를 받아 작성한 날에 ●를 표시하고, 날짜를 누르면 같은 응답의 내용을 보여줘요.
+        앱에서 쓴 일기만 나와요. 카톡만 올린 날은 포함되지 않아요.
+        기간은 최대 93일이에요.
+      x-schedule: 10월 3~4주
+      x-screen: 홈
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+          example: '2026-10-01'
+        - name: to
+          in: query
+          required: true
+          description: 이 날짜를 포함해요
+          schema:
+            type: string
+            format: date
+          example: '2026-10-31'
+      responses:
+        '200':
+          description: 날짜 오름차순
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiaryList'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [diaries]
+      operationId: createDiary
+      summary: 일기 쓰기
+      description: |
+        하루에 한 건만 쓸 수 있어요(ERD 가정). 같은 날짜가 이미 있으면 409와 기존 일기의 ID를 돌려줘서, 앱이 수정 화면으로 넘길 수 있어요.
+        저장은 3초 안에 끝나야 해서 AI를 호출하지 않아요.
+      x-schedule: 10월 3~4주
+      x-screen: 일기 쓰기
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DiaryCreate'
+      responses:
+        '201':
+          description: 저장됨
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Diary'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: 그 날짜의 일기가 이미 있어요 (`DIARY_ALREADY_EXISTS`, `details.diaryId`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /diaries/{diaryId}:
+    parameters:
+      - name: diaryId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    put:
+      tags: [diaries]
+      operationId: updateDiary
+      summary: 일기 고치기
+      description: 날짜는 바꿀 수 없어요. 본문과 감정 태그만 통째로 바꿔요. 고치면 그 무렵의 시점 분석은 다음 대화 때 다시 해요.
+      x-schedule: 10월 3~4주
+      x-screen: 홈(일기 보기)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DiaryUpdate'
+      responses:
+        '200':
+          description: 수정됨
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Diary'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [diaries]
+      operationId: deleteDiary
+      summary: 일기 지우기
+      x-schedule: 10월 3~4주
+      x-screen: 홈(일기 보기)
+      responses:
+        '204':
+          description: 삭제됨
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /uploads/kakao:
+    post:
+      tags: [uploads]
+      operationId: uploadKakao
+      summary: 카톡 대화 올리기
+      description: |
+        카톡 내보내기 txt를 올리면 서버가 본인 발화만 뽑고, 민감정보를 가리고, 주 단위로 요약해서 저장해요.
+        원본 파일은 요약이 끝나는 즉시(실패해도) 지워요.
+
+        시간이 걸릴 수 있어서 **202**로 바로 응답하고, 결과는 `GET /uploads/kakao/{uploadId}`를 1~2초 간격으로 조회해서 `status`가 `DONE` 또는 `FAILED`가 될 때까지 기다려요.
+
+        참여자가 여러 명이고 `speakerName`이 없으면 422 `KAKAO_SPEAKER_REQUIRED`와 후보 이름(`details.speakers`)을 돌려줘요. 앱이 이름을 고르게 한 뒤 같은 파일로 다시 올려요.
+      x-schedule: 10월 4주~11월 1주
+      x-screen: 카톡 올리기
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, consent]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: 카톡 내보내기 `.txt`. 최대 10MB
+                consent:
+                  type: boolean
+                  description: '"위 내용을 이해했고 대화 분석에 동의해요" 체크 여부. `true`가 아니면 거절해요. 서버는 `users.ai_consent_at`을 기록해요'
+                speakerName:
+                  type: string
+                  description: 대화에서 내 이름. 참여자가 한 명뿐이면 생략해도 돼요
+            encoding:
+              file:
+                contentType: text/plain
+      responses:
+        '202':
+          description: 접수됨. 분석은 서버에서 진행 중이에요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KakaoUpload'
+        '400':
+          description: 동의하지 않았어요 (`CONSENT_REQUIRED`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '413':
+          description: 파일이 너무 커요 (`FILE_TOO_LARGE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: |
+            `KAKAO_FILE_INVALID`(카톡 내보내기 형식이 아니에요), `KAKAO_SPEAKER_REQUIRED`(내 이름을 골라야 해요),
+            `KAKAO_NO_UTTERANCES`(내 발화를 찾지 못했어요)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get:
+      tags: [uploads]
+      operationId: listKakaoUploads
+      summary: 올린 카톡 목록
+      description: 설정의 "내 데이터 보기 · 삭제"에서 써요. 최신순이에요.
+      x-schedule: 11월 1주
+      x-screen: 설정
+      responses:
+        '200':
+          description: 업로드 목록
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/KakaoUpload'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /uploads/kakao/{uploadId}:
+    parameters:
+      - name: uploadId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [uploads]
+      operationId: getKakaoUpload
+      summary: 카톡 분석 상태 · 결과
+      x-schedule: 10월 4주~11월 1주
+      x-screen: 카톡 올리기, 분석 완료
+      responses:
+        '200':
+          description: 현재 상태
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KakaoUpload'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [uploads]
+      operationId: deleteKakaoUpload
+      summary: 카톡 요약 지우기
+      description: 이 업로드에서 만든 주간 요약을 모두 지워요. 이 기간의 시점 분석은 다음 대화 때 다시 해요.
+      x-schedule: 11월 1주
+      x-screen: 설정
+      responses:
+        '204':
+          description: 삭제됨
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /personas/shortcuts:
+    get:
+      tags: [personas]
+      operationId: getShortcuts
+      summary: 바로가기 카드 3개
+      description: |
+        1개월 · 6개월 · 1년 전 카드예요. 기준일(`anchorDate`)은 서버가 **그 주 월요일**로 맞춰서 내려줘요(같은 주에는 같은 분석을 재사용하기 위해서예요).
+        앱은 카드를 누르면 받은 `anchorDate`를 그대로 `POST /chats`에 넘겨요.
+        `owner=partner`는 연결된 연인의 카드예요.
+      x-schedule: 11월 1~2주
+      x-screen: 홈, 상대의 시점 고르기
+      parameters:
+        - $ref: '#/components/parameters/Owner'
+      responses:
+        '200':
+          description: 카드 3개 (1개월 → 1년 순서)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShortcutList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/CoupleAccessDenied'
+
+  /personas/preview:
+    get:
+      tags: [personas]
+      operationId: previewPersona
+      summary: 고른 시점의 기록량
+      description: |
+        직접 고른 날짜는 그대로 `anchorDate`가 돼요(주 단위로 맞추지 않아요). 그 날짜 전후 2주 범위의 일기 건수와 카톡 주 수, 기록 수준을 알려줘요.
+        슬라이더를 움직일 때마다 부를 수 있어서 AI를 호출하지 않는 가벼운 조회예요.
+      x-schedule: 11월 1~2주
+      x-screen: 시점 고르기, 상대의 시점 고르기
+      parameters:
+        - name: anchor
+          in: query
+          required: true
+          description: 오늘로부터 365일 전 ~ 오늘
+          schema:
+            type: string
+            format: date
+          example: '2026-07-06'
+        - $ref: '#/components/parameters/Owner'
+      responses:
+        '200':
+          description: 기록량
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PersonaWindow'
+        '400':
+          description: 고를 수 없는 날짜예요 (`ANCHOR_OUT_OF_RANGE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/CoupleAccessDenied'
+
+  /personas/timeline:
+    get:
+      tags: [personas]
+      operationId: getTimeline
+      summary: 최근 1년 주간 기록량
+      description: 시점 고르기 화면의 막대 그래프예요. 오래된 주부터 이번 주까지 52개를 돌려줘요.
+      x-schedule: 11월 1~2주
+      x-screen: 시점 고르기
+      parameters:
+        - $ref: '#/components/parameters/Owner'
+      responses:
+        '200':
+          description: 주간 기록량
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Timeline'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/CoupleAccessDenied'
+
+  /chats:
+    post:
+      tags: [chats]
+      operationId: createChat
+      summary: 과거의 나와 대화 시작
+      description: |
+        선택한 시점의 대화 세션을 만들어요.
+
+        1. 같은 시점의 저장된 분석이 있고 그 무렵 기록이 바뀌지 않았으면 바로 `READY`예요.
+        2. 아니면 `PREPARING`으로 돌려주고, 서버가 기록 모으기 → 민감정보 가리기 → 말투 분석 → 페르소나 만들기를 진행해요. 앱은 `GET /chats/{chatId}`를 1~2초 간격으로 조회해요 (`preparingStep`으로 로딩 화면의 단계를 표시해요).
+        3. `READY`가 되면 페르소나의 첫 인사가 `seq` 1번 메시지로 들어 있어요. `GET /chats/{chatId}/messages`로 가져와요.
+
+        `owner=partner`면 연인의 과거와 대화해요. 커플이 `CONNECTED`이고 양측이 동의했고 철회가 없을 때만 가능해요.
+      x-schedule: 11월 1~3주
+      x-screen: 불러오는 중, Time-Slip Chat, 상대의 시점 고르기
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatCreate'
+      responses:
+        '201':
+          description: 세션 생성됨
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatSession'
+        '400':
+          description: 고를 수 없는 날짜예요 (`ANCHOR_OUT_OF_RANGE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/CoupleAccessDenied'
+
+  /chats/{chatId}:
+    parameters:
+      - $ref: '#/components/parameters/ChatId'
+    get:
+      tags: [chats]
+      operationId: getChat
+      summary: 대화 세션 상태
+      description: 준비 중인지, 정확도가 어떤지, 끝났는지를 알려줘요. 대화 화면 상단 "3개월 전의 나 · 2026년 7월 무렵 · 정확도 보통"도 여기서 만들어요.
+      x-schedule: 11월 1~3주
+      x-screen: 불러오는 중, Time-Slip Chat
+      responses:
+        '200':
+          description: 세션
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatSession'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /chats/{chatId}/messages:
+    parameters:
+      - $ref: '#/components/parameters/ChatId'
+    get:
+      tags: [chats]
+      operationId: listChatMessages
+      summary: 대화 내용
+      description: '`seq` 오름차순이에요. `afterSeq`보다 큰 메시지만 돌려줘서, 처음에는 생략하고 이어서 받을 때 마지막 `seq`를 넘겨요.'
+      x-schedule: 11월 1~3주
+      x-screen: Time-Slip Chat
+      parameters:
+        - name: afterSeq
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+      responses:
+        '200':
+          description: 메시지 목록
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags: [chats]
+      operationId: sendChatMessage
+      summary: 말 걸기 (답변 스트리밍)
+      description: |
+        내 말을 보내면 과거의 내가 답해요. 첫 응답은 5초 안, 20턴 이상 이어지는 게 목표예요.
+
+        **응답 방식은 `Accept` 헤더로 골라요.**
+
+        - `Accept: text/event-stream` (기본): 답변을 SSE로 조금씩 받아요. React Native에서는 `expo/fetch`의 스트림을 써요.
+        - `Accept: application/json`: 답변이 다 만들어진 뒤 한 번에 받아요. 스트림이 안 될 때의 대비책이에요.
+
+        **SSE 이벤트**는 아래 순서로 와요. 각 이벤트의 `data`는 JSON 한 줄이에요.
+
+        | event | 언제 | data |
+        |---|---|---|
+        | `token` | 답변이 만들어지는 동안 여러 번 | `{ "text": "어, " }` |
+        | `safety` | 위기 신호를 감지했을 때 (0~1번, `done` 앞) | `SafetyNotice` |
+        | `done` | 답변이 끝나고 저장됐을 때 | `ChatReply` |
+        | `error` | 도중에 실패했을 때 (이후 이벤트 없음) | `Error` |
+
+        세션이 `READY`가 아니면 409 `CHAT_NOT_READY`, 이미 끝났으면 409 `CHAT_ENDED`예요.
+      x-schedule: 11월 1~3주
+      x-screen: Time-Slip Chat, 안전 안내
+      x-sse-events:
+        token: { data: { text: string } }
+        safety: { data: SafetyNotice }
+        done: { data: ChatReply }
+        error: { data: Error }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendMessage'
+      responses:
+        '200':
+          description: 답변
+          content:
+            text/event-stream:
+              schema:
+                type: string
+              example: |
+                event: token
+                data: {"text":"어, "}
+
+                event: token
+                data: {"text":"왔어? 요즘 학기 끝나가서 정신이 없어 ㅋㅋ"}
+
+                event: done
+                data: {"userMessage":{"id":3,"seq":2,"role":"USER","content":"응, 3개월 뒤의 너야.","createdAt":"2026-10-06T21:31:02+09:00"},"personaMessage":{"id":4,"seq":3,"role":"PERSONA","content":"어, 왔어? 요즘 학기 끝나가서 정신이 없어 ㅋㅋ","createdAt":"2026-10-06T21:31:05+09:00"}}
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatReply'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 대화할 수 없는 상태예요 (`CHAT_NOT_READY`, `CHAT_ENDED`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          $ref: '#/components/responses/AiUnavailable'
+
+  /chats/{chatId}/end:
+    parameters:
+      - $ref: '#/components/parameters/ChatId'
+    post:
+      tags: [chats]
+      operationId: endChat
+      summary: 대화 끝내기
+      description: |
+        세션을 끝내고 회고 리포트 만들기를 시작해요. 이미 끝난 세션에 다시 불러도 같은 결과를 돌려줘요.
+        리포트는 `GET /chats/{chatId}/report`로 받아요.
+      x-schedule: 11월 2~3주
+      x-screen: Time-Slip Chat(종료), 회고 리포트
+      responses:
+        '200':
+          description: 종료됨
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EndChatResult'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 아직 준비 중인 세션이에요 (`CHAT_NOT_READY`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /chats/{chatId}/report:
+    parameters:
+      - $ref: '#/components/parameters/ChatId'
+    get:
+      tags: [chats]
+      operationId: getReport
+      summary: 회고 리포트
+      description: |
+        당시 고민 · 현재 변화 · 한 줄 요약 3개 항목이에요 (세션당 1건). 아직 만드는 중이면 202를 돌려주니 1~2초 뒤에 다시 불러요.
+        커플 모드 리포트도 같은 형태이고, 화면 문구(그때의 고민 / 지금과 달라진 점)만 다르게 보여줘요.
+      x-schedule: 11월 2~3주
+      x-screen: 회고 리포트, 커플 리포트
+      responses:
+        '200':
+          description: 리포트
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Report'
+        '202':
+          description: 만드는 중
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportPending'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: 세션이 없거나 아직 끝내지 않았어요 (`NOT_FOUND`, `CHAT_NOT_ENDED`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /couples/me:
+    get:
+      tags: [couples]
+      operationId: getCouple
+      summary: 내 커플 상태
+      description: |
+        초대 코드 화면(상대가 입력하길 기다리는 중), 동의 화면(양쪽 동의 상태), 설정(연결됨 표시)이 모두 이 응답으로 그려져요.
+        기다리는 화면에서는 3~5초 간격으로 조회해요.
+      x-schedule: 11월 3주
+      x-screen: 초대 코드 연결, 동의 안내, 설정
+      responses:
+        '200':
+          description: '커플 상태 (연결이 없으면 `status: NONE`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CoupleState'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /couples/invite:
+    post:
+      tags: [couples]
+      operationId: createInvite
+      summary: 초대 코드 만들기
+      description: |
+        코드는 24시간 동안 유효해요. 이미 만든 코드가 아직 유효하면 같은 코드를 돌려줘요. 만료됐으면 새로 만들어요.
+        이미 연결된 커플이 있으면 409예요.
+      x-schedule: 11월 3주
+      x-screen: 초대 코드 연결
+      responses:
+        '200':
+          description: '초대 코드가 담긴 커플 상태 (`status: PENDING`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CoupleState'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: 이미 연결된 커플이 있어요 (`ALREADY_IN_COUPLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /couples/join:
+    post:
+      tags: [couples]
+      operationId: joinCouple
+      summary: 받은 코드 입력하기
+      description: 연결만 되고 상대 페르소나는 아직 열리지 않아요. 둘 다 동의해야 열려요.
+      x-schedule: 11월 3주
+      x-screen: 초대 코드 연결 ("코드 입력하기" 탭)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JoinRequest'
+      responses:
+        '200':
+          description: '연결됨 (`status: CONNECTED`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CoupleState'
+        '400':
+          description: 내가 만든 코드는 입력할 수 없어요 (`COUPLE_OWN_CODE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: 없는 코드예요 (`COUPLE_CODE_INVALID`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: 이미 연결된 커플이 있어요 (`ALREADY_IN_COUPLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '410':
+          description: 만료된 코드예요 (`COUPLE_CODE_EXPIRED`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /couples/consent:
+    post:
+      tags: [couples]
+      operationId: giveCouplesConsent
+      summary: 커플 모드 동의
+      description: |
+        내 동의를 기록해요(`couple_members.consented_at`). 두 사람이 모두 동의하면 응답의 `partnerPersonaOpen`이 `true`가 돼요.
+        이미 동의했으면 같은 결과를 돌려줘요.
+      x-schedule: 11월 3주
+      x-screen: 동의 안내
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConsentRequest'
+      responses:
+        '200':
+          description: 갱신된 커플 상태
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CoupleState'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: 연결된 커플이 없어요 (`COUPLE_NOT_CONNECTED`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /couples/revoke:
+    post:
+      tags: [couples]
+      operationId: revokeCouple
+      summary: 동의 철회 · 연결 해제
+      description: |
+        상대의 접근을 바로 끊고, 이 커플의 대화와 리포트를 지워요. 내 일기와 개인 모드 기록, 내 분석 결과는 그대로 남아요.
+        되돌릴 수 없어요.
+      x-schedule: 11월 3주
+      x-screen: 동의 철회
+      responses:
+        '200':
+          description: '해제됨 (`status: NONE`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CoupleState'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    Owner:
+      name: owner
+      in: query
+      description: 누구의 기록으로 볼지. `partner`는 연결된 연인이고, 커플 조건을 만족해야 해요
+      schema:
+        type: string
+        enum: [me, partner]
+        default: me
+    ChatId:
+      name: chatId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    Unauthorized:
+      description: 로그인이 필요하거나 토큰이 만료됐어요 (`UNAUTHORIZED`). 다시 로그인해요
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: UNAUTHORIZED
+            message: 로그인이 만료됐어요. 다시 로그인해 주세요.
+    ValidationFailed:
+      description: 요청 값이 올바르지 않아요 (`VALIDATION_FAILED`). `details.fields`에 항목별 이유가 있어요
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: VALIDATION_FAILED
+            message: 입력한 내용을 다시 확인해 주세요.
+            details:
+              fields:
+                - field: content
+                  reason: 비어 있을 수 없어요
+    NotFound:
+      description: 찾을 수 없어요 (`NOT_FOUND`). 남의 데이터도 같은 응답이에요
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: NOT_FOUND
+            message: 찾을 수 없어요.
+    CoupleAccessDenied:
+      description: 상대의 기록을 볼 수 없어요 (`COUPLE_ACCESS_DENIED`). 연결 · 양측 동의 · 철회 없음 조건을 모두 만족하지 않았어요
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: COUPLE_ACCESS_DENIED
+            message: 두 사람이 모두 동의해야 만날 수 있어요.
+    AiUnavailable:
+      description: AI가 지금 응답하지 못해요 (`AI_UNAVAILABLE`). 잠시 뒤 다시 시도해요
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: AI_UNAVAILABLE
+            message: 지금은 답하기 어려워요. 잠시 뒤에 다시 해 주세요.
+
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: |
+            앱이 분기에 쓰는 값이에요. 공통: `UNAUTHORIZED`, `VALIDATION_FAILED`, `NOT_FOUND`, `AI_UNAVAILABLE`.
+            그 밖의 값은 각 API 응답 설명에 적었어요.
+          example: DIARY_ALREADY_EXISTS
+        message:
+          type: string
+          description: 화면에 그대로 보여줘도 되는 해요체 문장
+          example: 이 날짜에 쓴 일기가 이미 있어요.
+        details:
+          type: object
+          nullable: true
+          additionalProperties: true
+          description: 코드마다 달라요 (예 `diaryId`, `speakers`, `fields`)
+
+    # ───────── 로그인 · 계정 ─────────
+    AuthRequest:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+          description: 소셜 SDK가 준 토큰 (provider마다 종류가 달라요)
+        nickname:
+          type: string
+          maxLength: 20
+          description: 애플은 처음 한 번만 이름을 주기 때문에, 있으면 함께 보내요. 없으면 서버가 제공자 프로필의 이름을 써요
+    AuthResponse:
+      type: object
+      required: [accessToken, tokenType, expiresAt, isNewUser, user]
+      properties:
+        accessToken:
+          type: string
+        tokenType:
+          type: string
+          enum: [Bearer]
+        expiresAt:
+          type: string
+          format: date-time
+          description: 초안은 발급 후 14일이에요. 만료되면 다시 로그인해요
+        isNewUser:
+          type: boolean
+          description: 이번에 계정이 만들어졌으면 `true`
+        user:
+          $ref: '#/components/schemas/User'
+    User:
+      type: object
+      required: [id, provider, nickname, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        provider:
+          type: string
+          enum: [kakao, google, apple]
+        nickname:
+          type: string
+          example: 서연
+        aiConsentedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: 대화 분석 동의 시각. 아직 동의하지 않았으면 `null`
+        aiRevokedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+    Usage:
+      type: object
+      required: [date, chatMinutes, recommendedMinutes]
+      properties:
+        date:
+          type: string
+          format: date
+        chatMinutes:
+          type: integer
+          minimum: 0
+          example: 12
+        recommendedMinutes:
+          type: integer
+          example: 30
+
+    # ───────── 일기 ─────────
+    Emotion:
+      type: string
+      description: |
+        감정 태그. 스토리보드의 7개예요.
+        기쁨 `JOY`, 설렘 `EXCITED`, 평온 `CALM`, 피곤 `TIRED`, 슬픔 `SAD`, 불안 `ANXIOUS`, 화남 `ANGRY`
+      enum: [JOY, EXCITED, CALM, TIRED, SAD, ANXIOUS, ANGRY]
+    Diary:
+      type: object
+      required: [id, date, content, emotions, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        date:
+          type: string
+          format: date
+        content:
+          type: string
+        emotions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Emotion'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      example:
+        id: 7d6f2c1e-3b0a-4c55-9a1e-2f4b8c9d0e11
+        date: '2026-10-05'
+        content: 오늘은 팀원들이랑 발표 준비를 했다. 그래도 하루 종일 앉아 있었더니 많이 피곤하다.
+        emotions: [CALM, TIRED]
+        createdAt: '2026-10-05T22:10:00+09:00'
+        updatedAt: '2026-10-05T22:10:00+09:00'
+    DiaryCreate:
+      type: object
+      required: [date, content]
+      properties:
+        date:
+          type: string
+          format: date
+          description: 오늘 또는 지난 날짜. 미래는 `VALIDATION_FAILED`
+        content:
+          type: string
+          minLength: 1
+          maxLength: 5000
+        emotions:
+          type: array
+          maxItems: 7
+          uniqueItems: true
+          default: []
+          description: 여러 개를 고를 수 있어요. 하나도 안 골라도 저장돼요 (스토리보드에 필수 표시가 없어서 가정했어요)
+          items:
+            $ref: '#/components/schemas/Emotion'
+    DiaryUpdate:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: string
+          minLength: 1
+          maxLength: 5000
+        emotions:
+          type: array
+          maxItems: 7
+          uniqueItems: true
+          default: []
+          items:
+            $ref: '#/components/schemas/Emotion'
+    DiaryList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Diary'
+
+    # ───────── 카톡 업로드 ─────────
+    KakaoUpload:
+      type: object
+      required: [id, status, uploadedAt, originalDeleted]
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [PROCESSING, DONE, FAILED]
+        uploadedAt:
+          type: string
+          format: date-time
+        periodStart:
+          type: string
+          format: date
+          nullable: true
+          description: 대화에서 찾은 첫 날짜. `DONE`일 때만 있어요
+        periodEnd:
+          type: string
+          format: date
+          nullable: true
+        weekCount:
+          type: integer
+          nullable: true
+          description: 저장한 주간 요약 수. `DONE`일 때만 있어요
+          example: 8
+        utteranceCount:
+          type: integer
+          nullable: true
+          description: 사용한 내 발화 수 ("사용한 내 발화 3,214개")
+          example: 3214
+        maskedCount:
+          type: integer
+          nullable: true
+          description: 가려진 민감정보 건수 ("가려진 민감정보 47건")
+          example: 47
+        originalDeleted:
+          type: boolean
+          description: 원본 파일을 지웠는지. 처리가 끝나면(성공이든 실패든) `true`예요
+        expiresAt:
+          type: string
+          format: date-time
+          description: 업로드 1년 뒤에 요약이 자동으로 지워져요
+        failureCode:
+          type: string
+          nullable: true
+          description: '`FAILED`일 때의 이유. `KAKAO_NO_UTTERANCES`, `AI_UNAVAILABLE` 등'
+      example:
+        id: 0c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f
+        status: DONE
+        uploadedAt: '2026-10-06T20:05:00+09:00'
+        periodStart: '2026-08-04'
+        periodEnd: '2026-09-28'
+        weekCount: 8
+        utteranceCount: 3214
+        maskedCount: 47
+        originalDeleted: true
+        expiresAt: '2027-10-06T20:05:00+09:00'
+        failureCode: null
+
+    # ───────── 시점 · 기록량 ─────────
+    RecordLevel:
+      type: string
+      enum: [NONE, LOW, ENOUGH, RICH]
+      description: |
+        선택한 시점 전후 2주의 기록이 얼마나 되는지예요. 앱은 enum만 보고 문구를 골라요. 기준은 서버가 정해요. 아래 표는 임시 초안이고, 팀원과 상의해서 확정할 예정이에요.
+
+        | 값 | 초안 기준 | 홈 카드 | 시점 고르기 | 대화 상단 정확도 |
+        |---|---|---|---|---|
+        | `NONE` | 일기 0건, 카톡 0주 | 기록 없음 | 기록이 없어요 | 낮음 |
+        | `LOW` | 일기 1~4건이고 카톡 0주 | 기록 부족 | 부족해요 | 낮음 |
+        | `ENOUGH` | 일기 5~9건 또는 카톡 1주 이상 | (표시 없음) | 충분해요 | 보통 |
+        | `RICH` | 일기 10건 이상 | 기록 풍부 | 풍부해요 | 높음 |
+
+        `NONE`이나 `LOW`여도 대화는 할 수 있고, 앱이 "기록이 부족해 정확도가 낮을 수 있어요"를 보여줘요.
+    PersonaWindow:
+      type: object
+      required: [anchorDate, windowStart, windowEnd, diaryCount, kakaoWeeks, level]
+      properties:
+        anchorDate:
+          type: string
+          format: date
+          description: 기준일. 바로가기는 그 주 월요일, 직접 고른 날짜는 그대로
+        windowStart:
+          type: string
+          format: date
+          description: 기준일 14일 전
+        windowEnd:
+          type: string
+          format: date
+          description: 기준일 14일 뒤. 오늘을 넘으면 오늘로 줄여요
+        diaryCount:
+          type: integer
+          example: 9
+        kakaoWeeks:
+          type: integer
+          description: 이 범위와 겹치는 주의 카톡 요약 수
+          example: 4
+        level:
+          $ref: '#/components/schemas/RecordLevel'
+      example:
+        anchorDate: '2026-07-06'
+        windowStart: '2026-06-22'
+        windowEnd: '2026-07-20'
+        diaryCount: 9
+        kakaoWeeks: 4
+        level: ENOUGH
+    Shortcut:
+      allOf:
+        - $ref: '#/components/schemas/PersonaWindow'
+        - type: object
+          required: [key]
+          properties:
+            key:
+              type: string
+              enum: [ONE_MONTH, SIX_MONTHS, ONE_YEAR]
+    ShortcutList:
+      type: object
+      required: [owner, items]
+      properties:
+        owner:
+          type: string
+          enum: [me, partner]
+        items:
+          type: array
+          minItems: 3
+          maxItems: 3
+          items:
+            $ref: '#/components/schemas/Shortcut'
+    Timeline:
+      type: object
+      required: [owner, weeks]
+      properties:
+        owner:
+          type: string
+          enum: [me, partner]
+        weeks:
+          type: array
+          description: 오래된 주 → 이번 주, 52개
+          items:
+            type: object
+            required: [weekStart, diaryCount, hasKakao]
+            properties:
+              weekStart:
+                type: string
+                format: date
+                description: 그 주 월요일
+              diaryCount:
+                type: integer
+              hasKakao:
+                type: boolean
+                description: 그 주의 카톡 요약이 있는지
+
+    # ───────── 대화 · 리포트 ─────────
+    PersonaOwner:
+      type: object
+      required: [userId, nickname, isMe]
+      description: 페르소나의 주인. 개인 모드는 나, 커플 모드는 연인이에요 (`chat_sessions.persona_owner_id`)
+      properties:
+        userId:
+          type: string
+          format: uuid
+        nickname:
+          type: string
+          example: 서연
+        isMe:
+          type: boolean
+    ChatCreate:
+      type: object
+      required: [anchorDate]
+      properties:
+        anchorDate:
+          type: string
+          format: date
+          description: '`/personas/shortcuts`가 준 값 또는 직접 고른 날짜. 오늘로부터 365일 전 ~ 오늘'
+        owner:
+          type: string
+          enum: [me, partner]
+          default: me
+    ChatSession:
+      type: object
+      required: [id, status, mode, personaOwner, anchorDate, windowStart, windowEnd, level, startedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [PREPARING, READY, FAILED]
+          description: '`PREPARING`이면 시점 분석 중, `READY`면 대화할 수 있어요, `FAILED`면 `failureCode`를 보고 다시 시도해요'
+        preparingStep:
+          type: string
+          nullable: true
+          enum: [COLLECT, MASK, ANALYZE, BUILD, null]
+          description: |
+            `PREPARING`일 때의 단계예요. 서버가 단계를 추적하지 못하면 `null`이고, 앱은 단계 표시를 순서대로 흉내 내요.
+            기록 모으기 `COLLECT`, 민감정보 가리기 `MASK`, 말투와 대화 방식 분석하기 `ANALYZE`, 그때의 나 완성하기 `BUILD`
+        failureCode:
+          type: string
+          nullable: true
+          example: AI_UNAVAILABLE
+        mode:
+          type: string
+          enum: [PERSONAL, COUPLE]
+        coupleId:
+          type: string
+          format: uuid
+          nullable: true
+        personaOwner:
+          $ref: '#/components/schemas/PersonaOwner'
+        anchorDate:
+          type: string
+          format: date
+        windowStart:
+          type: string
+          format: date
+        windowEnd:
+          type: string
+          format: date
+        level:
+          $ref: '#/components/schemas/RecordLevel'
+        startedAt:
+          type: string
+          format: date-time
+        endedAt:
+          type: string
+          format: date-time
+          nullable: true
+      example:
+        id: 5b8c0d1e-2f3a-4b4c-9d5e-6f7a8b9c0d1e
+        status: READY
+        preparingStep: null
+        failureCode: null
+        mode: PERSONAL
+        coupleId: null
+        personaOwner:
+          userId: 3a2b1c0d-9e8f-4a7b-8c6d-5e4f3a2b1c0d
+          nickname: 서연
+          isMe: true
+        anchorDate: '2026-07-06'
+        windowStart: '2026-06-22'
+        windowEnd: '2026-07-20'
+        level: ENOUGH
+        startedAt: '2026-10-06T21:30:00+09:00'
+        endedAt: null
+    ChatMessage:
+      type: object
+      required: [id, seq, role, content, createdAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+        seq:
+          type: integer
+          description: 세션 안에서 1부터 늘어나는 순서
+        role:
+          type: string
+          enum: [USER, PERSONA]
+        content:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    MessageList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChatMessage'
+    SendMessage:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: string
+          minLength: 1
+          maxLength: 2000
+    ChatReply:
+      type: object
+      required: [userMessage, personaMessage]
+      description: |
+        답변이 저장된 뒤의 결과예요. `safety`는 위기 신호를 감지했을 때만 있어요 (JSON 응답에서만 써요. SSE에서는 `safety` 이벤트로 먼저 와요).
+      properties:
+        userMessage:
+          $ref: '#/components/schemas/ChatMessage'
+        personaMessage:
+          $ref: '#/components/schemas/ChatMessage'
+        safety:
+          $ref: '#/components/schemas/SafetyNotice'
+    SafetyNotice:
+      type: object
+      required: [reason, hotlines]
+      description: 대화에서 위기 신호를 감지했을 때의 안내예요. 번호는 서버에서 내려줘서 앱 배포 없이 바꿀 수 있어요
+      properties:
+        reason:
+          type: string
+          enum: [DISTRESS]
+          description: 지금은 한 가지뿐이에요
+        hotlines:
+          type: array
+          items:
+            type: object
+            required: [name, phone, hours]
+            properties:
+              name:
+                type: string
+              phone:
+                type: string
+              hours:
+                type: string
+      example:
+        reason: DISTRESS
+        hotlines:
+          - name: 자살예방 상담전화
+            phone: '109'
+            hours: 24시간
+          - name: 정신건강 위기상담전화
+            phone: 1577-0199
+            hours: 24시간
+    EndChatResult:
+      type: object
+      required: [chatId, endedAt, durationMinutes, reportStatus]
+      properties:
+        chatId:
+          type: string
+          format: uuid
+        endedAt:
+          type: string
+          format: date-time
+        durationMinutes:
+          type: integer
+          example: 18
+        reportStatus:
+          type: string
+          enum: [GENERATING, READY]
+    Report:
+      type: object
+      required: [id, chatId, mode, personaOwner, anchorDate, durationMinutes, pastConcern, presentChange, oneLineSummary, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        chatId:
+          type: string
+          format: uuid
+        mode:
+          type: string
+          enum: [PERSONAL, COUPLE]
+        personaOwner:
+          $ref: '#/components/schemas/PersonaOwner'
+        anchorDate:
+          type: string
+          format: date
+          description: '"3개월 전의 나", "6개월 전의 도윤"의 몇 개월 전은 앱이 이 날짜로 계산해요'
+        durationMinutes:
+          type: integer
+          example: 18
+        pastConcern:
+          type: string
+          description: 당시 고민 (커플 모드 화면에서는 "그때의 고민")
+        presentChange:
+          type: string
+          description: 현재 변화 (커플 모드 화면에서는 "지금과 달라진 점")
+        oneLineSummary:
+          type: string
+          maxLength: 100
+        createdAt:
+          type: string
+          format: date-time
+      example:
+        id: 9e8d7c6b-5a49-4837-a625-140f3e2d1c0b
+        chatId: 5b8c0d1e-2f3a-4b4c-9d5e-6f7a8b9c0d1e
+        mode: PERSONAL
+        personaOwner:
+          userId: 3a2b1c0d-9e8f-4a7b-8c6d-5e4f3a2b1c0d
+          nickname: 서연
+          isMe: true
+        anchorDate: '2026-07-06'
+        durationMinutes: 18
+        pastConcern: 학기 말에 진로가 정해지지 않아 막막했지만, 겉으로는 티를 내지 않았어요.
+        presentChange: 지금은 방향을 조금 잡았고, 걱정을 혼자 안고 있지 않게 됐어요.
+        oneLineSummary: 막막함은 줄고, 해 본 일은 늘었어요.
+        createdAt: '2026-10-06T21:49:00+09:00'
+    ReportPending:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [GENERATING]
+
+    # ───────── 커플 ─────────
+    CoupleState:
+      type: object
+      required: [status, partnerPersonaOpen]
+      properties:
+        status:
+          type: string
+          enum: [NONE, PENDING, EXPIRED, CONNECTED]
+          description: |
+            `NONE` 연결 없음, `PENDING` 코드를 만들고 상대를 기다리는 중, `EXPIRED` 코드가 24시간이 지나 만료됨(`couples.code_expires_at`로 계산),
+            `CONNECTED` 두 계정이 연결됨. 해제하면 `NONE`으로 돌아가요.
+        coupleId:
+          type: string
+          format: uuid
+          nullable: true
+        myRole:
+          type: string
+          nullable: true
+          enum: [INVITER, INVITEE]
+          description: 코드를 만든 쪽인지 입력한 쪽인지 (`couple_members.role`)
+        invite:
+          type: object
+          nullable: true
+          description: 내가 코드를 만든 쪽이고 아직 연결 전일 때만 있어요
+          required: [code, expiresAt]
+          properties:
+            code:
+              type: string
+              example: DU-7K4Q-2M9X
+            expiresAt:
+              type: string
+              format: date-time
+        me:
+          type: object
+          nullable: true
+          required: [nickname, consented]
+          properties:
+            nickname:
+              type: string
+              example: 서연
+            consented:
+              type: boolean
+        partner:
+          type: object
+          nullable: true
+          description: 연결 전에는 `null`이에요
+          required: [nickname, consented]
+          properties:
+            nickname:
+              type: string
+              example: 도윤
+            consented:
+              type: boolean
+        connectedAt:
+          type: string
+          format: date-time
+          nullable: true
+        partnerPersonaOpen:
+          type: boolean
+          description: 상대의 과거와 대화할 수 있는지. 연결됨 + 양측 동의 + 철회 없음일 때만 `true`
+      example:
+        status: CONNECTED
+        coupleId: 2c3d4e5f-6a7b-4c8d-9e0f-1a2b3c4d5e6f
+        myRole: INVITER
+        invite: null
+        me:
+          nickname: 서연
+          consented: true
+        partner:
+          nickname: 도윤
+          consented: true
+        connectedAt: '2026-10-06T19:40:00+09:00'
+        partnerPersonaOpen: true
+    JoinRequest:
+      type: object
+      required: [inviteCode]
+      properties:
+        inviteCode:
+          type: string
+          pattern: '^DU-[A-Z0-9]{4}-[A-Z0-9]{4}$'
+          example: DU-7K4Q-2M9X
+    ConsentRequest:
+      type: object
+      required: [agreed]
+      properties:
+        agreed:
+          type: boolean
+          enum: [true]
+          description: 동의 화면의 체크 후 "동의하고 계속하기"를 눌렀을 때 `true`. 철회는 `POST /couples/revoke`로 해요

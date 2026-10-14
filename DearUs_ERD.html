@@ -73,7 +73,7 @@
     <h2><span>1</span>관계도</h2>
     <figure>
       <div class="scroll">
-<svg viewBox="0 0 1110 810" role="img" aria-label="열한 개 테이블의 관계도. users를 중심으로 일기, 카톡 업로드, 페르소나 분석, 대화, 커플 테이블이 연결되고, 카톡 원본을 담는 테이블은 없다">
+<svg viewBox="0 0 1110 830" role="img" aria-label="열한 개 테이블의 관계도. users를 중심으로 일기, 카톡 업로드, 페르소나 분석, 대화, 커플 테이블이 연결되고, 카톡 원본을 담는 테이블은 없다">
 <g>
 <rect class="tbl" x="30" y="40" width="235" height="76" rx="10"/>
 <path class="th th-rec" d="M30,70 V50 Q30,40 40,40 H255 Q265,40 265,50 V70 Z"/>
@@ -206,7 +206,7 @@
 <text class="ctype" x="525" y="454">timestamptz</text>
 </g>
 <g>
-<rect class="tbl" x="300" y="590" width="235" height="176" rx="10"/>
+<rect class="tbl" x="300" y="590" width="235" height="216" rx="10"/>
 <path class="th th-rec" d="M300,620 V600 Q300,590 310,590 H525 Q535,590 535,600 V620 Z"/>
 <text class="tname tname-rec mono" x="312" y="610">kakao_uploads</text>
 <rect class="bdg bdg-PK" x="308" y="624" width="22" height="12" rx="3"/>
@@ -223,16 +223,22 @@
 <text class="ctype" x="525" y="674">timestamptz</text>
 <line class="sep" x1="308" y1="680" x2="527" y2="680"/>
 <text class="cname mono" x="336" y="694.2">period_start</text>
-<text class="ctype" x="525" y="694">date</text>
+<text class="ctype" x="525" y="694">date?</text>
 <line class="sep" x1="308" y1="700" x2="527" y2="700"/>
 <text class="cname mono" x="336" y="714.2">period_end</text>
-<text class="ctype" x="525" y="714">date</text>
+<text class="ctype" x="525" y="714">date?</text>
 <line class="sep" x1="308" y1="720" x2="527" y2="720"/>
 <text class="cname mono" x="336" y="734.2">status</text>
 <text class="ctype" x="525" y="734">varchar</text>
 <line class="sep" x1="308" y1="740" x2="527" y2="740"/>
-<text class="cname mono" x="336" y="754.2">expires_at</text>
-<text class="ctype" x="525" y="754">timestamptz</text>
+<text class="cname mono" x="336" y="754.2">utterance_count</text>
+<text class="ctype" x="525" y="754">int?</text>
+<line class="sep" x1="308" y1="760" x2="527" y2="760"/>
+<text class="cname mono" x="336" y="774.2">masked_count</text>
+<text class="ctype" x="525" y="774">int?</text>
+<line class="sep" x1="308" y1="780" x2="527" y2="780"/>
+<text class="cname mono" x="336" y="794.2">expires_at</text>
+<text class="ctype" x="525" y="794">timestamptz</text>
 </g>
 <g>
 <rect class="tbl" x="570" y="40" width="235" height="176" rx="10"/>
@@ -510,6 +516,7 @@
       <li><b>일기 본문과 대화 내용의 암호화</b> — 기획서 7장은 요약 · 말투 특징만 암호화한다고 적었습니다. <code>diaries.content</code>와 <code>chat_messages.content</code>는 평문으로 두었습니다. 암호화하려면 컬럼을 <code>*_enc</code>로 바꿔야 합니다.</li>
       <li><b>커플 철회 시 본인 분석은 유지</b> — 철회하면 그 커플의 대화 · 리포트를 지우지만, 상대가 본 적이 있는 내 <code>persona_analyses</code> 행은 개인 모드에서도 쓰므로 남겨 둡니다. “관련 분석 데이터 파기”(기획서 6.3)를 더 넓게 해석한다면 규칙이 달라집니다.</li>
       <li><b>없는 것</b> — 위기 신호 감지 기록(기획서 5.6), 로그인 갱신 토큰 저장, 이용 시간 집계 전용 테이블은 넣지 않았습니다. 이용 시간은 <code>chat_sessions</code>의 시작 · 종료 시각으로 계산할 수 있습니다.</li>
+      <li><b>카톡 업로드의 숫자 컬럼</b> — 분석 완료 화면이 보여주는 “사용한 내 발화 수”와 “가려진 민감정보 건수”를 <code>utterance_count</code>, <code>masked_count</code>로 저장합니다. 개인을 식별하는 값이 아니라 개수뿐입니다. 분석은 업로드 뒤에 진행되므로 처리 중에는 이 두 컬럼과 <code>period_start</code>, <code>period_end</code>가 비어 있을 수 있습니다.</li>
       <li><b>커플 리포트 확장</b> — 기획서 9장의 “연인에게 물어보면 좋을 질문”은 아직 검토 중이라 <code>reports</code>에 컬럼을 두지 않았습니다.</li>
     </ul>
   </section>
