@@ -2,6 +2,8 @@ package com.dearus.persona;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.dearus.auth.ConsentPurgeJob;
+import com.dearus.auth.ConsentRequest;
 import com.dearus.auth.ConsentService;
 import com.dearus.auth.User;
 import com.dearus.auth.UserRepository;
@@ -26,9 +28,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.util.ReflectionTestUtils;
 
 /**
  * 진짜 DB(server/.env의 Supabase)에 저장 · 조회 · 덮어쓰기 · 철회 삭제가 되는지 확인하는 시험이에요.
+ * 동의 철회 뒤 30일 보관 · 재동의 · 폐기도 확인해요.
  * DB를 건드려서 DEARUS_DB_TEST=true일 때만 돌고, 가짜 AI(app.ai.provider=fake)를 쓰며, 만든 사용자는 끝나면 지워요.
  * 돌리기: DEARUS_DB_TEST=true ./gradlew test --tests '*PersonaAnalysisDbTest' -i
  */
@@ -44,10 +48,11 @@ class PersonaAnalysisDbTest {
 	@Autowired PersonaAnalysisService service;
 	@Autowired PersonaWindowService windows;
 	@Autowired ConsentService consent;
+	@Autowired ConsentPurgeJob purge;
 	@Autowired CryptoService crypto;
 
 	@Test
-	void 분석을_저장하고_재사용하고_덮어쓰고_철회하면_지워요() {
+	void 분석을_저장하고_재사용하고_덮어쓰고_철회_뒤_30일이_지나면_지워요() {
 		User user = User.create("dev", "dbtest-" + UUID.randomUUID(), "시험");
 		user.agree(false);
 		UUID userId = users.saveAndFlush(user).getId();
@@ -105,12 +110,31 @@ class PersonaAnalysisDbTest {
 			assertThat(dayResult.analysisId()).isNotEqualTo(first.analysisId());
 			assertThat(analyses.findById(dayResult.analysisId()).orElseThrow().getWindowDays()).isZero();
 
-			// 동의를 철회하면 분석과 메신저 요약이 함께 지워져요
+			// 동의를 철회해도 바로 지우지 않고 30일 보관해요
 			consent.revokeAiConsent(userId);
+			assertThat(users.findById(userId).orElseThrow().aiConsentActive()).isFalse(); // 철회가 저장됐는지
+			assertThat(analyses.findById(first.analysisId())).isPresent();
+			assertThat(analyses.findById(dayResult.analysisId())).isPresent();
+			assertThat(uploads.findByUserIdOrderByUploadedAtDesc(userId)).hasSize(1);
+			assertThat(purge.purgeIfExpired(userId, Kst.now())).isFalse(); // 보관 기간 안이에요
+
+			// 그 안에 다시 동의하면 보관하던 분석을 그대로 이어서 써요
+			consent.agree(userId, new ConsentRequest(true, true, true, null));
+			Result restored = service.getOrCreate(userId, PersonaScope.AROUND, anchor, step -> { }).orElseThrow();
+			assertThat(restored.reused()).isTrue();
+			assertThat(restored.analysisId()).isEqualTo(first.analysisId());
+
+			// 다시 철회하고 30일이 지나면 분석과 메신저 요약이 지워지고, 일기는 그대로예요
+			consent.revokeAiConsent(userId);
+			User revoked = users.findById(userId).orElseThrow();
+			ReflectionTestUtils.setField(revoked, "aiRevokedAt", Kst.now().minusDays(31));
+			users.saveAndFlush(revoked);
+			assertThat(purge.purgeIfExpired(userId, Kst.now())).isTrue();
 			assertThat(analyses.findById(first.analysisId())).isEmpty();
 			assertThat(analyses.findById(dayResult.analysisId())).isEmpty();
 			assertThat(uploads.findByUserIdOrderByUploadedAtDesc(userId)).isEmpty();
-			assertThat(users.findById(userId).orElseThrow().aiConsentActive()).isFalse(); // 철회가 저장됐는지
+			assertThat(summaries.findByUploadIdOrderByWeekStartAsc(upload.getId())).isEmpty();
+			assertThat(diaries.findByUserIdAndDiaryDateBetweenOrderByDiaryDateAsc(userId, anchor, anchor.plusDays(2))).hasSize(3);
 		} finally {
 			users.deleteById(userId); // 일기 · 업로드 · 요약 · 분석이 ON DELETE CASCADE로 함께 지워져요
 		}

@@ -528,6 +528,7 @@
         <h3>삭제와 보관</h3>
         <ul>
           <li>회원 탈퇴 시 <code>users</code> 행을 지우면 모든 테이블이 <code>ON DELETE CASCADE</code>로 즉시 지워집니다.</li>
+          <li>AI 분석 동의를 철회하면 바로 지우지 않고, 철회 시각(<code>users.ai_revoked_at</code>)부터 30일 뒤에 그 사용자의 대화 세션(메시지 포함) · 시점 분석 · 메신저 업로드(주간 요약 포함)를 서버가 지웁니다. 그 안에 다시 동의하면 철회 시각이 비워져 그대로 이어서 씁니다. 일기는 지우지 않습니다.</li>
           <li>예외로 <code>chat_sessions.analysis_id</code>는 <code>ON DELETE SET NULL</code>입니다. 분석 행이 재분석으로 바뀌어도 대화 기록은 남기 위해서입니다.</li>
           <li>암호화는 애플리케이션 레벨(AES-GCM 가정)이고, 키는 Render 환경변수에 둡니다. <code>*_enc</code> 컬럼만 해당합니다.</li>
           <li>컬럼 이름과 테이블 이름은 snake_case이고 코드 식별자 규칙(<code>dearus</code>)을 따릅니다.</li>
@@ -555,7 +556,7 @@
       <li><b>커플 철회 시 본인 분석은 유지</b> — 철회하면 그 커플의 대화 · 리포트(기억 요약 · 간극)를 지우지만, 내 <code>persona_analyses</code> 행은 개인 모드에서도 쓰므로 남겨 둡니다. “관련 분석 데이터 파기”(기획서 6.3)를 더 넓게 해석한다면 규칙이 달라집니다.</li>
       <li><b>커플 모드는 “같은 날 비교”</b> — 스토리보드의 커플 흐름이 상대 페르소나와 대화하는 방식에서 “각자 자기 과거의 나와 대화한 뒤 두 요약을 비교”하는 방식으로 바뀌었다고 읽었습니다. 그래서 비교용 새 테이블 없이 <code>reports</code>에 <code>memory_summary</code>(그날의 기억)와 <code>gap_summary</code>(두 사람의 간극)를 두었고, 이 경우 <code>past_concern</code> · <code>present_change</code>는 비워 둡니다. 상대 페르소나와 대화하는 기능이 남아 있다면 <code>persona_owner_id</code>가 다시 필요합니다.</li>
       <li><b>하루 단위 대화</b> — 캘린더에서 날짜를 탭하면 그날 하루의 기록으로 페르소나를 만들기 때문에 <code>window_days = 0</code> 행이 생깁니다. 메신저 요약은 주 단위라 하루로 자를 수 없어서, 그날이 속한 주의 요약 중 말투 분석(<code>traits_enc</code>)만 함께 씁니다(그 주의 일이나 대표 문장은 쓰지 않습니다). 그래서 이 행의 <code>messenger_weeks</code>는 0 또는 1입니다.</li>
-      <li><b>대화 세션의 상태</b> — 시점 분석이 오래 걸려서 세션을 만들 때 <code>status = PREPARING</code>으로 시작하고, 분석이 끝나면 <code>READY</code>(실패하면 <code>FAILED</code> + <code>failure_code</code>)가 됩니다. <code>record_level</code>은 세션을 만들 때의 기록 수준(<code>NONE</code> · <code>LOW</code> · <code>ENOUGH</code> · <code>RICH</code>)을 그대로 남기고, 기록이 전혀 없으면(<code>NONE</code>) 분석 없이 <code>analysis_id</code>가 빈 채로 <code>READY</code>입니다. 동의를 철회해 분석 행이 지워져도 대화 기록은 남도록, 분석 행이 지워지면 <code>analysis_id</code>는 비워집니다. 커플 연결(<code>couple_id</code>)의 외래 키는 커플 테이블을 만들 때 더합니다.</li>
+      <li><b>대화 세션의 상태</b> — 시점 분석이 오래 걸려서 세션을 만들 때 <code>status = PREPARING</code>으로 시작하고, 분석이 끝나면 <code>READY</code>(실패하면 <code>FAILED</code> + <code>failure_code</code>)가 됩니다. <code>record_level</code>은 세션을 만들 때의 기록 수준(<code>NONE</code> · <code>LOW</code> · <code>ENOUGH</code> · <code>RICH</code>)을 그대로 남기고, 기록이 전혀 없으면(<code>NONE</code>) 분석 없이 <code>analysis_id</code>가 빈 채로 <code>READY</code>입니다. 분석 행이 먼저 지워지는 경우에 대비해, 분석 행이 지워지면 <code>analysis_id</code>는 비워집니다(동의 철회 뒤 30일이 지나면 분석과 대화 기록을 함께 지웁니다). 커플 연결(<code>couple_id</code>)의 외래 키는 커플 테이블을 만들 때 더합니다.</li>
       <li><b>대화 목록 칩</b> — “과거의 나” 목록의 “1개월”, “1년” 같은 칩을 위해 <code>chat_sessions.shortcut_key</code>(<code>ONE_MONTH</code> 등, 날짜를 직접 골랐으면 비어 있음)를 두었습니다.</li>
       <li><b>없는 것</b> — 위기 신호 감지 기록(기획서 5.6), 로그인 갱신 토큰 저장, 이용 시간 집계 전용 테이블, 푸시 알림용 기기 토큰 저장(알림 보내는 방식이 정해지지 않았습니다)은 넣지 않았습니다. 이용 시간은 <code>chat_sessions</code>의 시작 · 종료 시각으로 계산할 수 있습니다.</li>
       <li><b>동의 시각은 하나</b> — 서비스 이용 동의 화면은 필수 3개(이용약관 · 개인정보 · AI 분석)를 한 번에 받으므로 시각을 <code>users.ai_consent_at</code> 하나에 기록합니다. 철회는 AI 분석 동의만 대상이고 <code>ai_revoked_at</code>에 기록하며, 철회한 뒤 다시 동의하면 <code>ai_consent_at</code>을 새로 기록하고 <code>ai_revoked_at</code>을 비웁니다. 선택 항목인 알림만 <code>notifications_opt_in</code> 컬럼을 추가했습니다. 이용약관과 개인정보 동의 시각을 따로 남겨야 하면 컬럼을 나눠야 합니다.</li>
