@@ -207,8 +207,8 @@ ${svg}
         <h3>분석 결과 재사용</h3>
         <p><code>persona_analyses</code>의 유일 키는 <code>(user_id, anchor_date, window_days)</code>입니다. <code>window_days</code>는 14(전후 2주) 또는 0(그날 하루)입니다.</p>
         <ul>
-          <li>바로가기(1 · 6 · 12개월 전)는 <code>anchor_date</code>를 그 주 월요일로 맞추고 <code>window_days = 14</code>입니다. 캘린더에서 직접 고른 날짜는 그대로 쓰고 <code>window_days = 0</code>(그날 하루의 일기)입니다.</li>
-          <li><code>source_digest</code> = 해시(구간 내 일기의 <code>id, updated_at</code> + 겹치는 <code>messenger_weekly_summaries</code>의 <code>id, created_at</code>)</li>
+          <li>바로가기(1 · 6 · 12개월 전)는 <code>anchor_date</code>를 그 주 월요일로 맞추고 <code>window_days = 14</code>입니다. 캘린더에서 직접 고른 날짜는 그대로 쓰고 <code>window_days = 0</code>(그날 하루의 일기 + 그날이 속한 주의 메신저 말투 분석)입니다.</li>
+          <li><code>source_digest</code> = 해시(구간 내 일기의 <code>id, updated_at</code> + 겹치는 <code>messenger_weekly_summaries</code>의 <code>id, created_at</code> + 분석 프롬프트 버전 · 모델 이름)</li>
           <li>키와 digest가 모두 같으면 재사용, 다르면 다시 분석해 같은 행을 덮어씁니다. 일기를 고치거나 지우면, 또는 그 기간 메신저 캡처를 올리면 digest가 달라집니다.</li>
         </ul>
       </div>
@@ -263,7 +263,7 @@ ${svg}
       <li><b>일기 본문과 대화 내용의 암호화</b> — 기획서 7장은 요약 · 말투 특징만 암호화한다고 적었습니다. <code>diaries.content</code>와 <code>chat_messages.content</code>는 평문으로 두었습니다. 암호화하려면 컬럼을 <code>*_enc</code>로 바꿔야 합니다.</li>
       <li><b>커플 철회 시 본인 분석은 유지</b> — 철회하면 그 커플의 대화 · 리포트(기억 요약 · 간극)를 지우지만, 내 <code>persona_analyses</code> 행은 개인 모드에서도 쓰므로 남겨 둡니다. “관련 분석 데이터 파기”(기획서 6.3)를 더 넓게 해석한다면 규칙이 달라집니다.</li>
       <li><b>커플 모드는 “같은 날 비교”</b> — 스토리보드의 커플 흐름이 상대 페르소나와 대화하는 방식에서 “각자 자기 과거의 나와 대화한 뒤 두 요약을 비교”하는 방식으로 바뀌었다고 읽었습니다. 그래서 비교용 새 테이블 없이 <code>reports</code>에 <code>memory_summary</code>(그날의 기억)와 <code>gap_summary</code>(두 사람의 간극)를 두었고, 이 경우 <code>past_concern</code> · <code>present_change</code>는 비워 둡니다. 상대 페르소나와 대화하는 기능이 남아 있다면 <code>persona_owner_id</code>가 다시 필요합니다.</li>
-      <li><b>하루 단위 대화</b> — 캘린더에서 날짜를 탭하면 그날 하루의 기록으로 페르소나를 만들기 때문에 <code>window_days = 0</code> 행이 생깁니다. 메신저 요약은 주 단위라 하루로 자를 수 없어서, 이때 그 날이 속한 주의 요약을 쓸지는 정해지지 않았습니다.</li>
+      <li><b>하루 단위 대화</b> — 캘린더에서 날짜를 탭하면 그날 하루의 기록으로 페르소나를 만들기 때문에 <code>window_days = 0</code> 행이 생깁니다. 메신저 요약은 주 단위라 하루로 자를 수 없어서, 그날이 속한 주의 요약 중 말투 분석(<code>traits_enc</code>)만 함께 씁니다(그 주의 일이나 대표 문장은 쓰지 않습니다). 그래서 이 행의 <code>messenger_weeks</code>는 0 또는 1입니다.</li>
       <li><b>대화 목록 칩</b> — “과거의 나” 목록의 “1개월”, “1년” 같은 칩을 위해 <code>chat_sessions.shortcut_key</code>(<code>ONE_MONTH</code> 등, 날짜를 직접 골랐으면 비어 있음)를 두었습니다.</li>
       <li><b>없는 것</b> — 위기 신호 감지 기록(기획서 5.6), 로그인 갱신 토큰 저장, 이용 시간 집계 전용 테이블, 푸시 알림용 기기 토큰 저장(알림 보내는 방식이 정해지지 않았습니다)은 넣지 않았습니다. 이용 시간은 <code>chat_sessions</code>의 시작 · 종료 시각으로 계산할 수 있습니다.</li>
       <li><b>동의 시각은 하나</b> — 서비스 이용 동의 화면은 필수 3개(이용약관 · 개인정보 · AI 분석)를 한 번에 받으므로 시각을 <code>users.ai_consent_at</code> 하나에 기록합니다. 철회는 AI 분석 동의만 대상이고 <code>ai_revoked_at</code>에 기록하며, 철회한 뒤 다시 동의하면 <code>ai_consent_at</code>을 새로 기록하고 <code>ai_revoked_at</code>을 비웁니다. 선택 항목인 알림만 <code>notifications_opt_in</code> 컬럼을 추가했습니다. 이용약관과 개인정보 동의 시각을 따로 남겨야 하면 컬럼을 나눠야 합니다.</li>

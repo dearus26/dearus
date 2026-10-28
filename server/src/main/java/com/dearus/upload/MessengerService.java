@@ -4,13 +4,12 @@ import com.dearus.auth.User;
 import com.dearus.auth.UserRepository;
 import com.dearus.common.ApiException;
 import com.dearus.common.Kst;
+import com.dearus.common.Weeks;
 import com.dearus.upload.WeeklySummarizer.DatedText;
 import com.dearus.upload.WeeklySummarizer.WeekMessages;
 import java.nio.charset.StandardCharsets;
-import java.time.DayOfWeek;
 import java.time.Duration;
 import java.time.LocalDate;
-import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -159,7 +158,7 @@ public class MessengerService {
 	}
 
 	static LocalDate weekStart(LocalDate date) {
-		return date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+		return Weeks.startOf(date);
 	}
 
 	private static ApiException payloadTooLarge() {
