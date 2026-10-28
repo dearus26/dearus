@@ -4,7 +4,7 @@
 >
 > 표기 규칙: 발표 · 문서에서는 'Dear Us', 코드 식별자(패키지 `com.dearus`, 저장소, 환경변수 등)는 `dearus`
 >
-> 최신화: 2026.10.14 스토리보드 기준으로 메신저 캡처 업로드, 시점 선택, 커플 부분을 고쳤어요. 2026.10.28에 사진은 폰 밖으로 보내지 않기로 해서, 글자 읽기와 가리기를 앱(폰) 안에서 해요. AI 회사도 Gemini로 고정하지 않아요.
+> 최신화: 2026.10.14 스토리보드 기준으로 메신저 캡처 업로드, 시점 선택, 커플 부분을 고쳤어요. 2026.10.28에 사진은 폰 밖으로 보내지 않기로 해서, 글자 읽기와 가리기를 앱(폰) 안에서 해요. AI는 Claude Haiku 5.5로 정했어요.
 
 ## 한 줄 요약
 
@@ -13,7 +13,7 @@
 글자 읽기: 폰 안에서 (Android Google ML Kit · iOS Apple Vision), 사진은 서버로 보내지 않음
 서버: Spring Boot 4.1 · Spring Framework 7.0 · Java 21 LTS · Gradle
 DB: Supabase (PostgreSQL 17)
-AI: 기본 후보 Google Gemini 3.5 Flash-Lite (gemini-3.5-flash-lite · 유료 등급), 회사는 확정 아님
+AI: Anthropic Claude Haiku 5.5 (claude-haiku-5-5)
 배포: Render (Docker) · Expo EAS Build
 ```
 
@@ -21,7 +21,7 @@ AI: 기본 후보 Google Gemini 3.5 Flash-Lite (gemini-3.5-flash-lite · 유료 
 
 ```
 React Native 앱 (Expo) → Spring Boot 서버 (Render) → Supabase (PostgreSQL)
-                                     ↘ Gemini API (3.5 Flash-Lite)
+                                     ↘ Anthropic API (Haiku 5.5)
 ```
 
 - Supabase는 **DB 용도로만** 사용하고, 인증과 비즈니스 로직은 Spring Boot가 담당해요.
@@ -140,19 +140,20 @@ com.dearus
 
 ## 4. AI
 
-> AI 회사는 Gemini로 고정하지 않아요(2026.10.28). 글자(텍스트)만 보내므로 이미지 입력이 필요 없고, 학습 미사용 · 보관 기간 · 한국어 말투 재현 · 스트리밍 · 가격을 비교해 정해요. 아래는 지금 기본 후보인 Gemini 기준이고, 다른 회사의 약관은 아직 확인하지 않았어요.
+> AI는 Claude Haiku 5.5로 정했어요(2026.10.28). 글자(텍스트)만 보내므로 이미지 입력이 필요 없어요. 회사별 가격 · 약관 비교와 말투 품질 시험은 `DearUs_기획서.md` 8.3 · 8.5에 있어요.
 
 | 기술 | 버전 | 비고 |
 |---|---|---|
-| AI API (기본 후보: Google Gemini) | gemini-3.5-flash-lite | 서버에서만 호출, **유료 등급 필수** (Google AI Studio에서 프로젝트에 Cloud Billing 연결) |
+| Anthropic Claude API | claude-haiku-5-5 | 서버에서만 호출. Java 공식 SDK(`com.anthropic:anthropic-java`)를 쓰고 키는 환경변수 `ANTHROPIC_API_KEY`로만 둬요 |
 
 **선정 근거**
 
-- **데이터 정책:** 유료 등급은 프롬프트 · 응답을 모델 학습에 사용하지 않아요 (무료 등급은 사용해요). 악용 방지용 임시 기록은 남을 수 있어요. 기획서 파기 정책과 바로 이어져요.
-- **한국어 말투 재현:** 카카오톡 말투, 반말 · 존댓말 재현 품질을 샘플 대화로 미리 확인해요 (미흡하면 상위 모델을 검토해요)
+- **데이터 정책:** 상업 약관이라 기본값으로 모델 학습에 쓰지 않아요. 입력 · 출력은 Anthropic 서버에서 30일 안에 삭제되고 정책 위반으로 걸리면 최대 2년 남아요. 보관 기간을 숫자로 밝혀서 동의 화면에 그대로 쓸 수 있어요. 기획서 파기 정책과 바로 이어져요.
+- **한국어 말투 재현:** 카카오톡 말투, 반말 · 존댓말 재현 품질을 기획서 8.5의 블라인드 시험으로 확인해요 (미흡하면 대안이나 한 단계 위 모델을 검토해요)
 - **입력 형태:** 글자(텍스트)만 보내요. 캡처 사진은 AI에 보내지 않아서 이미지 입력이 필요 없어요.
 - **스트리밍 지원:** 스트리밍 응답을 SSE로 앱에 전달해요. 개발 목표 "첫 응답 5초 이내"를 달성하는 데 필요해요.
-- **비용:** 입력 $0.30 · 출력 $2.50 (100만 토큰당, thinking 토큰은 출력에 포함)
+- **비용:** 입력 $0.10 · 출력 $0.50 (100만 토큰당, 요청 한 번의 프롬프트가 10만 토큰 이하일 때. thinking 토큰은 출력 단가로 청구)
+- **호출 규칙:** `temperature` · `top_p` · `top_k`는 못 보내요(400). 마지막 assistant 메시지를 미리 채우는 방식(prefill)도 못 써요. thinking은 기본으로 켜져 있고 `max_tokens`에 포함되니 대화는 `effort: low`로 시작해요. 응답이 `refusal`로 끝날 수 있고 서버 쪽 자동 대체 모델이 없어서, 서버가 안내 문구로 대신해요. 대화 기록은 글자만 다시 보내므로 thinking 블록 재전송 규칙에는 걸리지 않아요
 - **AI 교체 가능성:** 서버에서 AI 호출부를 인터페이스로 분리하고 주소 · 키 · 모델명은 환경변수로 관리해요
 
 ---
@@ -196,14 +197,14 @@ com.dearus
 |---|---|---|
 | Supabase | 무료 | 0원 |
 | Render | 무료 | 0원 (발표 기간 Starter는 월 7달러) |
-| LLM API (Gemini 3.5 Flash-Lite) | 사용량 과금 (입력 $0.30 · 출력 $2.50 / 100만 토큰) | 수업 규모 약 $1~5 (20턴 대화 1세션 약 $0.04 기준 추정, 캡처는 글자만 보내서 이미지 입력 비용 없음) |
+| LLM API (Claude Haiku 5.5) | 사용량 과금 (입력 $0.10 · 출력 $0.50 / 100만 토큰, 프롬프트 10만 토큰 이하) | 수업 규모 약 $1~5 (20턴 대화 1세션 약 $0.013 기준 추정, 캡처는 글자만 보내서 이미지 입력 비용 없음) |
 
 **발표 전 체크리스트**
 
 - [ ] Render 무료 서버는 15분간 요청이 없으면 잠들어요. 발표 직전에 서버를 깨우거나 Starter로 전환해요.
 - [ ] Supabase 무료 DB는 7일간 활동이 없으면 일시 정지돼요. 발표 며칠 전에 상태를 확인해요.
 - [ ] 앱의 글자 읽기가 iOS · 안드로이드 두 기기에서 한국어 카카오톡 캡처를 충분히 읽는지 시험해요(가짜 캡처 30~50장). 사진이 서버로 나가지 않는지 개발 중에 앱의 네트워크 요청으로 확인해요.
-- [ ] (Gemini를 쓸 경우) Gemini API 프로젝트에 Cloud Billing이 연결되어 유료 등급인지 확인한 뒤 실제 참가자 데이터를 사용해요. (무료 등급은 입력이 모델 개선에 쓰일 수 있어요)
+- [ ] Anthropic Console에서 API 키를 만들고 크레딧 또는 결제 수단을 등록해요. 키는 서버 환경변수(`ANTHROPIC_API_KEY`)로만 두어요. 동의 화면에 "AI 회사에 최대 30일 남는다"는 안내를 넣은 뒤 실제 참가자 데이터를 써요.
 
 **스토어 출시 시 추가 비용 (수업 시연만 할 경우 불필요)**
 
@@ -222,6 +223,6 @@ com.dearus
 - Supabase Edge Functions 제한: https://supabase.com/docs/guides/functions/limits
 - Supabase PostgreSQL 17 전환 안내: https://supabase.com/changelog/46080-self-hosted-supabase-upgrading-from-pg-15-to-17-breaking-change
 - Render 요금 비교: https://instapods.com/compare/railway-vs-render/
-- Gemini API 요금: https://ai.google.dev/gemini-api/docs/pricing
-- Gemini API 데이터 사용 약관: https://ai.google.dev/gemini-api/terms
-- Gemini API 모델 지원 중단 안내: https://ai.google.dev/gemini-api/docs/deprecations
+- Claude API 요금: https://platform.claude.com/docs/en/about-claude/pricing
+- Claude API 데이터 보관: https://privacy.claude.com/en/articles/7996866-how-long-do-you-store-my-data
+- Claude 모델 지원 중단 안내: https://platform.claude.com/docs/en/about-claude/model-deprecations

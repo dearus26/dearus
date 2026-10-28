@@ -33,6 +33,7 @@ info:
     ## 결정한 것
 
     - **사진은 폰 밖으로 보내지 않아요(2026.10.28 결정):** 글자 읽기(OCR), 자동 가림, 내 말풍선 구분, 검수 · 직접 가리기는 모두 앱이 폰 안에서 해요. 서버는 사진을 받는 API가 없고(이미지를 보내면 415) 가린 글자(JSON)만 받아요. 그래서 ERD에 사진 · 가림 영역 테이블이 없고, `messenger_uploads`에 개수(`photo_count`, `masked_count`, `user_masked_count`)와 서버가 한 번 더 가린 건수(`server_masked_count`)만 남겨요. 상대 메시지는 폰에서 버려져 서버에 오지 않아요.
+    - **AI 모델은 Claude Haiku 5.5예요(2026.10.28 결정):** 글자(텍스트)만 보내고 서버에서만 호출해요. 보낸 글자는 Anthropic 서버에서 30일 안에 삭제돼요(정책 위반으로 걸리면 최대 2년). 그래서 우리 서버가 동의 철회로 바로 지워도 이미 보낸 글자는 그 기간만큼 남고, 동의 화면에 안내해요. 한국어 말투 품질은 시험으로 확인하고 모자라면 모델을 바꿔요(서버의 호출부가 인터페이스라 API 명세는 그대로예요).
     - **내 말풍선 구분:** 카카오톡은 오른쪽 · 노란색 말풍선이 나예요(앱이 글자 위치와 색으로 구분). 디스코드처럼 말풍선이 없는 앱은 내 이름이 필요해서 뒤로 미뤄요(첫 지원은 카카오톡). 예전 txt 방식의 `422 KAKAO_SPEAKER_REQUIRED`(내 이름 고르기)는 쓰지 않아요.
     - **동의 기록:** 스토리보드의 "서비스 이용 동의" 화면은 필수 3개(이용약관 · 개인정보 · AI 분석)를 한 번에 받고 "동의 시각을 기록"해요. 그래서 시각은 `users.ai_consent_at` 하나에 기록하고, 선택 항목인 알림만 `users.notifications_opt_in` 컬럼을 추가했어요. 스토리보드에 적힌 `POST /users/consent`는 내 계정 API를 `/me` 아래로 모으려고 `PUT /me/consent`로 정했어요. 이용약관과 개인정보 동의 시각을 따로 남겨야 하면 그때 컬럼을 나눠요.
     - **동의 철회:** 설정의 철회는 AI 분석 동의만 대상이에요(`DELETE /me/consent`). 철회하면 AI를 부르는 API는 403 `AI_CONSENT_REQUIRED`가 되고, 일기는 계속 쓸 수 있어요. 기획서 7장대로 저장된 분석 데이터는 즉시 지워야 하고, 해당 테이블을 만들 때 함께 구현해요.
@@ -51,7 +52,6 @@ info:
     7. **커플 모드 개념을 확인해 주세요:** 위 "같은 날 비교"로 읽은 게 맞는지, 그리고 커플 "동의 안내" 문구("상대방이 ... '과거의 회원님'과 대화하게 됩니다")가 새 흐름(상대가 내 과거와 대화하는 게 아니라 내 그날의 기억 요약을 보는 것)과 맞는지 확인이 필요해요. 이 문구는 앱 화면과 기획서 6.2에 같이 있어서 한꺼번에 고쳐야 해요.
     8. **이름 · 학교 후보 찾기(가정):** 업로드 때 "가릴 이름 목록"(내 이름, 연인 이름, 학교)을 한 번 입력받고, 대화창 위쪽에 보이는 이름은 자동 후보로 보여주는 방식으로 시작해요. 스토리보드에 입력 화면이 없어서 추가가 필요해요. 정확도가 부족하면 작은 한국어 이름 인식 모델을 검토해요.
     9. **하루 단위 대화에 메신저 요약을 쓸까요:** 메신저 요약은 주 단위라 하루로 자를 수 없어서, 그날이 속한 주의 요약을 쓸지(`DAY`일 때도) 정해야 해요. 지금 명세는 쓰지 않고 그날의 일기만 쓰는 것으로 가정했어요.
-    10. **AI 회사는 고정하지 않아요:** 글자(텍스트)만 보내므로 이미지 입력이 필요 없고 어떤 회사 API든 쓸 수 있어요. 학습 미사용 · 보관 기간 · 한국어 말투 재현 · 스트리밍 · 가격을 비교해 정해요. 지금 기본 후보는 Gemini 유료 등급이에요.
 
 servers:
   - url: http://localhost:8080
@@ -371,8 +371,9 @@ paths:
         서버는 받은 글자를 한 번 더 규칙으로 가린 뒤(앱이 놓친 전화번호 · 계좌번호 · 이메일 등), 주 단위로 묶어 AI로 요약하고 암호화해 저장해요. 시간이 걸릴 수 있어서 **202**로 바로 응답하고, 결과는 `GET /uploads/messenger/{uploadId}`를 1~2초 간격으로 조회해서 `status`가 `DONE` 또는 `FAILED`가 될 때까지 기다려요.
 
         `messages[].date`는 앱이 대화 화면의 날짜 구분선에서 읽어요. 날짜를 알 수 없는 글자는 앱이 사용자에게 물어서 채운 뒤 보내요.
-        서버는 받은 글자를 요약이 끝날 때까지만 메모리에 두고 저장하지 않아요(성공하든 실패하든 요약만 남겨요). 서버가 다시 시작되면 `FAILED`가 되니, 앱은 `DONE`을 받을 때까지 가린 글자를 폰에 갖고 있다가 필요하면 다시 보내요.
-        한도(초안): 메시지 5,000개, 한 메시지 2,000자, 요청 전체 1MB.
+        서버는 받은 글자를 요약이 끝날 때까지만 메모리에 두고 저장하지 않아요(성공하든 실패하든 요약만 남겨요). 서버가 다시 시작되거나 10분이 지나도 끝나지 않으면 `FAILED`(`PROCESSING_TIMEOUT`)가 되니, 앱은 `DONE`을 받을 때까지 가린 글자를 폰에 갖고 있다가 필요하면 다시 보내요.
+        앞서 올린 글이 아직 `PROCESSING`이면 409 `UPLOAD_IN_PROGRESS`예요(같은 사람의 AI 호출이 겹치지 않게 막아요). 한 주라도 요약에 실패하면 그 업로드는 통째로 `FAILED`이고 요약은 하나도 저장하지 않아요.
+        한도(초안): 메시지 5,000개, 한 메시지 2,000자, 요청 전체 1MB, 한 번에 60주(약 1년)까지. 주는 월요일에 시작해요.
       x-schedule: 10월 4주~11월 1주
       x-screen: 메신저 올리기, 분석 완료
       requestBody:
@@ -389,7 +390,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/MessengerUpload'
         '400':
-          description: 동의하지 않았거나(`CONSENT_REQUIRED`) 요청 값이 올바르지 않아요(`VALIDATION_FAILED`)
+          description: 동의하지 않았거나(`CONSENT_REQUIRED`) 요청 값이 올바르지 않아요(`VALIDATION_FAILED`, 미래 날짜 · 60주 초과 포함)
           content:
             application/json:
               schema:
@@ -398,6 +399,12 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/AiConsentRequired'
+        '409':
+          description: 앞서 올린 대화를 아직 분석하고 있어요 (`UPLOAD_IN_PROGRESS`). `DONE`이나 `FAILED`가 된 뒤에 다시 올려요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '413':
           description: 요청이 너무 커요 (`PAYLOAD_TOO_LARGE`)
           content:
@@ -1401,7 +1408,10 @@ components:
         failureCode:
           type: string
           nullable: true
-          description: '`FAILED`일 때의 이유. `AI_UNAVAILABLE` 등'
+          description: |
+            `FAILED`일 때의 이유예요. `AI_UNAVAILABLE`(AI에 닿지 못했어요) · `AI_REFUSED`(AI의 안전 장치가 거절했어요) ·
+            `AI_BAD_RESPONSE`(AI의 답을 읽지 못했어요) · `PROCESSING_TIMEOUT`(10분이 지나도 안 끝났어요) · `INTERNAL_ERROR`.
+            어느 경우든 앱은 가린 글자를 폰에 갖고 있다가 다시 보내요.
       example:
         id: 0c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f
         status: DONE

@@ -22,8 +22,8 @@ const T = [
     ['nickname', 'varchar', ''], ['ai_consent_at', 'timestamptz?', ''], ['ai_revoked_at', 'timestamptz?', ''],
     ['notifications_opt_in', 'boolean', ''], ['created_at', 'timestamptz', ''] ] },
   { id: 'messenger_uploads', x: 300, y: 590, kind: 'rec', cols: [
-    ['id', 'uuid', 'PK'], ['user_id', 'uuid', 'FK'], ['uploaded_at', 'timestamptz', ''],
-    ['status', 'varchar', ''], ['photo_count', 'int', ''],
+    ['id', 'uuid', 'PK'], ['user_id', 'uuid', 'FK'], ['source', 'varchar', ''], ['uploaded_at', 'timestamptz', ''],
+    ['status', 'varchar', ''], ['failure_code', 'varchar?', ''], ['photo_count', 'int', ''],
     ['period_start', 'date?', ''], ['period_end', 'date?', ''],
     ['masked_count', 'int', ''], ['user_masked_count', 'int', ''], ['server_masked_count', 'int?', ''],
     ['expires_at', 'timestamptz', ''] ] },
@@ -103,7 +103,7 @@ function edgeSvg(e) {
   return s;
 }
 
-const svg = `<svg viewBox="0 0 1110 870" role="img" aria-label="열한 개 테이블의 관계도. users를 중심으로 일기, 메신저 업로드(개수와 요약만), 페르소나 분석, 대화, 커플 테이블이 연결되고, 사진을 담는 테이블은 없다">
+const svg = `<svg viewBox="0 0 1110 900" role="img" aria-label="열한 개 테이블의 관계도. users를 중심으로 일기, 메신저 업로드(개수와 요약만), 페르소나 분석, 대화, 커플 테이블이 연결되고, 사진을 담는 테이블은 없다">
 ${T.map(tableSvg).join('')}
 ${E.map(edgeSvg).join('')}
 <text class="lane" x="560" y="541">chat_sessions.user_id — 대화하는 사람</text>
@@ -214,7 +214,7 @@ ${svg}
       </div>
       <div class="card-box">
         <h3>사진은 서버에 오지 않음</h3>
-        <p><code>messenger_uploads</code>에는 사진 파일이나 글자를 담는 컬럼이 없습니다. 개수(<code>photo_count</code>, <code>masked_count</code> 등)와 주 단위 요약(<code>summary_enc</code>, <code>traits_enc</code>, <code>sample_enc</code>)만 남습니다.</p>
+        <p><code>messenger_uploads</code>에는 사진 파일이나 글자를 담는 컬럼이 없습니다. 개수(<code>photo_count</code>, <code>masked_count</code> 등)와 주 단위 요약(<code>summary_enc</code>, <code>traits_enc</code>, <code>sample_enc</code>)만 남습니다. <code>status</code>는 <code>PROCESSING</code> · <code>DONE</code> · <code>FAILED</code>이고 실패하면 <code>failure_code</code>에 이유(<code>AI_UNAVAILABLE</code> 등)가 들어갑니다.</p>
         <ul>
           <li>글자 읽기 · 가리기 · 내 말풍선 구분은 폰 안에서 하고, 서버는 사진을 받는 API가 없습니다. 앱이 가린 글자(JSON)만 보냅니다.</li>
           <li>가림 영역(좌표 · 종류)은 폰 안에서만 쓰므로 서버에 테이블이 없습니다. 상대 메시지는 폰에서 버려져 서버에 오지 않습니다.</li>

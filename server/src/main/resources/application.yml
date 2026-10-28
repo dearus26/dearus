@@ -26,6 +26,15 @@ app:
   auth:
     # 로컬 개발에서만 true. 가짜 로그인(POST /auth/dev)을 켜요. 배포 서버에서는 꺼 두어요.
     dev-login-enabled: ${DEV_LOGIN_ENABLED:false}
+  crypto:
+    # 메신저 요약처럼 암호화해서 저장하는 값의 키예요(AES-256-GCM). base64로 인코딩한 32바이트이고, 서버가 바뀌어도 같은 값을 써야 저장된 값을 읽어요.
+    key: ${ENCRYPTION_KEY}
+  ai:
+    # anthropic: Claude Haiku 5.5 호출 / fake: 키 없이 가짜 응답(로컬 개발 · 테스트용). 배포 서버에서는 anthropic이에요.
+    provider: ${AI_PROVIDER:anthropic}
+    api-key: ${ANTHROPIC_API_KEY:}
+    model: claude-haiku-5-5
+    timeout-seconds: 90
 
 server:
   port: ${PORT:8080}

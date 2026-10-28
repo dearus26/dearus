@@ -1,5 +1,6 @@
 package com.dearus.common;
 
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
@@ -8,6 +9,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
@@ -60,6 +62,17 @@ public class GlobalExceptionHandler {
 	ResponseEntity<ErrorResponse> handleMethod(HttpRequestMethodNotSupportedException e) {
 		return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
 			.body(new ErrorResponse("METHOD_NOT_ALLOWED", "지원하지 않는 요청이에요.", null));
+	}
+
+	/** JSON이 아닌 본문(사진 업로드의 multipart 등). 메신저 업로드는 사진을 받지 않는다고 알려줘요. */
+	@ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+	ResponseEntity<ErrorResponse> handleMediaType(HttpMediaTypeNotSupportedException e, HttpServletRequest request) {
+		if (request.getRequestURI().startsWith("/uploads/messenger")) {
+			return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE).body(new ErrorResponse("IMAGES_NOT_ACCEPTED",
+				"사진은 받지 않아요. 앱이 폰 안에서 글자를 읽어 JSON으로 보내 주세요.", null));
+		}
+		return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
+			.body(new ErrorResponse("UNSUPPORTED_MEDIA_TYPE", "JSON으로 보내 주세요.", null));
 	}
 
 	/** 유일 제약 충돌처럼 동시에 같은 값을 넣었을 때예요. */

@@ -73,7 +73,7 @@
     <h2><span>1</span>관계도</h2>
     <figure>
       <div class="scroll">
-<svg viewBox="0 0 1110 870" role="img" aria-label="열한 개 테이블의 관계도. users를 중심으로 일기, 메신저 업로드(개수와 요약만), 페르소나 분석, 대화, 커플 테이블이 연결되고, 사진을 담는 테이블은 없다">
+<svg viewBox="0 0 1110 900" role="img" aria-label="열한 개 테이블의 관계도. users를 중심으로 일기, 메신저 업로드(개수와 요약만), 페르소나 분석, 대화, 커플 테이블이 연결되고, 사진을 담는 테이블은 없다">
 <g>
 <rect class="tbl" x="30" y="40" width="235" height="76" rx="10"/>
 <path class="th th-rec" d="M30,70 V50 Q30,40 40,40 H255 Q265,40 265,50 V70 Z"/>
@@ -209,7 +209,7 @@
 <text class="ctype" x="525" y="474">timestamptz</text>
 </g>
 <g>
-<rect class="tbl" x="300" y="590" width="235" height="256" rx="10"/>
+<rect class="tbl" x="300" y="590" width="235" height="296" rx="10"/>
 <path class="th th-rec" d="M300,620 V600 Q300,590 310,590 H525 Q535,590 535,600 V620 Z"/>
 <text class="tname tname-rec mono" x="312" y="610">messenger_uploads</text>
 <rect class="bdg bdg-PK" x="308" y="624" width="22" height="12" rx="3"/>
@@ -222,32 +222,38 @@
 <text class="cname mono" x="336" y="654.2">user_id</text>
 <text class="ctype" x="525" y="654">uuid</text>
 <line class="sep" x1="308" y1="660" x2="527" y2="660"/>
-<text class="cname mono" x="336" y="674.2">uploaded_at</text>
-<text class="ctype" x="525" y="674">timestamptz</text>
+<text class="cname mono" x="336" y="674.2">source</text>
+<text class="ctype" x="525" y="674">varchar</text>
 <line class="sep" x1="308" y1="680" x2="527" y2="680"/>
-<text class="cname mono" x="336" y="694.2">status</text>
-<text class="ctype" x="525" y="694">varchar</text>
+<text class="cname mono" x="336" y="694.2">uploaded_at</text>
+<text class="ctype" x="525" y="694">timestamptz</text>
 <line class="sep" x1="308" y1="700" x2="527" y2="700"/>
-<text class="cname mono" x="336" y="714.2">photo_count</text>
-<text class="ctype" x="525" y="714">int</text>
+<text class="cname mono" x="336" y="714.2">status</text>
+<text class="ctype" x="525" y="714">varchar</text>
 <line class="sep" x1="308" y1="720" x2="527" y2="720"/>
-<text class="cname mono" x="336" y="734.2">period_start</text>
-<text class="ctype" x="525" y="734">date?</text>
+<text class="cname mono" x="336" y="734.2">failure_code</text>
+<text class="ctype" x="525" y="734">varchar?</text>
 <line class="sep" x1="308" y1="740" x2="527" y2="740"/>
-<text class="cname mono" x="336" y="754.2">period_end</text>
-<text class="ctype" x="525" y="754">date?</text>
+<text class="cname mono" x="336" y="754.2">photo_count</text>
+<text class="ctype" x="525" y="754">int</text>
 <line class="sep" x1="308" y1="760" x2="527" y2="760"/>
-<text class="cname mono" x="336" y="774.2">masked_count</text>
-<text class="ctype" x="525" y="774">int</text>
+<text class="cname mono" x="336" y="774.2">period_start</text>
+<text class="ctype" x="525" y="774">date?</text>
 <line class="sep" x1="308" y1="780" x2="527" y2="780"/>
-<text class="cname mono" x="336" y="794.2">user_masked_count</text>
-<text class="ctype" x="525" y="794">int</text>
+<text class="cname mono" x="336" y="794.2">period_end</text>
+<text class="ctype" x="525" y="794">date?</text>
 <line class="sep" x1="308" y1="800" x2="527" y2="800"/>
-<text class="cname mono" x="336" y="814.2">server_masked_count</text>
-<text class="ctype" x="525" y="814">int?</text>
+<text class="cname mono" x="336" y="814.2">masked_count</text>
+<text class="ctype" x="525" y="814">int</text>
 <line class="sep" x1="308" y1="820" x2="527" y2="820"/>
-<text class="cname mono" x="336" y="834.2">expires_at</text>
-<text class="ctype" x="525" y="834">timestamptz</text>
+<text class="cname mono" x="336" y="834.2">user_masked_count</text>
+<text class="ctype" x="525" y="834">int</text>
+<line class="sep" x1="308" y1="840" x2="527" y2="840"/>
+<text class="cname mono" x="336" y="854.2">server_masked_count</text>
+<text class="ctype" x="525" y="854">int?</text>
+<line class="sep" x1="308" y1="860" x2="527" y2="860"/>
+<text class="cname mono" x="336" y="874.2">expires_at</text>
+<text class="ctype" x="525" y="874">timestamptz</text>
 </g>
 <g>
 <rect class="tbl" x="570" y="40" width="235" height="176" rx="10"/>
@@ -490,7 +496,7 @@
       </div>
       <div class="card-box">
         <h3>사진은 서버에 오지 않음</h3>
-        <p><code>messenger_uploads</code>에는 사진 파일이나 글자를 담는 컬럼이 없습니다. 개수(<code>photo_count</code>, <code>masked_count</code> 등)와 주 단위 요약(<code>summary_enc</code>, <code>traits_enc</code>, <code>sample_enc</code>)만 남습니다.</p>
+        <p><code>messenger_uploads</code>에는 사진 파일이나 글자를 담는 컬럼이 없습니다. 개수(<code>photo_count</code>, <code>masked_count</code> 등)와 주 단위 요약(<code>summary_enc</code>, <code>traits_enc</code>, <code>sample_enc</code>)만 남습니다. <code>status</code>는 <code>PROCESSING</code> · <code>DONE</code> · <code>FAILED</code>이고 실패하면 <code>failure_code</code>에 이유(<code>AI_UNAVAILABLE</code> 등)가 들어갑니다.</p>
         <ul>
           <li>글자 읽기 · 가리기 · 내 말풍선 구분은 폰 안에서 하고, 서버는 사진을 받는 API가 없습니다. 앱이 가린 글자(JSON)만 보냅니다.</li>
           <li>가림 영역(좌표 · 종류)은 폰 안에서만 쓰므로 서버에 테이블이 없습니다. 상대 메시지는 폰에서 버려져 서버에 오지 않습니다.</li>
