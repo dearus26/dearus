@@ -25,7 +25,7 @@ const T = [
     ['id', 'uuid', 'PK'], ['user_id', 'uuid', 'FK'], ['uploaded_at', 'timestamptz', ''],
     ['status', 'varchar', ''], ['photo_count', 'int', ''],
     ['period_start', 'date?', ''], ['period_end', 'date?', ''],
-    ['masked_count', 'int?', ''], ['user_masked_count', 'int?', ''],
+    ['masked_count', 'int', ''], ['user_masked_count', 'int', ''], ['server_masked_count', 'int?', ''],
     ['expires_at', 'timestamptz', ''] ] },
 
   { id: 'couples', x: 570, y: 40, kind: 'couple', cols: [
@@ -50,15 +50,6 @@ const T = [
   { id: 'chat_messages', x: 840, y: 590, kind: 'rec', cols: [
     ['id', 'bigint', 'PK'], ['session_id', 'uuid', 'FK'], ['seq', 'int', ''],
     ['role', 'varchar', ''], ['content', 'text', ''], ['created_at', 'timestamptz', ''] ] },
-
-  { id: 'messenger_photos', x: 570, y: 590, kind: 'rec', cols: [
-    ['id', 'uuid', 'PK'], ['upload_id', 'uuid', 'FK'], ['seq', 'smallint', ''],
-    ['status', 'varchar', ''], ['created_at', 'timestamptz', ''] ] },
-  { id: 'mask_regions', x: 570, y: 770, kind: 'rec', cols: [
-    ['id', 'uuid', 'PK'], ['photo_id', 'uuid', 'FK'], ['kind', 'varchar', ''],
-    ['source', 'varchar', ''], ['applied', 'boolean', ''],
-    ['x', 'real', ''], ['y', 'real', ''], ['width', 'real', ''], ['height', 'real', ''],
-    ['created_at', 'timestamptz', ''] ] },
 ];
 
 const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -102,8 +93,6 @@ const E = [
   { d: 'M1000,526 V590', l: [['1', 1006, 542, 's'], ['N', 1006, 584, 's']] },
   { d: 'M510,486 V546 H900 V527', l: [['1', 516, 502, 's'], ['N', 906, 540, 's']] },
   { d: 'M470,486 V562 H940 V527', l: [['1', 476, 502, 's'], ['N', 946, 540, 's']] },
-  { d: 'M535,650 H570', l: [['1', 541, 644, 's'], ['N', 564, 644, 'e']] },
-  { d: 'M650,726 V770', l: [['1', 656, 742, 's'], ['N', 656, 764, 's']] },
 ];
 
 function edgeSvg(e) {
@@ -114,7 +103,7 @@ function edgeSvg(e) {
   return s;
 }
 
-const svg = `<svg viewBox="0 0 1110 1030" role="img" aria-label="열세 개 테이블의 관계도. users를 중심으로 일기, 메신저 업로드(사진 · 가림 영역), 페르소나 분석, 대화, 커플 테이블이 연결되고, 원본 사진을 담는 테이블은 없다">
+const svg = `<svg viewBox="0 0 1110 870" role="img" aria-label="열한 개 테이블의 관계도. users를 중심으로 일기, 메신저 업로드(개수와 요약만), 페르소나 분석, 대화, 커플 테이블이 연결되고, 사진을 담는 테이블은 없다">
 ${T.map(tableSvg).join('')}
 ${E.map(edgeSvg).join('')}
 <text class="lane" x="560" y="541">chat_sessions.user_id — 대화하는 사람</text>
@@ -189,8 +178,8 @@ const html = `<!doctype html>
 </head>
 <body>
 <main>
-  <h1>Dear Us ERD<small>PostgreSQL 17 · 테이블 13개 · 기획서와 <a href="DearUs_기능블록도.html" style="color:#6F5139">기능 블록도</a> 기준 초안</small></h1>
-  <p class="lede">일기, 메신저 요약, 페르소나 분석(재사용 저장), 대화, 커플 접근 제어가 어떻게 연결되는지 한 장에 모았습니다. 메신저 원본 사진을 담는 컬럼이 없다는 점이 이 설계의 핵심입니다. 2026.10.14 스토리보드(메신저 캡처 업로드 · 검수, 하루 단위 대화, 커플 같은 날 비교) 기준으로 고쳤습니다.</p>
+  <h1>Dear Us ERD<small>PostgreSQL 17 · 테이블 11개 · 기획서와 <a href="DearUs_기능블록도.html" style="color:#6F5139">기능 블록도</a> 기준 초안</small></h1>
+  <p class="lede">일기, 메신저 요약, 페르소나 분석(재사용 저장), 대화, 커플 접근 제어가 어떻게 연결되는지 한 장에 모았습니다. 사진을 담는 테이블이 없다는 점이 이 설계의 핵심입니다(사진은 폰 밖으로 나가지 않고, 서버는 가린 글자만 받습니다). 2026.10.14 스토리보드와 2026.10.28 결정(글자 읽기 · 가리기는 폰 안에서) 기준입니다.</p>
 
   <section>
     <h2><span>1</span>관계도</h2>
@@ -207,7 +196,7 @@ ${svg}
         <span><b>?</b> 비어 있을 수 있음</span>
         <span><b>점선</b> 선택적 관계</span>
       </div>
-      <figcaption><b>한 줄 요약:</b> <code>users</code>가 중심이고, 대화(<code>chat_sessions</code>)는 각자 자기 기록으로 만든 페르소나와 합니다(<code>persona_owner_id</code>는 지금 항상 <code>user_id</code>와 같습니다). 커플 모드에서는 <code>couple_id</code>만 채워지고, 같은 날의 두 세션을 각자의 <code>reports</code>로 짝지어 비교합니다. 금색 <code>persona_analyses</code>는 말투 분석 결과를 저장해 두는 곳이라, 같은 구간의 대화는 Gemini를 다시 부르지 않고 이 행을 재사용합니다. 메신저 사진은 가림 검수 동안만 <code>messenger_photos</code> · <code>mask_regions</code>에 좌표로 남고, 분석이 끝나면 지웁니다.</figcaption>
+      <figcaption><b>한 줄 요약:</b> <code>users</code>가 중심이고, 대화(<code>chat_sessions</code>)는 각자 자기 기록으로 만든 페르소나와 합니다(<code>persona_owner_id</code>는 지금 항상 <code>user_id</code>와 같습니다). 커플 모드에서는 <code>couple_id</code>만 채워지고, 같은 날의 두 세션을 각자의 <code>reports</code>로 짝지어 비교합니다. 금색 <code>persona_analyses</code>는 말투 분석 결과를 저장해 두는 곳이라, 같은 구간의 대화는 AI를 다시 부르지 않고 이 행을 재사용합니다. 메신저 사진과 가림 영역은 폰 안에서만 다루고 서버에는 오지 않으므로, 서버에는 업로드 한 건의 개수(<code>messenger_uploads</code>)와 주 단위 요약만 남습니다.</figcaption>
     </figure>
   </section>
 
@@ -224,12 +213,12 @@ ${svg}
         </ul>
       </div>
       <div class="card-box">
-        <h3>메신저 원본 사진은 어디에도 없음</h3>
-        <p><code>messenger_uploads</code> · <code>messenger_photos</code>에는 사진 파일이나 글자를 담는 컬럼이 없습니다. 주 단위 요약(<code>summary_enc</code>, <code>traits_enc</code>, <code>sample_enc</code>)만 남습니다.</p>
+        <h3>사진은 서버에 오지 않음</h3>
+        <p><code>messenger_uploads</code>에는 사진 파일이나 글자를 담는 컬럼이 없습니다. 개수(<code>photo_count</code>, <code>masked_count</code> 등)와 주 단위 요약(<code>summary_enc</code>, <code>traits_enc</code>, <code>sample_enc</code>)만 남습니다.</p>
         <ul>
-          <li>가림 영역은 좌표(0~1 비율), 종류, 자동/직접 여부만 <code>mask_regions</code>에 둡니다. 가린 글자의 내용은 저장하지 않습니다.</li>
-          <li>원본 사진은 가림 검수가 끝날 때까지만 서버 임시 파일에 있고(DB가 아닙니다), 끝나면 지웁니다. 분석이 끝나면 <code>messenger_photos</code> · <code>mask_regions</code> 행도 지우고 개수만 <code>messenger_uploads</code>에 남깁니다.</li>
-          <li>요약은 가린 사진에서 내 말풍선만 읽어 만든 것이고, 상대 메시지는 저장하지 않습니다.</li>
+          <li>글자 읽기 · 가리기 · 내 말풍선 구분은 폰 안에서 하고, 서버는 사진을 받는 API가 없습니다. 앱이 가린 글자(JSON)만 보냅니다.</li>
+          <li>가림 영역(좌표 · 종류)은 폰 안에서만 쓰므로 서버에 테이블이 없습니다. 상대 메시지는 폰에서 버려져 서버에 오지 않습니다.</li>
+          <li>서버는 받은 글자를 한 번 더 규칙으로 가리고, 이때 가린 건수를 <code>server_masked_count</code>에 남깁니다(앱의 가림이 놓친 정도를 보는 값).</li>
           <li><code>expires_at</code> = 업로드일 + 1년. 배치가 지난 행을 지우고, 업로드 행을 지우면 요약도 함께 지워집니다.</li>
         </ul>
       </div>
@@ -257,7 +246,7 @@ ${svg}
         <h3>한 번에 보는 대화 흐름</h3>
         <ul>
           <li>시점 선택(바로가기 또는 캘린더 날짜) → <code>persona_analyses</code> 조회 (키 + digest 확인)</li>
-          <li>없거나 다르면 → 일기(<code>diaries</code>) + 겹치는 주 요약 읽기 → Gemini 분석 → 같은 행에 저장</li>
+          <li>없거나 다르면 → 일기(<code>diaries</code>) + 겹치는 주 요약 읽기 → AI 분석 → 같은 행에 저장</li>
           <li><code>chat_sessions</code> 생성 (<code>analysis_id</code> 연결) → <code>chat_messages</code> 누적</li>
           <li>대화 종료 → <code>reports</code> 한 행 (세션당 하나)</li>
           <li>“과거의 나” 탭의 대화 목록은 <code>chat_sessions</code>를 최근 메시지 순으로 보여주고, 다시 들어갈 수 있습니다.</li>
@@ -278,8 +267,8 @@ ${svg}
       <li><b>대화 목록 칩</b> — “과거의 나” 목록의 “1개월”, “1년” 같은 칩을 위해 <code>chat_sessions.shortcut_key</code>(<code>ONE_MONTH</code> 등, 날짜를 직접 골랐으면 비어 있음)를 두었습니다.</li>
       <li><b>없는 것</b> — 위기 신호 감지 기록(기획서 5.6), 로그인 갱신 토큰 저장, 이용 시간 집계 전용 테이블, 푸시 알림용 기기 토큰 저장(알림 보내는 방식이 정해지지 않았습니다)은 넣지 않았습니다. 이용 시간은 <code>chat_sessions</code>의 시작 · 종료 시각으로 계산할 수 있습니다.</li>
       <li><b>동의 시각은 하나</b> — 서비스 이용 동의 화면은 필수 3개(이용약관 · 개인정보 · AI 분석)를 한 번에 받으므로 시각을 <code>users.ai_consent_at</code> 하나에 기록합니다. 철회는 AI 분석 동의만 대상이고 <code>ai_revoked_at</code>에 기록하며, 철회한 뒤 다시 동의하면 <code>ai_consent_at</code>을 새로 기록하고 <code>ai_revoked_at</code>을 비웁니다. 선택 항목인 알림만 <code>notifications_opt_in</code> 컬럼을 추가했습니다. 이용약관과 개인정보 동의 시각을 따로 남겨야 하면 컬럼을 나눠야 합니다.</li>
-      <li><b>메신저 업로드의 숫자 컬럼</b> — 분석 완료 화면이 보여주는 “읽은 대화 캡처 N장”, “가려진 민감정보 N건(직접 N건)”을 <code>photo_count</code>, <code>masked_count</code>, <code>user_masked_count</code>로 저장합니다. 개인을 식별하는 값이 아니라 개수뿐입니다. 분석은 가림 확인 뒤에 진행되므로 처리 중에는 <code>masked_count</code> · <code>user_masked_count</code>와 <code>period_start</code>, <code>period_end</code>가 비어 있을 수 있습니다.</li>
-      <li><b>가림 영역과 원본 사진</b> — 사진 한 장을 <code>messenger_photos</code> 한 행으로, 가린 곳(또는 가림 후보)을 <code>mask_regions</code> 한 행으로 둡니다. <code>kind</code>는 전화 · 계좌 · 주소 · 이메일 · 이름 · 학교명 같은 종류, <code>source</code>는 자동(<code>AUTO</code>) 또는 직접(<code>USER</code>), <code>applied</code>는 실제로 가렸는지(이름처럼 애매한 후보는 사용자가 스위치로 결정)입니다. 가림은 사진 픽셀에 적용되어 되돌릴 수 없고, 원본 사진은 DB가 아니라 서버 임시 파일입니다. 글자를 읽는 방법(OCR)과 임시 파일 위치는 아직 정해지지 않았습니다.</li>
+      <li><b>메신저 업로드의 숫자 컬럼</b> — 분석 완료 화면이 보여주는 “읽은 대화 캡처 N장”, “가려진 민감정보 N건(직접 N건)”을 <code>photo_count</code>, <code>masked_count</code>, <code>user_masked_count</code>로 저장합니다. 이 값은 앱이 글자와 함께 보내므로 처음부터 채워져 있습니다. 개인을 식별하는 값이 아니라 개수뿐입니다. 서버가 한 번 더 가린 건수 <code>server_masked_count</code>와 대화 기간 <code>period_start</code>, <code>period_end</code>는 분석이 끝나야 채워집니다.</li>
+      <li><b>사진은 폰 밖으로 보내지 않음(2026.10.28 결정)</b> — 글자 읽기(OCR), 자동 가림, 내 말풍선 구분, 검수 · 직접 가리기는 모두 폰 안에서 하고, 서버는 가린 글자만 받습니다. 그래서 사진 · 가림 영역을 담는 테이블(<code>messenger_photos</code>, <code>mask_regions</code>)을 두지 않았습니다. 가림은 사진이 아니라 글자에 적용되어(가림 영역과 겹치는 글자를 “[전화번호]” 같은 표시로 바꿈) 서버에 오는 글자에는 원문이 없습니다.</li>
       <li><b>커플 리포트 확장</b> — 기획서 9장의 “연인에게 물어보면 좋을 질문”은 아직 검토 중이라 <code>reports</code>에 컬럼을 두지 않았습니다.</li>
     </ul>
   </section>

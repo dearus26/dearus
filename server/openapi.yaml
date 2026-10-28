@@ -21,7 +21,7 @@ info:
 
     - **로그인 · 동의:** `POST /auth/{provider}` → 응답의 `user.needsConsent`가 `true`면 동의 화면을 보여주고 `PUT /me/consent`로 동의를 기록해요. 설정에서 철회는 `DELETE /me/consent`예요.
     - **일기:** `POST /diaries` → 홈에서 `GET /diaries?from&to`로 한 달치를 받아 캘린더에 표시해요.
-    - **메신저(카톡 등) 업로드:** 스토리보드가 txt 파일이 아니라 캡처 사진을 올리고 자동 가림 · 검수 · 직접 가리기를 거치는 흐름으로 바뀌어서, 이 구간은 카톡 단계에서 다시 설계해요. 아래 `/uploads/kakao`는 예전 txt 방식 초안이에요. 예전 방식은 `POST /uploads/kakao`(202) → `GET /uploads/kakao/{id}`를 1~2초 간격으로 조회해 `DONE`이 되면 분석 완료 화면을 보여줘요.
+    - **메신저(카톡 등) 업로드:** 사진은 폰 밖으로 보내지 않아요(2026.10.28 결정). 앱이 폰 안에서 글자를 읽고 가린 뒤 `POST /uploads/messenger`(202)로 **가린 글자만** 보내고, `GET /uploads/messenger/{id}`를 1~2초 간격으로 조회해 `DONE`이 되면 분석 완료 화면을 보여줘요.
     - **대화:** 하단 탭 "과거의 나"에서 `GET /chats`로 지난 대화 목록을 보고 다시 들어가거나, 새로 하려면 `GET /personas/shortcuts`(1개월 · 6개월 · 1년 전, 전후 2주)나 `GET /personas/preview`(캘린더에서 고른 날, 그날 하루)로 시점을 고르고 → `POST /chats`로 세션을 만들고(필요하면 `PREPARING`) → `POST /chats/{id}/messages`(SSE)로 대화하고 → `POST /chats/{id}/end` → `GET /chats/{id}/report`.
     - **커플:** `POST /couples/invite` → 상대가 `POST /couples/invite/accept` → 각자 `POST /couples/consent` → `GET /couples/days`로 함께 볼 날을 고르고 → 각자 `POST /chats`(`forCouple: true`)로 그날의 나와 대화한 뒤 끝내면 → `GET /couples/comparisons`로 두 사람의 기억과 간극을 보고 → 철회는 `POST /couples/revoke`.
 
@@ -32,8 +32,8 @@ info:
 
     ## 결정한 것
 
-    - **ERD 반영:** 분석 완료 화면의 "읽은 대화 캡처 N장 · 가려진 민감정보 N건(직접 N건)"에 맞춰 업로드 테이블을 `messenger_uploads`로 바꾸고 `photo_count`, `masked_count`, `user_masked_count`를 두었어요(예전 `utterance_count`는 없앴어요). 사진과 가림 영역은 `messenger_photos`, `mask_regions`예요. 분석은 가림 확인 뒤에 진행돼서 `masked_count`와 `period_start`, `period_end`는 처리 중에 비어 있을 수 있어요(ERD의 `?`).
-    - **카톡 "내 이름"(txt 방식 전용):** 아래 `/uploads/kakao`에 있는 `422 KAKAO_SPEAKER_REQUIRED` 처리는 txt 방식의 약속이에요. 캡처 사진 방식에서는 "내 말풍선만 사용해요"를 말풍선의 위치 · 색으로 가려내야 해서 이 항목이 필요 없어질 가능성이 커요. 카톡 단계에서 확정해요.
+    - **사진은 폰 밖으로 보내지 않아요(2026.10.28 결정):** 글자 읽기(OCR), 자동 가림, 내 말풍선 구분, 검수 · 직접 가리기는 모두 앱이 폰 안에서 해요. 서버는 사진을 받는 API가 없고(이미지를 보내면 415) 가린 글자(JSON)만 받아요. 그래서 ERD에 사진 · 가림 영역 테이블이 없고, `messenger_uploads`에 개수(`photo_count`, `masked_count`, `user_masked_count`)와 서버가 한 번 더 가린 건수(`server_masked_count`)만 남겨요. 상대 메시지는 폰에서 버려져 서버에 오지 않아요.
+    - **내 말풍선 구분:** 카카오톡은 오른쪽 · 노란색 말풍선이 나예요(앱이 글자 위치와 색으로 구분). 디스코드처럼 말풍선이 없는 앱은 내 이름이 필요해서 뒤로 미뤄요(첫 지원은 카카오톡). 예전 txt 방식의 `422 KAKAO_SPEAKER_REQUIRED`(내 이름 고르기)는 쓰지 않아요.
     - **동의 기록:** 스토리보드의 "서비스 이용 동의" 화면은 필수 3개(이용약관 · 개인정보 · AI 분석)를 한 번에 받고 "동의 시각을 기록"해요. 그래서 시각은 `users.ai_consent_at` 하나에 기록하고, 선택 항목인 알림만 `users.notifications_opt_in` 컬럼을 추가했어요. 스토리보드에 적힌 `POST /users/consent`는 내 계정 API를 `/me` 아래로 모으려고 `PUT /me/consent`로 정했어요. 이용약관과 개인정보 동의 시각을 따로 남겨야 하면 그때 컬럼을 나눠요.
     - **동의 철회:** 설정의 철회는 AI 분석 동의만 대상이에요(`DELETE /me/consent`). 철회하면 AI를 부르는 API는 403 `AI_CONSENT_REQUIRED`가 되고, 일기는 계속 쓸 수 있어요. 기획서 7장대로 저장된 분석 데이터는 즉시 지워야 하고, 해당 테이블을 만들 때 함께 구현해요.
     - **시점은 두 가지:** 바로가기(1개월 · 6개월 · 1년 전)는 그 무렵 **전후 2주**(`scope: AROUND`, 기준일은 그 주 월요일), 캘린더에서 날짜를 직접 고르면 그날 **하루**(`scope: DAY`, 기준일은 그 날짜 그대로)의 기록으로 그때의 나를 만들어요. 스토리보드가 슬라이더 · 막대 그래프를 없애고 이렇게 바뀌어서 `/personas/timeline`은 지웠어요.
@@ -46,11 +46,12 @@ info:
     2. **일기의 위기 신호 감지는 뺐어요:** 일기 저장은 3초 안에 끝나야 해서(기획서 4.2) AI 호출을 붙이지 않았어요. 대화 중 감지(`safety` 이벤트)만 있어요.
     3. **`couples.status` 값:** `PENDING`, `CONNECTED`, `DISCONNECTED` 세 가지를 쓴다고 가정했어요. `EXPIRED`는 `code_expires_at`로 계산해서 응답에만 나와요.
     4. **상담전화 번호:** `safety` 이벤트로 내려주는 번호(109 · 1577-0199)는 발표 전에 공식 안내로 확인해야 해요.
-    5. **카톡 업로드는 구현 단계에서 다시 고쳐요:** 스토리보드가 txt 파일이 아니라 메신저 캡처 사진을 올리고, 글자를 읽어 자동으로 가린 뒤 사용자가 검수 · 직접 가리는 흐름(`POST /uploads/messenger`, `mask_regions`, `messenger_weekly_summaries`)으로 바뀌었어요. 지금의 `/uploads/kakao` 명세와 ERD는 카톡 단계에서 이 흐름에 맞춰 새로 정해요.
+    5. **글자 읽기 · 가리기는 프론트엔드 일이에요:** 개발 빌드(네이티브 글자 인식)가 필요하고, iOS · 안드로이드 모두 한국어 카카오톡 캡처로 정확도를 먼저 시험해야 해요(가짜 캡처 30~50장, 정답 포함). 결과에 따라 가림 규칙을 정해요.
     6. **스토리보드의 "연결" 칸과 이름이 다른 곳:** `POST /users/consent`(명세는 `PUT /me/consent`), `diary_entries`(명세 · ERD는 `diaries`)예요. 스토리보드 쪽을 명세 이름으로 맞춰 주세요.
     7. **커플 모드 개념을 확인해 주세요:** 위 "같은 날 비교"로 읽은 게 맞는지, 그리고 커플 "동의 안내" 문구("상대방이 ... '과거의 회원님'과 대화하게 됩니다")가 새 흐름(상대가 내 과거와 대화하는 게 아니라 내 그날의 기억 요약을 보는 것)과 맞는지 확인이 필요해요. 이 문구는 앱 화면과 기획서 6.2에 같이 있어서 한꺼번에 고쳐야 해요.
-    8. **사진 속 글자를 읽는 방법(OCR):** "가린 사진만 AI로 보낸다"는 약속을 지키려면 가리기 위한 글자 읽기를 Gemini가 아닌 곳에서 해야 해요. 서버 안의 오픈소스 엔진(예 Tesseract)이나 기기 안 라이브러리 같은 후보가 있고 아직 정해지지 않았어요. 카톡 단계 첫 결정이에요.
+    8. **이름 · 학교 후보 찾기(가정):** 업로드 때 "가릴 이름 목록"(내 이름, 연인 이름, 학교)을 한 번 입력받고, 대화창 위쪽에 보이는 이름은 자동 후보로 보여주는 방식으로 시작해요. 스토리보드에 입력 화면이 없어서 추가가 필요해요. 정확도가 부족하면 작은 한국어 이름 인식 모델을 검토해요.
     9. **하루 단위 대화에 메신저 요약을 쓸까요:** 메신저 요약은 주 단위라 하루로 자를 수 없어서, 그날이 속한 주의 요약을 쓸지(`DAY`일 때도) 정해야 해요. 지금 명세는 쓰지 않고 그날의 일기만 쓰는 것으로 가정했어요.
+    10. **AI 회사는 고정하지 않아요:** 글자(텍스트)만 보내므로 이미지 입력이 필요 없고 어떤 회사 API든 쓸 수 있어요. 학습 미사용 · 보관 기간 · 한국어 말투 재현 · 스트리밍 · 가격을 비교해 정해요. 지금 기본 후보는 Gemini 유료 등급이에요.
 
 servers:
   - url: http://localhost:8080
@@ -69,7 +70,7 @@ tags:
   - name: diaries
     description: 일기 · 캘린더
   - name: uploads
-    description: 메신저 대화 업로드 (스토리보드가 캡처 사진 · 검수 흐름으로 바뀌어 카톡 단계에서 다시 설계해요. 지금 항목은 예전 txt 방식이에요)
+    description: 메신저 대화 업로드 (사진은 보내지 않고, 폰이 가린 글자만 보내요)
   - name: personas
     description: 시점 선택 · 기록량
   - name: chats
@@ -358,50 +359,37 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /uploads/kakao:
+  /uploads/messenger:
     post:
       tags: [uploads]
-      operationId: uploadKakao
-      summary: 카톡 대화 올리기
+      operationId: uploadMessenger
+      summary: 메신저 대화 올리기 (가린 글자)
       description: |
-        카톡 내보내기 txt를 올리면 서버가 본인 발화만 뽑고, 민감정보를 가리고, 주 단위로 요약해서 저장해요.
-        원본 파일은 요약이 끝나는 즉시(실패해도) 지워요.
+        메신저(카톡 · 디스코드 등) 대화 캡처를 올릴 때 **사진은 보내지 않아요.** 앱이 폰 안에서 사진 속 글자를 읽고, 민감정보를 가리고, 내 말풍선만 골라서, 가린 글자만 이 API로 보내요(상대 메시지는 폰에서 버려요).
+        이 서버에는 사진을 받는 API가 없어요. 이미지나 `multipart/form-data`를 보내면 415예요.
 
-        시간이 걸릴 수 있어서 **202**로 바로 응답하고, 결과는 `GET /uploads/kakao/{uploadId}`를 1~2초 간격으로 조회해서 `status`가 `DONE` 또는 `FAILED`가 될 때까지 기다려요.
+        서버는 받은 글자를 한 번 더 규칙으로 가린 뒤(앱이 놓친 전화번호 · 계좌번호 · 이메일 등), 주 단위로 묶어 AI로 요약하고 암호화해 저장해요. 시간이 걸릴 수 있어서 **202**로 바로 응답하고, 결과는 `GET /uploads/messenger/{uploadId}`를 1~2초 간격으로 조회해서 `status`가 `DONE` 또는 `FAILED`가 될 때까지 기다려요.
 
-        참여자가 여러 명이고 `speakerName`이 없으면 422 `KAKAO_SPEAKER_REQUIRED`와 후보 이름(`details.speakers`)을 돌려줘요. 앱이 이름을 고르게 한 뒤 같은 파일로 다시 올려요.
+        `messages[].date`는 앱이 대화 화면의 날짜 구분선에서 읽어요. 날짜를 알 수 없는 글자는 앱이 사용자에게 물어서 채운 뒤 보내요.
+        서버는 받은 글자를 요약이 끝날 때까지만 메모리에 두고 저장하지 않아요(성공하든 실패하든 요약만 남겨요). 서버가 다시 시작되면 `FAILED`가 되니, 앱은 `DONE`을 받을 때까지 가린 글자를 폰에 갖고 있다가 필요하면 다시 보내요.
+        한도(초안): 메시지 5,000개, 한 메시지 2,000자, 요청 전체 1MB.
       x-schedule: 10월 4주~11월 1주
-      x-screen: 카톡 올리기
+      x-screen: 메신저 올리기, 분석 완료
       requestBody:
         required: true
         content:
-          multipart/form-data:
+          application/json:
             schema:
-              type: object
-              required: [file, consent]
-              properties:
-                file:
-                  type: string
-                  format: binary
-                  description: 카톡 내보내기 `.txt`. 최대 10MB
-                consent:
-                  type: boolean
-                  description: '"위 내용을 이해했고 대화 분석에 동의해요" 체크 여부. `true`가 아니면 400 `CONSENT_REQUIRED`예요. 로그인 직후 동의와는 별개로 올릴 때마다 한 번 더 확인하는 거예요'
-                speakerName:
-                  type: string
-                  description: 대화에서 내 이름. 참여자가 한 명뿐이면 생략해도 돼요
-            encoding:
-              file:
-                contentType: text/plain
+              $ref: '#/components/schemas/MessengerUploadRequest'
       responses:
         '202':
-          description: 접수됨. 분석은 서버에서 진행 중이에요
+          description: 접수됨. 요약은 서버에서 진행 중이에요
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/KakaoUpload'
+                $ref: '#/components/schemas/MessengerUpload'
         '400':
-          description: 동의하지 않았어요 (`CONSENT_REQUIRED`)
+          description: 동의하지 않았거나(`CONSENT_REQUIRED`) 요청 값이 올바르지 않아요(`VALIDATION_FAILED`)
           content:
             application/json:
               schema:
@@ -411,23 +399,21 @@ paths:
         '403':
           $ref: '#/components/responses/AiConsentRequired'
         '413':
-          description: 파일이 너무 커요 (`FILE_TOO_LARGE`)
+          description: 요청이 너무 커요 (`PAYLOAD_TOO_LARGE`)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-        '422':
-          description: |
-            `KAKAO_FILE_INVALID`(카톡 내보내기 형식이 아니에요), `KAKAO_SPEAKER_REQUIRED`(내 이름을 골라야 해요),
-            `KAKAO_NO_UTTERANCES`(내 발화를 찾지 못했어요)
+        '415':
+          description: 사진은 받지 않아요 (`IMAGES_NOT_ACCEPTED`). 앱이 폰 안에서 글자를 읽어 JSON으로 보내야 해요
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
     get:
       tags: [uploads]
-      operationId: listKakaoUploads
-      summary: 올린 카톡 목록
+      operationId: listMessengerUploads
+      summary: 올린 메신저 대화 목록
       description: 설정의 "내 데이터 보기 · 삭제"에서 써요. 최신순이에요.
       x-schedule: 11월 1주
       x-screen: 설정
@@ -443,11 +429,11 @@ paths:
                   items:
                     type: array
                     items:
-                      $ref: '#/components/schemas/KakaoUpload'
+                      $ref: '#/components/schemas/MessengerUpload'
         '401':
           $ref: '#/components/responses/Unauthorized'
 
-  /uploads/kakao/{uploadId}:
+  /uploads/messenger/{uploadId}:
     parameters:
       - name: uploadId
         in: path
@@ -457,25 +443,25 @@ paths:
           format: uuid
     get:
       tags: [uploads]
-      operationId: getKakaoUpload
-      summary: 카톡 분석 상태 · 결과
+      operationId: getMessengerUpload
+      summary: 분석 상태 · 결과
       x-schedule: 10월 4주~11월 1주
-      x-screen: 카톡 올리기, 분석 완료
+      x-screen: 메신저 올리기, 분석 완료
       responses:
         '200':
           description: 현재 상태
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/KakaoUpload'
+                $ref: '#/components/schemas/MessengerUpload'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
     delete:
       tags: [uploads]
-      operationId: deleteKakaoUpload
-      summary: 카톡 요약 지우기
+      operationId: deleteMessengerUpload
+      summary: 메신저 요약 지우기
       description: 이 업로드에서 만든 주간 요약을 모두 지워요. 이 기간의 시점 분석은 다음 대화 때 다시 해요.
       x-schedule: 11월 1주
       x-screen: 설정
@@ -1209,7 +1195,7 @@ components:
         aiAnalysis:
           type: boolean
           enum: [true]
-          description: 일기 · 대화 내용 AI 분석(Gemini) (필수). 가린 내용만 AI로 보내고 학습에는 쓰이지 않아요
+          description: 일기 · 대화 내용 AI 분석 (필수). 가린 내용(글자)만 AI로 보내고 학습에는 쓰이지 않아요
         notifications:
           type: boolean
           description: 일기 작성 알림 받기 (선택). 안 보내면 지금 설정 그대로예요
@@ -1309,10 +1295,71 @@ components:
             $ref: '#/components/schemas/Diary'
 
     # ───────── 카톡 업로드 ─────────
-    KakaoUpload:
+    MessengerSource:
+      type: string
+      enum: [KAKAOTALK, DISCORD, OTHER]
+      description: |
+        어느 메신저의 캡처인지. 앱이 내 말풍선을 구분하는 방법이 앱마다 달라요.
+        첫 지원은 `KAKAOTALK`(오른쪽 · 노란색 말풍선이 나)이고, `DISCORD`처럼 말풍선이 없는 앱은 내 이름이 필요해서 뒤로 미뤄요.
+    MessengerMessage:
       type: object
-      description: 예전 txt 방식 초안이에요. 메신저 캡처 업로드 흐름은 카톡 단계에서 새로 설계해요
-      required: [id, status, uploadedAt, originalDeleted]
+      required: [date, text]
+      properties:
+        date:
+          type: string
+          format: date
+          description: 이 글자가 쓰인 날짜 (대화 화면의 날짜 구분선에서 앱이 읽어요)
+        text:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          description: 내 말풍선의 글자. 민감정보는 `[전화번호]`, `[이름]` 같은 표시로 이미 바뀌어 있어야 해요
+    MessengerUploadRequest:
+      type: object
+      required: [source, consent, photoCount, maskedCount, userMaskedCount, messages]
+      properties:
+        source:
+          $ref: '#/components/schemas/MessengerSource'
+        consent:
+          type: boolean
+          enum: [true]
+          description: '"위 내용을 이해했고 대화 분석에 동의해요" 체크. 올릴 때마다 한 번 더 확인해요. `true`가 아니면 400 `CONSENT_REQUIRED`예요'
+        photoCount:
+          type: integer
+          minimum: 1
+          maximum: 100
+          description: 폰이 읽은 대화 캡처 수 ("읽은 대화 캡처 12장"). 사진 자체는 보내지 않아요
+          example: 12
+        maskedCount:
+          type: integer
+          minimum: 0
+          description: 폰이 가린 민감정보 건수 ("가려진 민감정보 56건"). 직접 가린 건수를 포함해요
+          example: 56
+        userMaskedCount:
+          type: integer
+          minimum: 0
+          description: 그중 사용자가 직접 가린 건수 ("직접 6건"). `maskedCount`보다 클 수 없어요
+          example: 6
+        messages:
+          type: array
+          minItems: 1
+          maxItems: 5000
+          items:
+            $ref: '#/components/schemas/MessengerMessage'
+      example:
+        source: KAKAOTALK
+        consent: true
+        photoCount: 12
+        maskedCount: 56
+        userMaskedCount: 6
+        messages:
+          - date: '2026-09-28'
+            text: 내 번호 [전화번호]이야
+          - date: '2026-09-28'
+            text: 오늘 [이름]이랑 점심 먹었어
+    MessengerUpload:
+      type: object
+      required: [id, status, uploadedAt, photoCount, maskedCount, userMaskedCount, expiresAt]
       properties:
         id:
           type: string
@@ -1323,6 +1370,16 @@ components:
         uploadedAt:
           type: string
           format: date-time
+        photoCount:
+          type: integer
+        maskedCount:
+          type: integer
+        userMaskedCount:
+          type: integer
+        serverMaskedCount:
+          type: integer
+          nullable: true
+          description: 서버가 한 번 더 가린 건수. 앱의 가림이 놓친 정도를 보는 값이고, 분석이 끝나야 채워져요
         periodStart:
           type: string
           format: date
@@ -1337,19 +1394,6 @@ components:
           nullable: true
           description: 저장한 주간 요약 수. `DONE`일 때만 있어요
           example: 8
-        utteranceCount:
-          type: integer
-          nullable: true
-          description: 사용한 내 발화 수 ("사용한 내 발화 3,214개")
-          example: 3214
-        maskedCount:
-          type: integer
-          nullable: true
-          description: 가려진 민감정보 건수 ("가려진 민감정보 47건")
-          example: 47
-        originalDeleted:
-          type: boolean
-          description: 원본 파일을 지웠는지. 처리가 끝나면(성공이든 실패든) `true`예요
         expiresAt:
           type: string
           format: date-time
@@ -1357,17 +1401,18 @@ components:
         failureCode:
           type: string
           nullable: true
-          description: '`FAILED`일 때의 이유. `KAKAO_NO_UTTERANCES`, `AI_UNAVAILABLE` 등'
+          description: '`FAILED`일 때의 이유. `AI_UNAVAILABLE` 등'
       example:
         id: 0c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f
         status: DONE
         uploadedAt: '2026-10-06T20:05:00+09:00'
+        photoCount: 12
+        maskedCount: 56
+        userMaskedCount: 6
+        serverMaskedCount: 0
         periodStart: '2026-08-04'
         periodEnd: '2026-09-28'
         weekCount: 8
-        utteranceCount: 3214
-        maskedCount: 47
-        originalDeleted: true
         expiresAt: '2027-10-06T20:05:00+09:00'
         failureCode: null
 
