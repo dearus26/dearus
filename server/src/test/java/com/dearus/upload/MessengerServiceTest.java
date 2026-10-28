@@ -72,7 +72,7 @@ class MessengerServiceTest {
 
 		Executor direct = Runnable::run; // 뒤에서 하는 일을 테스트에서는 바로 실행해요
 		TransactionTemplate tx = new TransactionTemplate(mock(PlatformTransactionManager.class));
-		MessengerSummaryJob job = new MessengerSummaryJob(new WeeklySummarizer(ai), crypto, uploads, summaries, tx);
+		MessengerSummaryJob job = new MessengerSummaryJob(new WeeklySummarizer(ai), crypto, uploads, summaries, tx, direct);
 		service = new MessengerService(users, uploads, summaries, new SensitiveMasker(), job, direct);
 	}
 

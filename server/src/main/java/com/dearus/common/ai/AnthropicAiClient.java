@@ -3,6 +3,7 @@ package com.dearus.common.ai;
 import com.anthropic.client.AnthropicClient;
 import com.anthropic.client.okhttp.AnthropicOkHttpClient;
 import com.anthropic.errors.AnthropicException;
+import com.anthropic.errors.AnthropicServiceException;
 import com.anthropic.models.messages.Message;
 import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.OutputConfig;
@@ -49,8 +50,10 @@ public class AnthropicAiClient implements AiClient {
 		try {
 			response = client().messages().create(params.build());
 		} catch (AnthropicException e) {
-			// 오류 메시지에 요청 내용이 섞여 있을 수 있어서 글자는 남기지 않고 종류만 남겨요
-			throw new AiException(AiException.Reason.UNAVAILABLE, "AI를 부르지 못했어요: " + e.getClass().getSimpleName(), e);
+			// 오류 메시지에 요청 내용이 섞여 있을 수 있어서 글자는 남기지 않고 종류와 HTTP 상태만 남겨요
+			// (예: 400 BadRequestException은 크레딧 부족일 수 있어요. 자세한 이유는 Anthropic Console에서 봐요)
+			String status = e instanceof AnthropicServiceException service ? " (HTTP " + service.statusCode() + ")" : "";
+			throw new AiException(AiException.Reason.UNAVAILABLE, "AI를 부르지 못했어요: " + e.getClass().getSimpleName() + status, e);
 		}
 
 		String stopReason = response.stopReason().map(r -> r.asString()).orElse("");

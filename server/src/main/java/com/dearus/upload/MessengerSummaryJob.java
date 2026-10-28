@@ -8,8 +8,12 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -29,30 +33,53 @@ public class MessengerSummaryJob {
 	private final MessengerUploadRepository uploads;
 	private final MessengerWeeklySummaryRepository summaries;
 	private final TransactionTemplate tx;
+	private final Executor aiCalls;
 
 	public MessengerSummaryJob(WeeklySummarizer summarizer, CryptoService crypto, MessengerUploadRepository uploads,
-		MessengerWeeklySummaryRepository summaries, TransactionTemplate tx) {
+		MessengerWeeklySummaryRepository summaries, TransactionTemplate tx, @Qualifier("summaryCallExecutor") Executor aiCalls) {
 		this.summarizer = summarizer;
 		this.crypto = crypto;
 		this.uploads = uploads;
 		this.summaries = summaries;
 		this.tx = tx;
+		this.aiCalls = aiCalls;
 	}
 
 	public void run(UUID uploadId, List<WeekMessages> weeks, int serverMaskedCount, LocalDate periodStart, LocalDate periodEnd) {
 		try {
-			List<SummaryParts> results = new ArrayList<>();
-			for (WeekMessages week : weeks) {
-				results.add(summarizer.summarize(week));
-			}
+			List<SummaryParts> results = summarizeAll(weeks);
 			tx.executeWithoutResult(status -> save(uploadId, weeks, results, serverMaskedCount, periodStart, periodEnd));
 		} catch (AiException e) {
-			log.warn("메신저 요약 실패 uploadId={} reason={}", uploadId, e.reason());
+			// e.getMessage()는 종류와 HTTP 상태만 담고 사용자의 글은 담지 않아요
+			log.warn("메신저 요약 실패 uploadId={} reason={} detail={}", uploadId, e.reason(), e.getMessage());
 			fail(uploadId, e.reason().code());
 		} catch (RuntimeException e) {
 			log.error("메신저 요약 중 예상하지 못한 오류 uploadId={}", uploadId, e);
 			fail(uploadId, "INTERNAL_ERROR");
 		}
+	}
+
+	/**
+	 * 주마다 AI를 한 번씩 부르되 동시에 여러 주를 해요(호출 하나가 5~10초라 차례로 하면 8주에 1분이 넘어요).
+	 * 결과는 주 순서대로 돌려주고, 한 주라도 실패하면 아직 시작하지 않은 주는 건너뛰고 그 오류를 그대로 던져요.
+	 */
+	private List<SummaryParts> summarizeAll(List<WeekMessages> weeks) {
+		List<CompletableFuture<SummaryParts>> futures = weeks.stream()
+			.map(week -> CompletableFuture.supplyAsync(() -> summarizer.summarize(week), aiCalls))
+			.toList();
+		List<SummaryParts> results = new ArrayList<>();
+		try {
+			for (CompletableFuture<SummaryParts> future : futures) {
+				results.add(future.join());
+			}
+		} catch (CompletionException e) {
+			futures.forEach(future -> future.cancel(true));
+			if (e.getCause() instanceof RuntimeException cause) {
+				throw cause;
+			}
+			throw e;
+		}
+		return results;
 	}
 
 	private void save(UUID uploadId, List<WeekMessages> weeks, List<SummaryParts> results, int serverMaskedCount,
