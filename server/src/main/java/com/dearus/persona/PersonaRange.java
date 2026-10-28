@@ -14,10 +14,19 @@ public record PersonaRange(PersonaScope scope, LocalDate anchor, LocalDate start
 	static final int MAX_DAYS_BACK = 365;
 	static final int AROUND_DAYS = 14;
 
+	/** 고를 수 있는 날짜인지 확인하고(아니면 400 ANCHOR_OUT_OF_RANGE) 구간을 만들어요. */
 	public static PersonaRange of(PersonaScope scope, LocalDate anchor, LocalDate today) {
 		if (anchor.isAfter(today) || anchor.isBefore(today.minusDays(MAX_DAYS_BACK))) {
 			throw new ApiException(HttpStatus.BAD_REQUEST, "ANCHOR_OUT_OF_RANGE", "고를 수 없는 날짜예요. 오늘부터 1년 전까지 고를 수 있어요.");
 		}
+		return at(scope, anchor, today);
+	}
+
+	/**
+	 * 날짜 범위를 확인하지 않고 구간만 계산해요. 이미 만든 세션의 구간을 다시 계산할 때 써요(asOf는 세션을 만든 날짜).
+	 * 구간의 끝은 asOf를 넘지 않아요.
+	 */
+	public static PersonaRange at(PersonaScope scope, LocalDate anchor, LocalDate today) {
 		return switch (scope) {
 			case DAY -> new PersonaRange(scope, anchor, anchor, anchor);
 			case AROUND -> {

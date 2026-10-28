@@ -80,13 +80,12 @@ public class PersonaAnalysisService {
 		}
 
 		String digest = digest(input);
-		short windowDays = (short) scope.windowDays();
-		PersonaAnalysis existing = analyses.findByUserIdAndAnchorDateAndWindowDays(userId, range.anchor(), windowDays).orElse(null);
-		if (existing != null && existing.getSourceDigest().equals(digest)) {
-			return Optional.of(new Result(read(existing), existing.getId(), true));
+		Result reused = reusable(userId, input, digest);
+		if (reused != null) {
+			return Optional.of(reused);
 		}
 
-		String key = userId + "|" + range.anchor() + "|" + windowDays + "|" + digest;
+		String key = userId + "|" + range.anchor() + "|" + scope.windowDays() + "|" + digest;
 		CompletableFuture<Result> mine = new CompletableFuture<>();
 		CompletableFuture<Result> running = inFlight.putIfAbsent(key, mine);
 		if (running != null) {
@@ -103,6 +102,31 @@ public class PersonaAnalysisService {
 		} finally {
 			inFlight.remove(key, mine);
 		}
+	}
+
+	/** 세션을 만들 때 DB만 읽어서 바로 알 수 있는 것이에요. reusable이 있으면 AI를 부르지 않고 바로 대화할 수 있어요. */
+	public record Lookup(RecordLevel level, Result reusable) {
+	}
+
+	/**
+	 * 고른 시점의 기록 수준과, 저장된 분석을 그대로 쓸 수 있는지만 봐요(AI를 부르지 않아서 빨라요).
+	 * 기록이 없으면(NONE) reusable도 없고 분석도 필요 없어요. 날짜가 범위를 벗어나면 400 ANCHOR_OUT_OF_RANGE예요.
+	 */
+	public Lookup lookup(UUID userId, PersonaScope scope, LocalDate anchor) {
+		PersonaInput input = collector.collect(userId, PersonaRange.of(scope, anchor, Kst.today()));
+		RecordLevel level = input.level();
+		return new Lookup(level, level == RecordLevel.NONE ? null : reusable(userId, input, digest(input)));
+	}
+
+	/** 저장된 분석의 지문이 이번 기록의 지문과 같으면 그 분석이고, 아니면 null이에요. */
+	private Result reusable(UUID userId, PersonaInput input, String digest) {
+		PersonaRange range = input.range();
+		PersonaAnalysis existing = analyses.findByUserIdAndAnchorDateAndWindowDays(userId, range.anchor(),
+			(short) range.scope().windowDays()).orElse(null);
+		if (existing != null && existing.getSourceDigest().equals(digest)) {
+			return new Result(read(existing), existing.getId(), true);
+		}
+		return null;
 	}
 
 	private Result analyze(UUID userId, PersonaInput input, String digest, Consumer<Step> progress) {
