@@ -9,7 +9,7 @@ const T = [
   { id: 'diaries', x: 30, y: 290, kind: 'rec', cols: [
     ['id', 'uuid', 'PK'], ['user_id', 'uuid', 'FK'], ['diary_date', 'date', ''],
     ['content', 'text', ''], ['created_at', 'timestamptz', ''], ['updated_at', 'timestamptz', ''] ] },
-  { id: 'messenger_weekly_summaries', x: 30, y: 590, kind: 'rec', cols: [
+  { id: 'messenger_weekly_summaries', x: 30, y: 650, kind: 'rec', cols: [
     ['id', 'uuid', 'PK'], ['upload_id', 'uuid', 'FK'], ['week_start', 'date', ''],
     ['summary_enc', 'bytea', 'ENC'], ['traits_enc', 'bytea', 'ENC'], ['sample_enc', 'bytea', 'ENC'],
     ['created_at', 'timestamptz', ''], ['expires_at', 'timestamptz', ''] ] },
@@ -21,7 +21,7 @@ const T = [
     ['id', 'uuid', 'PK'], ['provider', 'varchar', ''], ['provider_user_id', 'varchar', ''],
     ['nickname', 'varchar', ''], ['ai_consent_at', 'timestamptz?', ''], ['ai_revoked_at', 'timestamptz?', ''],
     ['notifications_opt_in', 'boolean', ''], ['created_at', 'timestamptz', ''] ] },
-  { id: 'messenger_uploads', x: 300, y: 590, kind: 'rec', cols: [
+  { id: 'messenger_uploads', x: 300, y: 650, kind: 'rec', cols: [
     ['id', 'uuid', 'PK'], ['user_id', 'uuid', 'FK'], ['source', 'varchar', ''], ['uploaded_at', 'timestamptz', ''],
     ['status', 'varchar', ''], ['failure_code', 'varchar?', ''], ['photo_count', 'int', ''],
     ['period_start', 'date?', ''], ['period_end', 'date?', ''],
@@ -46,8 +46,9 @@ const T = [
     ['id', 'uuid', 'PK'], ['user_id', 'uuid', 'FK'], ['persona_owner_id', 'uuid', 'FK'],
     ['couple_id', 'uuid?', 'FK'], ['analysis_id', 'uuid?', 'FK'], ['anchor_date', 'date', ''],
     ['window_days', 'smallint', ''], ['shortcut_key', 'varchar?', ''],
+    ['status', 'varchar', ''], ['failure_code', 'varchar?', ''], ['record_level', 'varchar', ''],
     ['started_at', 'timestamptz', ''], ['ended_at', 'timestamptz?', ''] ] },
-  { id: 'chat_messages', x: 840, y: 590, kind: 'rec', cols: [
+  { id: 'chat_messages', x: 840, y: 650, kind: 'rec', cols: [
     ['id', 'bigint', 'PK'], ['session_id', 'uuid', 'FK'], ['seq', 'int', ''],
     ['role', 'varchar', ''], ['content', 'text', ''], ['created_at', 'timestamptz', ''] ] },
 ];
@@ -82,17 +83,17 @@ function tableSvg(t) {
 const E = [
   { d: 'M130,116 V290', l: [['N', 136, 130, 's'], ['1', 136, 284, 's']] },
   { d: 'M300,340 H265', l: [['1', 294, 334, 'e'], ['N', 271, 334, 's']] },
-  { d: 'M360,486 V590', l: [['1', 366, 502, 's'], ['N', 366, 584, 's']] },
-  { d: 'M300,650 H265', l: [['1', 294, 644, 'e'], ['N', 271, 644, 's']] },
+  { d: 'M360,486 V650', l: [['1', 366, 502, 's'], ['N', 366, 644, 's']] },
+  { d: 'M300,710 H265', l: [['1', 294, 704, 'e'], ['N', 271, 704, 's']] },
   { d: 'M420,290 V196', l: [['1', 426, 284, 's'], ['N', 426, 212, 's']] },
   { d: 'M535,80 H570', l: [['N', 541, 74, 's'], ['1', 564, 74, 'e']] },
   { d: 'M535,340 H570', l: [['1', 541, 334, 's'], ['N', 564, 334, 'e']] },
   { d: 'M805,400 H840', dash: true, l: [['1', 811, 394, 's'], ['N', 834, 394, 'e']] },
   { d: 'M805,100 H822 V370 H840', dash: true, l: [['1', 811, 94, 's'], ['N', 834, 364, 'e']] },
   { d: 'M960,236 V290', dash: true, l: [['0..1', 966, 254, 's'], ['1', 966, 284, 's']] },
-  { d: 'M1000,526 V590', l: [['1', 1006, 542, 's'], ['N', 1006, 584, 's']] },
-  { d: 'M510,486 V546 H900 V527', l: [['1', 516, 502, 's'], ['N', 906, 540, 's']] },
-  { d: 'M470,486 V562 H940 V527', l: [['1', 476, 502, 's'], ['N', 946, 540, 's']] },
+  { d: 'M1000,586 V650', l: [['1', 1006, 602, 's'], ['N', 1006, 644, 's']] },
+  { d: 'M510,486 V606 H900 V587', l: [['1', 516, 502, 's'], ['N', 906, 600, 's']] },
+  { d: 'M470,486 V622 H940 V587', l: [['1', 476, 502, 's'], ['N', 946, 600, 's']] },
 ];
 
 function edgeSvg(e) {
@@ -103,11 +104,11 @@ function edgeSvg(e) {
   return s;
 }
 
-const svg = `<svg viewBox="0 0 1110 900" role="img" aria-label="열한 개 테이블의 관계도. users를 중심으로 일기, 메신저 업로드(개수와 요약만), 페르소나 분석, 대화, 커플 테이블이 연결되고, 사진을 담는 테이블은 없다">
+const svg = `<svg viewBox="0 0 1110 960" role="img" aria-label="열한 개 테이블의 관계도. users를 중심으로 일기, 메신저 업로드(개수와 요약만), 페르소나 분석, 대화, 커플 테이블이 연결되고, 사진을 담는 테이블은 없다">
 ${T.map(tableSvg).join('')}
 ${E.map(edgeSvg).join('')}
-<text class="lane" x="560" y="541">chat_sessions.user_id — 대화하는 사람</text>
-<text class="lane" x="560" y="577">chat_sessions.persona_owner_id — 페르소나 주인 (지금은 항상 user_id와 같음)</text>
+<text class="lane" x="560" y="601">chat_sessions.user_id — 대화하는 사람</text>
+<text class="lane" x="560" y="637">chat_sessions.persona_owner_id — 페르소나 주인 (지금은 항상 user_id와 같음)</text>
 </svg>`;
 
 const html = `<!doctype html>
@@ -264,6 +265,7 @@ ${svg}
       <li><b>커플 철회 시 본인 분석은 유지</b> — 철회하면 그 커플의 대화 · 리포트(기억 요약 · 간극)를 지우지만, 내 <code>persona_analyses</code> 행은 개인 모드에서도 쓰므로 남겨 둡니다. “관련 분석 데이터 파기”(기획서 6.3)를 더 넓게 해석한다면 규칙이 달라집니다.</li>
       <li><b>커플 모드는 “같은 날 비교”</b> — 스토리보드의 커플 흐름이 상대 페르소나와 대화하는 방식에서 “각자 자기 과거의 나와 대화한 뒤 두 요약을 비교”하는 방식으로 바뀌었다고 읽었습니다. 그래서 비교용 새 테이블 없이 <code>reports</code>에 <code>memory_summary</code>(그날의 기억)와 <code>gap_summary</code>(두 사람의 간극)를 두었고, 이 경우 <code>past_concern</code> · <code>present_change</code>는 비워 둡니다. 상대 페르소나와 대화하는 기능이 남아 있다면 <code>persona_owner_id</code>가 다시 필요합니다.</li>
       <li><b>하루 단위 대화</b> — 캘린더에서 날짜를 탭하면 그날 하루의 기록으로 페르소나를 만들기 때문에 <code>window_days = 0</code> 행이 생깁니다. 메신저 요약은 주 단위라 하루로 자를 수 없어서, 그날이 속한 주의 요약 중 말투 분석(<code>traits_enc</code>)만 함께 씁니다(그 주의 일이나 대표 문장은 쓰지 않습니다). 그래서 이 행의 <code>messenger_weeks</code>는 0 또는 1입니다.</li>
+      <li><b>대화 세션의 상태</b> — 시점 분석이 오래 걸려서 세션을 만들 때 <code>status = PREPARING</code>으로 시작하고, 분석이 끝나면 <code>READY</code>(실패하면 <code>FAILED</code> + <code>failure_code</code>)가 됩니다. <code>record_level</code>은 세션을 만들 때의 기록 수준(<code>NONE</code> · <code>LOW</code> · <code>ENOUGH</code> · <code>RICH</code>)을 그대로 남기고, 기록이 전혀 없으면(<code>NONE</code>) 분석 없이 <code>analysis_id</code>가 빈 채로 <code>READY</code>입니다. 동의를 철회해 분석 행이 지워져도 대화 기록은 남도록, 분석 행이 지워지면 <code>analysis_id</code>는 비워집니다. 커플 연결(<code>couple_id</code>)의 외래 키는 커플 테이블을 만들 때 더합니다.</li>
       <li><b>대화 목록 칩</b> — “과거의 나” 목록의 “1개월”, “1년” 같은 칩을 위해 <code>chat_sessions.shortcut_key</code>(<code>ONE_MONTH</code> 등, 날짜를 직접 골랐으면 비어 있음)를 두었습니다.</li>
       <li><b>없는 것</b> — 위기 신호 감지 기록(기획서 5.6), 로그인 갱신 토큰 저장, 이용 시간 집계 전용 테이블, 푸시 알림용 기기 토큰 저장(알림 보내는 방식이 정해지지 않았습니다)은 넣지 않았습니다. 이용 시간은 <code>chat_sessions</code>의 시작 · 종료 시각으로 계산할 수 있습니다.</li>
       <li><b>동의 시각은 하나</b> — 서비스 이용 동의 화면은 필수 3개(이용약관 · 개인정보 · AI 분석)를 한 번에 받으므로 시각을 <code>users.ai_consent_at</code> 하나에 기록합니다. 철회는 AI 분석 동의만 대상이고 <code>ai_revoked_at</code>에 기록하며, 철회한 뒤 다시 동의하면 <code>ai_consent_at</code>을 새로 기록하고 <code>ai_revoked_at</code>을 비웁니다. 선택 항목인 알림만 <code>notifications_opt_in</code> 컬럼을 추가했습니다. 이용약관과 개인정보 동의 시각을 따로 남겨야 하면 컬럼을 나눠야 합니다.</li>
