@@ -805,6 +805,7 @@ h1 small{font-family:"Noto Sans KR",sans-serif;font-size:13px;font-weight:400;co
   <ul class="warn">
     <li>도윤님의 접근이 <b>즉시 차단</b>돼요</li>
     <li>이 커플의 대화와 리포트가 삭제돼요</li>
+    <li>분석 데이터와 대화 기록은 <b>O월 O일</b>에 모두 지워져요</li>
     <li>내 일기와 개인 모드 기록은 그대로 남아요</li>
   </ul>
   <div class="btn brown" style="margin-top:12px">철회하기</div>
@@ -813,7 +814,7 @@ h1 small{font-family:"Noto Sans KR",sans-serif;font-size:13px;font-weight:400;co
     <i class="home-ind"></i>
   </div></div>
 </div></div>
-      <dl class="meta"><dt>사용자</dt><dd>설정에서 언제든 동의 철회 또는 연결 해제</dd><dt>시스템</dt><dd>상대의 접근을 즉시 차단<br>이 커플의 대화와 리포트를 삭제</dd><dt>연결</dt><dd><code>couples.status</code> · <code>couple_members</code> 확인</dd></dl>
+      <dl class="meta"><dt>사용자</dt><dd>설정에서 언제든 동의 철회 또는 연결 해제</dd><dt>시스템</dt><dd>상대의 접근을 즉시 차단<br>이 커플의 대화와 리포트를 삭제<br>AI 분석 데이터와 대화 기록은 철회한 날부터 30일 보관한 뒤 삭제 ("O월 O일"은 철회한 날 + 30일, 그 안에 다시 동의하면 이어서 사용)</dd><dt>연결</dt><dd><code>couples.status</code> · <code>couple_members</code> 확인<br><code>DELETE /me/consent</code> · 응답의 <code>aiDataDeleteAt</code></dd></dl>
     </article>
   </div>
 </section>
