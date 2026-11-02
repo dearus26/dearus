@@ -113,7 +113,7 @@ com.dearus
 | POST | /uploads/messenger | 메신저 대화 올리기. 앱이 폰 안에서 가린 글자(JSON)만 보내고 사진은 받지 않아요. 요약은 비동기(202 + 상태 조회) |
 | GET | /personas/shortcuts · /personas/preview | 시점 고르기 (바로가기는 전후 2주, 캘린더 날짜는 그날 하루) |
 | GET | /chats | 과거의 나 목록 |
-| POST | /chats | 과거의 나와 대화 세션 생성. 요청에 시점 포함, 최대 1년 전까지. 답변 스트리밍은 `POST /chats/{chatId}/messages` |
+| POST | /chats | 과거의 나와 대화 세션 생성. 요청에 시점 포함, 최대 1년 전까지. 답변 스트리밍은 `POST /chats/{chatId}/messages` (SSE `token` · `safety` · `done` · `error`, 또는 `Accept: application/json`) |
 | POST | /couples/invite · /couples/invite/accept | 초대 코드 발급 · 입력 |
 | POST | /couples/consent | 동의 처리 |
 | GET | /couples/days · /couples/comparisons | 함께 볼 날, 같은 날 두 사람의 기억 비교 |

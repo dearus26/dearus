@@ -5,6 +5,8 @@ tools/render/
 # 마크다운은 README.md만 올려요
 *.md
 !README.md
+# 팀이 같이 보는 "나중에 처리할 사항" 목록도 올려요
+!DearUs_나중에처리할사항.md
 
 # 환경변수 · 비밀 값 (.env.example 같은 예시 파일은 허용)
 .env

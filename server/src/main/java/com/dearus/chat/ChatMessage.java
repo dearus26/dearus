@@ -43,12 +43,17 @@ public class ChatMessage {
 	private OffsetDateTime createdAt;
 
 	public static ChatMessage create(UUID sessionId, int seq, ChatRole role, String content) {
+		return create(sessionId, seq, role, content, Kst.now());
+	}
+
+	/** 시각을 직접 정해요. 내 말은 답변이 끝나서 저장돼도 보낸 시각으로 남기려고 써요. */
+	public static ChatMessage create(UUID sessionId, int seq, ChatRole role, String content, OffsetDateTime createdAt) {
 		ChatMessage message = new ChatMessage();
 		message.sessionId = sessionId;
 		message.seq = seq;
 		message.role = role;
 		message.content = content;
-		message.createdAt = Kst.now();
+		message.createdAt = createdAt;
 		return message;
 	}
 }

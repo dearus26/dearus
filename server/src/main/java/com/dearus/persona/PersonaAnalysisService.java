@@ -177,6 +177,11 @@ public class PersonaAnalysisService {
 			PersonaAnalyzer.samplesFrom(crypto.decrypt(week.sampleEnc())));
 	}
 
+	/** 저장된 분석의 내용이에요(대화할 때 시스템 프롬프트를 만드는 데 써요). 행이 없으면 빈 값이에요. */
+	public Optional<PersonaContent> contentOf(UUID analysisId) {
+		return analyses.findById(analysisId).map(this::read);
+	}
+
 	private PersonaContent read(PersonaAnalysis row) {
 		return PersonaContent.fromJson(crypto.decrypt(row.getAnalysisEnc()));
 	}

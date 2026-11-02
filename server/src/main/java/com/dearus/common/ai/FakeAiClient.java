@@ -1,5 +1,6 @@
 package com.dearus.common.ai;
 
+import java.util.function.Consumer;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
@@ -29,5 +30,19 @@ public class FakeAiClient implements AiClient {
 			"samples": ["(가짜 문장) 오늘 진짜 피곤했어 ㅋㅋ"], \
 			"greetings": ["(가짜 인사) 어 왔어? ㅋㅋ", "(가짜 인사) 오랜만이네", "(가짜 인사) 야 뭐해"]}""";
 		return new AiResult(json, 0, 0);
+	}
+
+	/**
+	 * 대화 답변용 가짜 스트리밍이에요. 마지막 사용자 말(서버가 가린 뒤의 글자) 앞부분을 따라 말하고, 6글자씩 끊어서 넘겨요.
+	 * 그래서 앱 화면 흐름과 "AI로 가는 글자는 가려져 있는지"를 키 없이 확인할 수 있어요.
+	 */
+	@Override
+	public AiResult stream(AiRequest request, Consumer<String> onText) {
+		String lastUser = request.messages().get(request.messages().size() - 1).text();
+		String reply = "(가짜 답변) \"" + (lastUser.length() > 40 ? lastUser.substring(0, 40) : lastUser) + "\" 라고 했구나 ㅋㅋ 계속 얘기해 봐";
+		for (int i = 0; i < reply.length(); i += 6) {
+			onText.accept(reply.substring(i, Math.min(reply.length(), i + 6)));
+		}
+		return new AiResult(reply, 0, 0);
 	}
 }
