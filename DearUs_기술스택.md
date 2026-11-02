@@ -4,7 +4,7 @@
 >
 > 표기 규칙: 발표 · 문서에서는 'Dear Us', 코드 식별자(패키지 `com.dearus`, 저장소, 환경변수 등)는 `dearus`
 >
-> 최신화: 2026.10.14 스토리보드 기준으로 메신저 캡처 업로드, 시점 선택, 커플 부분을 고쳤어요. 2026.10.28에 사진은 폰 밖으로 보내지 않기로 해서, 글자 읽기와 가리기를 앱(폰) 안에서 해요. AI는 Claude Haiku 5.5로 정했어요.
+> 최신화: 2026.10.14 스토리보드 기준으로 메신저 캡처 업로드, 시점 선택, 커플 부분을 고쳤어요. 2026.10.28에 사진은 폰 밖으로 보내지 않기로 해서, 글자 읽기와 가리기를 앱(폰) 안에서 해요. AI는 Claude Haiku 5.5로 정했어요. 2026.11.2에 서버 구현(대화 SSE, Anthropic Java SDK 스트리밍)에 맞춰 서버 표와 AI 호출 규칙을 고쳤어요.
 
 ## 한 줄 요약
 
@@ -67,7 +67,8 @@ React Native 앱 (Expo) → Spring Boot 서버 (Render) → Supabase (PostgreSQL
 | Spring Data JPA | Spring Boot 관리 버전 | DB 접근 |
 | JWT | Spring Security OAuth2 Resource Server | 기본 제공 기능으로 JWT 발급 · 검증 |
 | Jackson | 3.x | Spring 7부터 Jackson 2.x 지원 제외 |
-| WebClient + SSE | Spring Boot 관리 버전 | AI 응답 스트리밍 전달 |
+| SSE (`SseEmitter`) | Spring MVC(`spring-boot-starter-webmvc`) | AI 응답 스트리밍 전달. WebClient · WebFlux는 쓰지 않아요 |
+| Anthropic Java SDK | 2.34.0 | `com.anthropic:anthropic-java`. 일반 호출 `complete`, 스트리밍 `createStreaming`. 공식 예제는 3.x라 올릴 때 실제 호출 시험과 함께 해요 |
 | Flyway | Spring Boot 관리 버전 | 테이블을 SQL 파일(마이그레이션)로 만들고 버전 관리 |
 | Actuator | Spring Boot 관리 버전 | 서버 상태 확인(`/actuator/health`), Render 배포 점검 |
 | 사진 · 글자 읽기 | 서버에서 하지 않음 | 서버는 사진을 받지 않아요(수신 API가 없고 이미지를 보내면 415). 앱이 가린 글자(JSON)만 보내고, 서버는 받은 글자를 한 번 더 규칙으로 가려요(안전장치). 그래서 Render 서버에서 이미지 처리 · 글자 읽기의 메모리를 걱정하지 않아도 돼요 |
@@ -84,6 +85,8 @@ React Native 앱 (Expo) → Spring Boot 서버 (Render) → Supabase (PostgreSQL
 - Lombok
 - Flyway Migration
 - Spring Boot Actuator
+
+Initializr에는 없지만 직접 더한 의존성은 `com.anthropic:anthropic-java`예요.
 
 **주의**
 
@@ -109,11 +112,14 @@ com.dearus
 |---|---|---|
 | POST | /auth/{provider} | 소셜 로그인 |
 | PUT / DELETE | /me/consent | 서비스 이용 동의 · AI 분석 동의 철회 |
-| GET / POST | /diaries | 일기 조회 · 작성 (캘린더용 작성일 · 감정 태그 포함) |
+| GET / POST / PUT / DELETE | /diaries | 일기 조회 · 작성 · 수정 · 삭제 (캘린더용 작성일 · 감정 태그 포함) |
 | POST | /uploads/messenger | 메신저 대화 올리기. 앱이 폰 안에서 가린 글자(JSON)만 보내고 사진은 받지 않아요. 요약은 비동기(202 + 상태 조회) |
 | GET | /personas/shortcuts · /personas/preview | 시점 고르기 (바로가기는 전후 2주, 캘린더 날짜는 그날 하루) |
 | GET | /chats | 과거의 나 목록 |
 | POST | /chats | 과거의 나와 대화 세션 생성. 요청에 시점 포함, 최대 1년 전까지. 답변 스트리밍은 `POST /chats/{chatId}/messages` (SSE `token` · `safety` · `done` · `error`, 또는 `Accept: application/json`) |
+| POST | /chats/{chatId}/end | 대화 끝내기 (아직 구현 전) |
+| GET | /chats/{chatId}/report | 회고 리포트 (아직 구현 전) |
+| GET | /me/usage/today | 오늘 대화 시간 (아직 구현 전) |
 | POST | /couples/invite · /couples/invite/accept | 초대 코드 발급 · 입력 |
 | POST | /couples/consent | 동의 처리 |
 | GET | /couples/days · /couples/comparisons | 함께 볼 날, 같은 날 두 사람의 기억 비교 |
@@ -153,7 +159,7 @@ com.dearus
 - **입력 형태:** 글자(텍스트)만 보내요. 캡처 사진은 AI에 보내지 않아서 이미지 입력이 필요 없어요.
 - **스트리밍 지원:** 스트리밍 응답을 SSE로 앱에 전달해요. 개발 목표 "첫 응답 5초 이내"를 달성하는 데 필요해요.
 - **비용:** 입력 $0.10 · 출력 $0.50 (100만 토큰당, 요청 한 번의 프롬프트가 10만 토큰 이하일 때. thinking 토큰은 출력 단가로 청구)
-- **호출 규칙:** `temperature` · `top_p` · `top_k`는 못 보내요(400). 마지막 assistant 메시지를 미리 채우는 방식(prefill)도 못 써요. thinking은 기본으로 켜져 있고 `max_tokens`에 포함되니 대화는 `effort: low`로 시작해요. 응답이 `refusal`로 끝날 수 있고 서버 쪽 자동 대체 모델이 없어서, 서버가 안내 문구로 대신해요. 대화 기록은 글자만 다시 보내므로 thinking 블록 재전송 규칙에는 걸리지 않아요
+- **호출 규칙:** `temperature` · `top_p` · `top_k`는 못 보내요(400). 마지막 assistant 메시지를 미리 채우는 방식(prefill)도 못 써요. thinking은 기본으로 켜져 있고 `max_tokens`에 포함되니 대화는 `effort: low`로 시작해요. 응답이 `refusal`로 끝날 수 있고 서버 쪽 자동 대체 모델이 없어요. 지금은 서버 오류(`AI_REFUSED`)로 알리고, 대체 답을 쓸지는 베타에서 얼마나 나는지 보고 정해요(`DearUs_나중에처리할사항.md` 1장). 대화 기록은 글자만 다시 보내므로 thinking 블록 재전송 규칙에는 걸리지 않아요
 - **AI 교체 가능성:** 서버에서 AI 호출부를 인터페이스로 분리하고 주소 · 키 · 모델명은 환경변수로 관리해요
 
 ---
