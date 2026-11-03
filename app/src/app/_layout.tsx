@@ -62,6 +62,8 @@ function RootNavigator() {
       <Stack.Protected guard={signedIn && !needsConsent}>
         <Stack.Screen name="(tabs)" />
       </Stack.Protected>
+      {/* 약관 문서는 로그인 상태와 상관없이 볼 수 있어요 */}
+      <Stack.Screen name="legal/[type]" />
     </Stack>
   );
 }

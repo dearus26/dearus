@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import { useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -9,6 +10,7 @@ import { Card } from '@/components/Card';
 import { CheckBox } from '@/components/CheckBox';
 import { Icon } from '@/components/Icon';
 import { Tag } from '@/components/Tag';
+import type { LegalDocType } from '@/legal/documents';
 import { useSession } from '@/session/SessionProvider';
 import { colors } from '@/theme/colors';
 
@@ -46,7 +48,13 @@ export default function ConsentScreen() {
     }
   }
 
-  const items = [
+  const items: {
+    key: LegalDocType;
+    label: string;
+    required: boolean;
+    checked: boolean;
+    set: (value: boolean) => void;
+  }[] = [
     { key: 'terms', label: '이용약관', required: true, checked: terms, set: setTerms },
     { key: 'privacy', label: '개인정보 수집 · 이용', required: true, checked: privacy, set: setPrivacy },
     { key: 'ai', label: '일기 · 대화 내용 AI 분석', required: true, checked: aiAnalysis, set: setAiAnalysis },
@@ -108,8 +116,7 @@ export default function ConsentScreen() {
                 accessibilityRole="button"
                 accessibilityLabel={`${item.label} 자세히 보기`}
                 hitSlop={10}
-                // 약관 전문은 아직 작성 전이에요(기획서 9장 "세부 약관 내용은 작성 필요")
-                onPress={() => Alert.alert(item.label, '자세한 내용은 곧 준비할게요.')}>
+                onPress={() => router.push({ pathname: '/legal/[type]', params: { type: item.key } })}>
                 <Icon name="chevronRight" size={16} color={colors.muted} />
               </Pressable>
             </View>
