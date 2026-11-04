@@ -15,9 +15,13 @@ export function toDateString(year: number, month: number, day: number): string {
   return `${year}-${pad(month)}-${pad(day)}`;
 }
 
+/** Date 객체의 폰 현지 날짜 */
+export function dateStringOf(date: Date): string {
+  return toDateString(date.getFullYear(), date.getMonth() + 1, date.getDate());
+}
+
 export function todayString(): string {
-  const now = new Date();
-  return toDateString(now.getFullYear(), now.getMonth() + 1, now.getDate());
+  return dateStringOf(new Date());
 }
 
 export function parseDateString(value: string): { year: number; month: number; day: number } {
@@ -72,6 +76,30 @@ export function addDays(value: string, delta: number): string {
   const { year, month, day } = parseDateString(value);
   const date = new Date(year, month - 1, day + delta);
   return toDateString(date.getFullYear(), date.getMonth() + 1, date.getDate());
+}
+
+/** from에서 to까지 며칠인지(to가 더 나중이면 양수) */
+export function daysBetween(from: string, to: string): number {
+  const toMs = (value: string) => {
+    const { year, month, day } = parseDateString(value);
+    return Date.UTC(year, month - 1, day);
+  };
+  return Math.round((toMs(to) - toMs(from)) / 86_400_000);
+}
+
+/** 목록에 쓰는 "방금", "3시간 전", "어제", "3일 전", "1주 전". 한 달이 넘으면 날짜로 보여줘요. */
+export function formatRelative(iso: string, now: Date = new Date()): string {
+  const then = new Date(iso);
+  const minutes = Math.floor((now.getTime() - then.getTime()) / 60_000);
+  if (minutes < 1) return '방금';
+  if (minutes < 60) return `${minutes}분 전`;
+  const thenDate = dateStringOf(then);
+  const days = daysBetween(thenDate, dateStringOf(now));
+  if (days <= 0) return `${Math.floor(minutes / 60)}시간 전`;
+  if (days === 1) return '어제';
+  if (days < 7) return `${days}일 전`;
+  if (days < 30) return `${Math.floor(days / 7)}주 전`;
+  return formatMonthDay(thenDate);
 }
 
 /** 그 달의 첫날과 마지막 날(GET /diaries의 from · to) */

@@ -28,6 +28,8 @@ type Props = {
   onChangeMonth: (delta: -1 | 1) => void;
   /** 다음 달로 넘길 수 있는지(미래 달은 볼 일이 없어서 홈에서는 막아요) */
   canGoNext?: boolean;
+  /** 이전 달로 넘길 수 있는지(시점 고르기는 1년 전까지만 고를 수 있어서 그 앞은 막아요) */
+  canGoPrev?: boolean;
   /** 누를 수 있는 날인지. 기본은 오늘까지예요. */
   isSelectable?: (date: string) => boolean;
   /** 줄 높이 · 글자 크기. 기본은 regular */
@@ -65,10 +67,11 @@ export function MonthCalendar({
   onSelectDate,
   onChangeMonth,
   canGoNext = true,
+  canGoPrev = true,
   isSelectable = (date) => date <= today,
   size = 'regular',
 }: Props) {
-  const { translateX, changeMonth, panHandlers } = useMonthSwipe(canGoNext, onChangeMonth);
+  const { translateX, changeMonth, panHandlers } = useMonthSwipe(canGoPrev, canGoNext, onChangeMonth);
   const dims = SIZES[size];
   const weeks = buildWeeks(year, month);
 
@@ -86,7 +89,14 @@ export function MonthCalendar({
   return (
     <Animated.View style={animatedStyle} {...panHandlers}>
       <View style={styles.titleRow}>
-        <Pressable accessibilityRole="button" accessibilityLabel="이전 달" hitSlop={14} onPress={() => changeMonth(-1)}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="이전 달"
+          accessibilityState={{ disabled: !canGoPrev }}
+          disabled={!canGoPrev}
+          hitSlop={14}
+          onPress={() => changeMonth(-1)}
+          style={{ opacity: canGoPrev ? 1 : 0.25 }}>
           <Icon name="chevronLeft" size={20} color={colors.brown} />
         </Pressable>
         <AppText serif weight="bold" size={22} lineHeight={30}>
@@ -148,13 +158,13 @@ export function MonthCalendar({
  * 좌우로 쓸어 달을 넘기는 동작이에요. 손가락을 따라 달력이 살짝 움직이다가,
  * 기준을 넘으면 밀려나고 새 달이 반대쪽에서 들어와요. 세로로 쓰는 움직임은 건드리지 않아서 스크롤과 겹치지 않아요.
  */
-function useMonthSwipe(canGoNext: boolean, onChangeMonth: (delta: -1 | 1) => void) {
+function useMonthSwipe(canGoPrev: boolean, canGoNext: boolean, onChangeMonth: (delta: -1 | 1) => void) {
   const [translateX] = useState(() => new Animated.Value(0));
   const busy = useRef(false);
   // 제스처 처리 함수는 한 번만 만들어서, 최신 속성은 ref로 읽어요
-  const latest = useRef({ canGoNext, onChangeMonth });
+  const latest = useRef({ canGoPrev, canGoNext, onChangeMonth });
   useEffect(() => {
-    latest.current = { canGoNext, onChangeMonth };
+    latest.current = { canGoPrev, canGoNext, onChangeMonth };
   });
 
   const [swipe] = useState(() => {
@@ -164,7 +174,7 @@ function useMonthSwipe(canGoNext: boolean, onChangeMonth: (delta: -1 | 1) => voi
 
     const change = (direction: -1 | 1) => {
       if (busy.current) return;
-      if (direction === 1 && !latest.current.canGoNext) {
+      if ((direction === 1 && !latest.current.canGoNext) || (direction === -1 && !latest.current.canGoPrev)) {
         snapBack();
         return;
       }

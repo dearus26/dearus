@@ -14,6 +14,7 @@ const icons = {
   check: { paths: ['M5 12.5l4.5 4.5L19 7.5'], strokeWidth: 3 },
   chevronRight: { paths: ['M9 5l7 7-7 7'], strokeWidth: 2.2 },
   chevronLeft: { paths: ['M15 5l-7 7 7 7'], strokeWidth: 2.4 },
+  plus: { paths: ['M12 5v14', 'M5 12h14'], strokeWidth: 2.4 },
 } as const;
 
 export type IconName = keyof typeof icons;

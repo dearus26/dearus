@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { createDiary, deleteDiary, listDiaries, updateDiary, type Diary } from '@/api/diaries';
+import { personaKeys } from '@/features/past/hooks';
 import { monthRange } from '@/lib/date';
 import type { Emotion } from '@/theme/colors';
 
@@ -28,12 +29,20 @@ type SaveInput = {
   emotions: Emotion[];
 };
 
+/** 일기가 바뀌면 캘린더와, "과거의 나" 시점 고르기에 보이는 기록량(일기 건수 · 감정)도 다시 받아요. */
+function refreshAfterDiaryChange(queryClient: ReturnType<typeof useQueryClient>) {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: diaryKeys.all }),
+    queryClient.invalidateQueries({ queryKey: personaKeys.all }),
+  ]);
+}
+
 export function useSaveDiary() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, date, content, emotions }: SaveInput) =>
       id ? updateDiary(id, { content, emotions }) : createDiary({ date, content, emotions }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: diaryKeys.all }),
+    onSuccess: () => refreshAfterDiaryChange(queryClient),
   });
 }
 
@@ -41,6 +50,6 @@ export function useDeleteDiary() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => deleteDiary(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: diaryKeys.all }),
+    onSuccess: () => refreshAfterDiaryChange(queryClient),
   });
 }
