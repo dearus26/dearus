@@ -15,6 +15,8 @@ const icons = {
   chevronRight: { paths: ['M9 5l7 7-7 7'], strokeWidth: 2.2 },
   chevronLeft: { paths: ['M15 5l-7 7 7 7'], strokeWidth: 2.4 },
   plus: { paths: ['M12 5v14', 'M5 12h14'], strokeWidth: 2.4 },
+  send: { paths: ['M5 12h13', 'M13 6l6 6-6 6'], strokeWidth: 2.6 },
+  phone: { paths: ['M6 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L16 13l5 2v4a2 2 0 0 1-2 2A15 15 0 0 1 4 6a2 2 0 0 1 2-2z'], strokeWidth: 2 },
 } as const;
 
 export type IconName = keyof typeof icons;

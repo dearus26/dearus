@@ -27,7 +27,23 @@ type Target = Pick<ChatListItem, 'scope' | 'shortcutKey' | 'anchorDate'>;
 /** "1개월 전의 나", "10월 4일의 나". 명세에 따라 제목은 앱이 scope · anchorDate로 만들어요. */
 export function personaTitle({ scope, shortcutKey, anchorDate }: Target): string {
   if (shortcutKey) return shortcutLabels[shortcutKey].title;
+  return personaDateTitle({ scope, anchorDate });
+}
+
+/** 대화 첫머리 구분선: "7월 6일 무렵의 나"(전후 2주), "10월 4일의 나"(그날 하루). 바로가기여도 날짜로 보여줘요. */
+export function personaDateTitle({ scope, anchorDate }: Pick<Target, 'scope' | 'anchorDate'>): string {
   return scope === 'DAY' ? `${formatPointInTime(anchorDate)}의 나` : `${formatPointInTime(anchorDate)} 무렵의 나`;
+}
+
+/** 대화 화면 위 제목 아래 글: "2026년 7월 무렵"(전후 2주), "2026년 10월 4일"(그날 하루) */
+export function personaPeriod({ scope, anchorDate }: Pick<Target, 'scope' | 'anchorDate'>): string {
+  const { year, month, day } = parseDateString(anchorDate);
+  return scope === 'DAY' ? `${year}년 ${month}월 ${day}일` : `${year}년 ${month}월 무렵`;
+}
+
+/** 대화 상단 정확도(명세 RecordLevel 표의 "대화 상단 정확도"): 기록 없음 · 부족은 낮음, 충분은 보통, 풍부는 높음 */
+export function accuracyLabel(level: PersonaWindow['level']): string {
+  return level === 'RICH' ? '높음' : level === 'ENOUGH' ? '보통' : '낮음';
 }
 
 /** 목록 · 불러오는 화면의 동그라미 글자: 바로가기는 "1개월", 직접 고른 날은 "10/4" */

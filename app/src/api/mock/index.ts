@@ -1,31 +1,19 @@
 import { ApiError, UNAUTHORIZED_MESSAGE } from '@/api/errors';
+import { NOT_HANDLED, handleChatRoute, resetChatMock, streamChatMessage } from '@/api/mock/chat';
+import { notFound, sortedEmotions, validationFailed, wait } from '@/api/mock/helpers';
 import type { components } from '@/api/schema';
-import {
-  addDays,
-  addMonths,
-  daysBetween,
-  daysInMonth,
-  isValidDateString,
-  parseDateString,
-  toDateString,
-  todayString,
-  weekdayOf,
-} from '@/lib/date';
+import type { SseEvent } from '@/api/sse';
+import { addDays, daysBetween, isValidDateString, todayString } from '@/lib/date';
 
 type User = components['schemas']['User'];
 type AuthResponse = components['schemas']['AuthResponse'];
 type Diary = components['schemas']['Diary'];
 type Emotion = components['schemas']['Emotion'];
-type PersonaWindow = components['schemas']['PersonaWindow'];
-type PersonaScope = components['schemas']['PersonaScope'];
-type ShortcutKey = components['schemas']['ShortcutKey'];
-type RecordLevel = components['schemas']['RecordLevel'];
-type ChatSession = components['schemas']['ChatSession'];
-type ChatListItem = components['schemas']['ChatListItem'];
 
 /**
  * 서버 없이 앱을 만들 때 쓰는 가짜 서버예요(EXPO_PUBLIC_API_MODE=mock).
  * 요청 · 응답 모양은 server/openapi.yaml을 따라요. 화면은 이걸 몰라요 — api/ 함수만 불러요.
+ * 여기에는 로그인 · 동의 · 일기가 있고, 시점 고르기 · 대화 · 리포트는 chat.ts에 있어요.
  * 메모리에만 있어서 앱을 완전히 다시 켜면 처음 상태로 돌아가요.
  */
 
@@ -34,19 +22,10 @@ const DELAY_MS = 350;
 const RETENTION_DAYS = 30;
 const MAX_RANGE_DAYS = 93;
 const MAX_CONTENT = 5000;
-const AROUND_DAYS = 14;
-const MAX_ANCHOR_DAYS = 365;
-const CHAT_LIST_LIMIT = 50;
-const SHORTCUT_KEYS: ShortcutKey[] = ['ONE_MONTH', 'SIX_MONTHS', 'ONE_YEAR'];
-/** 시점 분석에 걸리는 시간(가짜). 실제 서버는 전후 2주가 약 14초, 하루가 약 9초예요. */
-const PREPARE_MS: Record<PersonaScope, number> = { AROUND: 7000, DAY: 4500 };
-const MOCK_GREETING = '어, 왔어? 오랜만이다 ㅋㅋ';
 
 let user: User | null = null;
 let diaries: Diary[] | null = null;
 let diarySeq = 0;
-
-const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 function newUser(provider: User['provider']): User {
   return {
@@ -61,14 +40,6 @@ function newUser(provider: User['provider']): User {
     notificationsOptIn: false,
     createdAt: new Date().toISOString(),
   };
-}
-
-function validationFailed(fields: { field: string; reason: string }[]): ApiError {
-  return new ApiError(400, 'VALIDATION_FAILED', '입력한 내용을 다시 확인해 주세요.', { fields });
-}
-
-function notFound(): ApiError {
-  return new ApiError(404, 'NOT_FOUND', '찾을 수 없어요.');
 }
 
 /** '/diaries?from=a&to=b' → 경로와 쿼리로 나눠요. */
@@ -120,175 +91,14 @@ function store(): Diary[] {
   return diaries;
 }
 
-function sortedEmotions(emotions: Emotion[] | undefined): Emotion[] {
-  return Array.from(new Set(emotions ?? []));
-}
-
-// ───── 과거의 나: 시점 고르기 · 대화 세션 ─────
-
-/** 오늘 기준 몇 개월 전 같은 날(그 달에 없는 날이면 말일) */
-function monthsAgo(date: string, count: number): string {
-  const { year, month, day } = parseDateString(date);
-  const target = addMonths(year, month, -count);
-  return toDateString(target.year, target.month, Math.min(day, daysInMonth(target.year, target.month)));
-}
-
-/** 바로가기 기준일: 1개월 · 6개월 · 1년 전이 속한 주의 월요일. 1년 전이 365일을 넘으면 다음 월요일이에요. */
-function shortcutAnchor(key: ShortcutKey, today: string): string {
-  const months = key === 'ONE_MONTH' ? 1 : key === 'SIX_MONTHS' ? 6 : 12;
-  const ago = monthsAgo(today, months);
-  const monday = addDays(ago, -((weekdayOf(ago) + 6) % 7));
-  return daysBetween(monday, today) > MAX_ANCHOR_DAYS ? addDays(monday, 7) : monday;
-}
-
-/** 기록 수준 초안 기준(명세 RecordLevel 표)대로예요. */
-function recordLevel(scope: PersonaScope, diaryCount: number, messengerWeeks: number): RecordLevel {
-  if (scope === 'DAY') return diaryCount > 0 ? 'ENOUGH' : 'NONE';
-  if (diaryCount >= 10) return 'RICH';
-  if (diaryCount >= 5 || messengerWeeks >= 1) return 'ENOUGH';
-  return diaryCount >= 1 ? 'LOW' : 'NONE';
-}
-
-function personaWindow(anchorDate: string, scope: PersonaScope): PersonaWindow {
-  const today = todayString();
-  const windowStart = scope === 'DAY' ? anchorDate : addDays(anchorDate, -AROUND_DAYS);
-  const after = addDays(anchorDate, AROUND_DAYS);
-  const windowEnd = scope === 'DAY' ? anchorDate : after > today ? today : after;
-  const inRange = store().filter((diary) => diary.date >= windowStart && diary.date <= windowEnd);
-  const messengerWeeks = 0; // 메신저 올리기는 아직 가짜 서버에 없어요
-  return {
-    anchorDate,
-    scope,
-    windowStart,
-    windowEnd,
-    diaryCount: inRange.length,
-    messengerWeeks,
-    emotions: scope === 'DAY' ? sortedEmotions(inRange[0]?.emotions) : undefined,
-    level: recordLevel(scope, inRange.length, messengerWeeks),
-  };
-}
-
-/** 그 범위의 일기가 바뀌었는지 알아보는 표(저장된 분석을 다시 쓸 수 있는지 볼 때 써요) */
-function recordsFingerprint(range: PersonaWindow): string {
-  return store()
-    .filter((diary) => diary.date >= range.windowStart && diary.date <= range.windowEnd)
-    .map((diary) => `${diary.id}:${diary.updatedAt}`)
-    .join(',');
-}
-
-/** 앵커 날짜는 오늘로부터 365일 전 ~ 오늘만 고를 수 있어요. */
-function checkAnchor(value: unknown, field: string): string {
-  if (!isValidDateString(value)) throw validationFailed([{ field, reason: '날짜 형식이 올바르지 않아요' }]);
-  if (value > todayString() || daysBetween(value, todayString()) > MAX_ANCHOR_DAYS) {
-    throw new ApiError(400, 'ANCHOR_OUT_OF_RANGE', '고를 수 없는 날짜예요. 오늘부터 1년 전까지 고를 수 있어요.');
+/** 로그인한 사용자를 확인하고 지금 사용자를 돌려줘요. 토큰이 없거나 틀리면 401이에요. */
+function signedInUser(token: string | null): User {
+  if (token !== MOCK_TOKEN) {
+    throw new ApiError(401, 'UNAUTHORIZED', UNAUTHORIZED_MESSAGE);
   }
-  return value;
-}
-
-type MockChat = {
-  id: string;
-  shortcutKey: ShortcutKey | null;
-  /** 세션을 만들 때의 시점 · 기록량 */
-  range: PersonaWindow;
-  startedAt: string;
-  lastMessageAt: string;
-  lastMessagePreview: string | null;
-  /** 분석 중인 동안의 시작 · 끝 시각(ms). 없으면 준비가 끝난 세션이에요. */
-  preparing: { from: number; until: number } | null;
-};
-
-let chats: MockChat[] | null = null;
-let chatSeq = 0;
-/** 분석을 저장해 둔 시점(`범위|기준일` → 그때의 기록 표). 기록이 안 바뀌었으면 다시 분석하지 않고 바로 만나요. */
-const analyses = new Map<string, string>();
-
-const analysisKey = (scope: PersonaScope, anchorDate: string) => `${scope}|${anchorDate}`;
-
-/** 목록이 비어 보이지 않게, 스토리보드처럼 지난 대화 세 개를 깔아 둬요(가짜 데이터). */
-function seedChats(): MockChat[] {
-  const today = todayString();
-  const make = (
-    scope: PersonaScope,
-    shortcutKey: ShortcutKey | null,
-    anchorDate: string,
-    daysAgo: number,
-    time: string,
-    preview: string,
-  ): MockChat => {
-    const range = personaWindow(anchorDate, scope);
-    analyses.set(analysisKey(scope, anchorDate), recordsFingerprint(range));
-    const stamp = `${addDays(today, -daysAgo)}T${time}:00+09:00`;
-    return {
-      id: `mock-chat-${++chatSeq}`,
-      shortcutKey,
-      range,
-      startedAt: stamp,
-      lastMessageAt: stamp,
-      lastMessagePreview: preview,
-      preparing: null,
-    };
-  };
-  return [
-    make('AROUND', 'ONE_MONTH', shortcutAnchor('ONE_MONTH', today), 1, '21:10', '지금은 어느 정도 방향 잡았어. 너무 걱정 마'),
-    make('DAY', null, addDays(today, -4), 3, '20:30', '그날 진짜 많이 속상했어, 근데 말을 못 꺼내겠더라'),
-    make('AROUND', 'ONE_YEAR', shortcutAnchor('ONE_YEAR', today), 7, '22:00', '요즘은 뭐 하고 지내? 나는 거의 똑같아'),
-  ];
-}
-
-function chatStore(): MockChat[] {
-  chats = chats ?? seedChats();
-  return chats;
-}
-
-/** 분석이 끝났으면 준비 중 표시를 걷고 첫 인사를 마지막 메시지로 두어요. 아직 분석 중이면 true */
-function isPreparing(chat: MockChat): boolean {
-  if (chat.preparing && Date.now() >= chat.preparing.until) {
-    chat.preparing = null;
-    chat.lastMessagePreview = MOCK_GREETING;
-  }
-  return chat.preparing !== null;
-}
-
-function preparingStep(preparing: { from: number; until: number }): NonNullable<ChatSession['preparingStep']> {
-  const progress = (Date.now() - preparing.from) / (preparing.until - preparing.from);
-  return progress < 0.2 ? 'COLLECT' : progress < 0.45 ? 'MASK' : progress < 0.8 ? 'ANALYZE' : 'BUILD';
-}
-
-function chatSession(chat: MockChat): ChatSession {
-  const preparing = isPreparing(chat);
-  return {
-    id: chat.id,
-    status: preparing ? 'PREPARING' : 'READY',
-    preparingStep: chat.preparing ? preparingStep(chat.preparing) : null,
-    failureCode: null,
-    mode: 'PERSONAL',
-    coupleId: null,
-    scope: chat.range.scope,
-    shortcutKey: chat.shortcutKey,
-    anchorDate: chat.range.anchorDate,
-    windowStart: chat.range.windowStart,
-    windowEnd: chat.range.windowEnd,
-    level: chat.range.level,
-    startedAt: chat.startedAt,
-    endedAt: null,
-  };
-}
-
-function chatListItem(chat: MockChat): ChatListItem {
-  const session = chatSession(chat);
-  return {
-    id: chat.id,
-    scope: session.scope,
-    shortcutKey: chat.shortcutKey,
-    anchorDate: session.anchorDate,
-    emotions: chat.range.emotions ?? [],
-    level: session.level,
-    status: session.status,
-    lastMessagePreview: chat.lastMessagePreview,
-    lastMessageAt: chat.lastMessageAt,
-    startedAt: chat.startedAt,
-    endedAt: null,
-  };
+  // 앱을 껐다 켜서 가짜 서버가 초기화됐어도 저장된 토큰으로 이어서 쓰게 해요
+  user = user ?? newUser('dev');
+  return user;
 }
 
 export async function mockRequest<T>(
@@ -316,15 +126,12 @@ export async function mockRequest<T>(
   }
 
   // 여기부터는 로그인이 필요해요
-  if (token !== MOCK_TOKEN) {
-    throw new ApiError(401, 'UNAUTHORIZED', UNAUTHORIZED_MESSAGE);
-  }
-  // 앱을 껐다 켜서 가짜 서버가 초기화됐어도 저장된 토큰으로 이어서 쓰게 해요
-  user = user ?? newUser('dev');
+  signedInUser(token);
+  const current = user as User;
 
   // GET /me
   if (method === 'GET' && path === '/me') {
-    return user as T;
+    return current as T;
   }
 
   // PUT /me/consent — 서비스 이용 동의
@@ -336,24 +143,25 @@ export async function mockRequest<T>(
     if (missing.length > 0) throw validationFailed(missing);
 
     // 이미 유효한 동의에 다시 불러도 시각은 그대로 두고 알림 설정만 바꿔요
-    if (!user.aiConsentActive) {
-      user = { ...user, aiConsentedAt: new Date().toISOString(), aiRevokedAt: null, aiDataDeleteAt: null };
+    let next = current;
+    if (!next.aiConsentActive) {
+      next = { ...next, aiConsentedAt: new Date().toISOString(), aiRevokedAt: null, aiDataDeleteAt: null };
     }
     user = {
-      ...user,
+      ...next,
       aiConsentActive: true,
       needsConsent: false,
-      notificationsOptIn: input.notifications ?? user.notificationsOptIn,
+      notificationsOptIn: input.notifications ?? next.notificationsOptIn,
     };
     return user as T;
   }
 
   // DELETE /me/consent — AI 분석 동의 철회 (분석 데이터는 30일 뒤 삭제)
   if (method === 'DELETE' && path === '/me/consent') {
-    if (user.aiConsentActive) {
+    if (current.aiConsentActive) {
       const now = new Date();
       user = {
-        ...user,
+        ...current,
         aiConsentActive: false,
         aiRevokedAt: now.toISOString(),
         aiDataDeleteAt: new Date(now.getTime() + RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString(),
@@ -366,8 +174,7 @@ export async function mockRequest<T>(
   if (method === 'DELETE' && path === '/me') {
     user = null;
     diaries = null;
-    chats = null;
-    analyses.clear();
+    resetChatMock();
     return undefined as T;
   }
 
@@ -445,78 +252,23 @@ export async function mockRequest<T>(
     }
   }
 
-  // GET /personas/shortcuts — 바로가기 3개 (전후 2주)
-  if (method === 'GET' && path === '/personas/shortcuts') {
-    const today = todayString();
-    const items = SHORTCUT_KEYS.map((key) => ({ ...personaWindow(shortcutAnchor(key, today), 'AROUND'), key }));
-    return { items } as T;
-  }
-
-  // GET /personas/preview?anchor&scope — 고른 날짜의 기록량
-  if (method === 'GET' && path === '/personas/preview') {
-    const anchor = checkAnchor(query.anchor, 'anchor');
-    const scope = query.scope ?? 'DAY';
-    if (scope !== 'DAY' && scope !== 'AROUND') {
-      throw validationFailed([{ field: 'scope', reason: 'DAY 또는 AROUND여야 해요' }]);
-    }
-    return personaWindow(anchor, scope) as T;
-  }
-
-  // GET /chats — 과거의 나 목록 (최근 대화 순)
-  if (method === 'GET' && path === '/chats') {
-    const items = chatStore()
-      .map(chatListItem)
-      .sort((a, b) => b.lastMessageAt.localeCompare(a.lastMessageAt))
-      .slice(0, CHAT_LIST_LIMIT);
-    return { items } as T;
-  }
-
-  // POST /chats — 과거의 나와 대화 시작 (같은 시점의 분석이 있고 기록이 안 바뀌었으면 바로 READY)
-  if (method === 'POST' && path === '/chats') {
-    const input = (body ?? {}) as Partial<components['schemas']['ChatCreate']>;
-    const scope = input.scope;
-    if (scope !== 'DAY' && scope !== 'AROUND') {
-      throw validationFailed([{ field: 'scope', reason: 'DAY 또는 AROUND여야 해요' }]);
-    }
-    if (input.shortcutKey && scope !== 'AROUND') {
-      throw validationFailed([{ field: 'shortcutKey', reason: '바로가기는 전후 2주(AROUND)일 때만 보낼 수 있어요' }]);
-    }
-    if (!user.aiConsentActive) {
-      throw new ApiError(403, 'AI_CONSENT_REQUIRED', 'AI 분석에 동의해야 쓸 수 있어요.');
-    }
-    if (input.forCouple) {
-      throw new ApiError(403, 'COUPLE_ACCESS_DENIED', '커플 모드는 아직 쓸 수 없어요.');
-    }
-
-    const range = personaWindow(checkAnchor(input.anchorDate, 'anchorDate'), scope);
-    const key = analysisKey(scope, range.anchorDate);
-    const fingerprint = recordsFingerprint(range);
-    // 기록이 하나도 없으면(NONE) 분석 없이 바로 기본 말투로 대화해요
-    const needsAnalysis = range.level !== 'NONE' && analyses.get(key) !== fingerprint;
-    if (needsAnalysis) analyses.set(key, fingerprint);
-
-    const now = Date.now();
-    const stamp = new Date(now).toISOString();
-    const chat: MockChat = {
-      id: `mock-chat-${++chatSeq}`,
-      shortcutKey: input.shortcutKey ?? null,
-      range,
-      startedAt: stamp,
-      lastMessageAt: stamp,
-      lastMessagePreview: needsAnalysis ? null : MOCK_GREETING,
-      preparing: needsAnalysis ? { from: now, until: now + PREPARE_MS[scope] } : null,
-    };
-    chatStore().push(chat);
-    return chatSession(chat) as T;
-  }
-
-  // GET /chats/{id} — 세션 상태 (PREPARING이면 앱이 1~2초 간격으로 조회해요)
-  const chatMatch = /^\/chats\/([^/]+)$/.exec(path);
-  if (method === 'GET' && chatMatch) {
-    const chat = chatStore().find((candidate) => candidate.id === chatMatch[1]);
-    if (!chat) throw notFound();
-    return chatSession(chat) as T;
-  }
+  // 시점 고르기 · 대화 · 리포트 · 오늘 대화 시간
+  const chatResult = handleChatRoute(method, path, query, body, { user: current, diaries: store() });
+  if (chatResult !== NOT_HANDLED) return chatResult as T;
 
   throw notFound();
+}
+
+/** SSE로 답변을 받는 요청(POST /chats/{id}/messages)의 가짜 서버예요. 이벤트를 onEvent로 하나씩 내보내요. */
+export async function mockStreamRequest(
+  fullPath: string,
+  body: unknown,
+  token: string | null,
+  onEvent: (event: SseEvent) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  await wait(DELAY_MS);
+  signedInUser(token);
+  const { path } = splitPath(fullPath);
+  await streamChatMessage(path, body, { user: user as User, diaries: store() }, onEvent, signal);
 }

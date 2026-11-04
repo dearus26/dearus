@@ -48,6 +48,12 @@ export function formatKoreanDate(value: string): string {
   return `${year}년 ${month}월 ${day}일 ${WEEKDAYS[weekdayOf(value)]}요일`;
 }
 
+/** 예: 2026년 10월 6일 */
+export function formatYearMonthDay(value: string): string {
+  const { year, month, day } = parseDateString(value);
+  return `${year}년 ${month}월 ${day}일`;
+}
+
 /** 예: 10월 6일 */
 export function formatMonthDay(value: string): string {
   const { month, day } = parseDateString(value);

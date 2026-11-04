@@ -1,7 +1,17 @@
 import { skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { createChat, getChat, listChats, type ChatCreateInput } from '@/api/chats';
+import {
+  createChat,
+  endChat,
+  getChat,
+  getReport,
+  isReportPending,
+  listChats,
+  listMessages,
+  type ChatCreateInput,
+} from '@/api/chats';
 import { getShortcuts, previewPersona, type PersonaScope } from '@/api/personas';
+import { getTodayUsage } from '@/api/usage';
 
 export const personaKeys = {
   all: ['personas'] as const,
@@ -13,6 +23,12 @@ export const chatKeys = {
   all: ['chats'] as const,
   list: ['chats', 'list'] as const,
   detail: (id: string) => ['chats', 'detail', id] as const,
+  messages: (id: string) => ['chats', 'messages', id] as const,
+  report: (id: string) => ['chats', 'report', id] as const,
+};
+
+export const usageKeys = {
+  today: ['usage', 'today'] as const,
 };
 
 /** "과거의 나" 목록. 시점을 분석 중인 항목이 있으면 끝날 때까지 2초마다 다시 받아서 "불러오는 중"이 남지 않게 해요. */
@@ -46,6 +62,57 @@ export function useChat(id: string) {
     queryKey: chatKeys.detail(id),
     queryFn: () => getChat(id),
     refetchInterval: (query) => (query.state.data?.status === 'PREPARING' ? 1500 : false),
+  });
+}
+
+/** 지난 대화 내용(seq 오름차순). 대화 화면을 열 때마다 서버에서 새로 받아서, 나갔다 돌아와도 저장된 답변이 보여요. */
+export function useMessages(chatId: string) {
+  return useQuery({
+    queryKey: chatKeys.messages(chatId),
+    queryFn: async () => (await listMessages(chatId)).items,
+    staleTime: 0,
+    refetchOnMount: 'always',
+  });
+}
+
+/** 오늘 대화한 시간(분). 대화 화면 위의 "오늘 대화 12분 · 하루 30분 정도를 권장해요"에 써요. */
+export function useTodayUsage() {
+  return useQuery({
+    queryKey: usageKeys.today,
+    queryFn: getTodayUsage,
+    staleTime: 0,
+  });
+}
+
+/**
+ * 회고 리포트. 만드는 중(202)이면 1.5초마다 다시 받아요.
+ * 404(내 말이 짧아 안 만듦 · 아직 안 끝남)나 502(만들기 실패)는 다시 받아도 그대로라서 자동으로 다시 시도하지 않아요.
+ */
+export function useReport(chatId: string) {
+  return useQuery({
+    queryKey: chatKeys.report(chatId),
+    queryFn: () => getReport(chatId),
+    retry: false,
+    refetchInterval: (query) => (query.state.data && isReportPending(query.state.data) ? 1500 : false),
+  });
+}
+
+/**
+ * 대화 끝내기. 끝나면 목록 · 세션 · 오늘 대화 시간을 새로 받아요.
+ * 리포트 만들기에 실패한 대화는 끝내기를 다시 불러서 다시 만드니까, 예전 리포트 결과(오류)는 비우고 새로 받게 해요.
+ */
+export function useEndChat() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (chatId: string) => endChat(chatId),
+    onSuccess: (result) => {
+      return Promise.all([
+        queryClient.resetQueries({ queryKey: chatKeys.report(result.chatId) }),
+        queryClient.invalidateQueries({ queryKey: chatKeys.list }),
+        queryClient.invalidateQueries({ queryKey: chatKeys.detail(result.chatId) }),
+        queryClient.invalidateQueries({ queryKey: usageKeys.today }),
+      ]);
+    },
   });
 }
 

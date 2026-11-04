@@ -94,8 +94,9 @@ export interface paths {
         };
         /**
          * 오늘 대화 시간
-         * @description `chat_sessions`의 시작 · 종료 시각으로 계산해요. 진행 중인 세션은 지금까지의 시간을 더해요.
-         *     권장 시간(30분)은 스토리보드의 "하루 30분 권장" 문구를 그대로 가정한 값이에요.
+         * @description 오늘(한국 시간) 대화한 시간(분)이에요. 연속한 메시지 사이 간격을 더하되 한 간격은 최대 5분까지만 인정해요(2026.11.4 결정).
+         *     그래서 끝내지 않은 대화나 며칠에 걸쳐 이어간 대화도 실제로 대화한 시간만 잡히고, 진행 중인 대화는 지금까지 주고받은 만큼 더해져요.
+         *     권장 시간(30분)은 스토리보드의 "하루 30분 권장" 문구를 그대로 가정한 값이에요(서버 설정 `app.usage.recommended-minutes`).
          */
         get: operations["getTodayUsage"];
         put?: never;
@@ -378,8 +379,13 @@ export interface paths {
         put?: never;
         /**
          * 대화 끝내기
-         * @description 세션을 끝내고 회고 리포트 만들기를 시작해요. 이미 끝난 세션에 다시 불러도 같은 결과를 돌려줘요.
-         *     리포트는 `GET /chats/{chatId}/report`로 받아요.
+         * @description 세션을 끝내고 회고 리포트 만들기를 시작해요. 서버는 대화를 자동으로 끝내지 않아서 이 API를 불러야 끝나요(2026.11.4 결정).
+         *     바로 돌아오고, 리포트는 뒤에서 만들어요. `GET /chats/{chatId}/report`가 202를 주면 1~2초 뒤에 다시 불러요.
+         *     - 이미 끝난 세션에 다시 불러도 같은 결과예요(리포트를 다시 만들지 않아요).
+         *     - **리포트가 실패했으면(`REPORT_FAILED`) 이 API를 다시 부르면 다시 만들어요.** 만드는 중이 10분을 넘으면 실패로 봐요.
+         *     - 내 말이 2개 미만이면 끝낼 수는 있지만 리포트는 만들지 않아요(`reportStatus: NONE`).
+         *     - 마지막 답변이 아직 오는 중이면 409 `CHAT_BUSY`예요. 끝난 뒤에는 `POST /chats/{chatId}/messages`가 409 `CHAT_ENDED`예요.
+         *     - 리포트는 AI를 부르므로 AI 분석 동의가 없으면 403 `AI_CONSENT_REQUIRED`예요.
          */
         post: operations["endChat"];
         delete?: never;
@@ -400,6 +406,8 @@ export interface paths {
         /**
          * 회고 리포트
          * @description 개인 모드는 당시 고민 · 현재 변화 · 한 줄 요약 3개 항목이에요 (세션당 1건). 아직 만드는 중이면 202를 돌려주니 1~2초 뒤에 다시 불러요.
+         *     "현재 변화"는 이 대화에서 내가 한 말만 근거로 해요(최근 일기는 쓰지 않아요). 리포트는 평문으로 저장하고, 동의 철회 30일 뒤나 회원 탈퇴 때 대화와 함께 지워져요.
+         *     내 말이 2개 미만이라 만들지 않은 대화는 404 `REPORT_NOT_AVAILABLE`이에요. 만들기에 실패했으면 502 `REPORT_FAILED`이고, `POST /chats/{chatId}/end`를 다시 부르면 다시 만들어요.
          *     커플 모드(`forCouple`) 세션의 리포트는 3개 항목 대신 "그날의 기억"(`memorySummary`)과 한 줄 요약이에요. 두 사람의 기억을 나란히 보는 화면은 `GET /couples/comparisons`가 따로 만들어 줘요.
          */
         get: operations["getReport"];
@@ -1079,8 +1087,12 @@ export interface components {
             endedAt: string;
             /** @example 18 */
             durationMinutes: number;
-            /** @enum {string} */
-            reportStatus: "GENERATING" | "READY";
+            /**
+             * @description `GENERATING` 만드는 중(`GET report`가 202), `READY` 이미 완성(다시 끝내기를 부른 경우),
+             *     `NONE` 내 말이 2개 미만이라 리포트를 만들지 않아요(`GET report`는 404 `REPORT_NOT_AVAILABLE`)
+             * @enum {string}
+             */
+            reportStatus: "GENERATING" | "READY" | "NONE";
         };
         /**
          * @example {
@@ -2022,9 +2034,19 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+            403: components["responses"]["AiConsentRequired"];
             404: components["responses"]["NotFound"];
-            /** @description 아직 준비 중인 세션이에요 (`CHAT_NOT_READY`) */
+            /** @description 아직 준비 중이거나 실패한 세션이에요(`CHAT_NOT_READY`), 또는 마지막 답변이 아직 오는 중이에요(`CHAT_BUSY`) */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description 리포트를 만드는 요청이 너무 많아요 (`SERVER_BUSY`). 대화는 이미 끝났고, 잠시 뒤 이 API를 다시 부르면 리포트를 다시 만들어요 */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2064,8 +2086,17 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
-            /** @description 세션이 없거나 아직 끝내지 않았어요 (`NOT_FOUND`, `CHAT_NOT_ENDED`) */
+            /** @description 세션이 없어요(`NOT_FOUND`), 아직 끝내지 않았어요(`CHAT_NOT_ENDED`), 또는 대화가 짧아서 리포트를 만들지 않았어요(`REPORT_NOT_AVAILABLE`) */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description 리포트를 만들지 못했어요 (`REPORT_FAILED`). `POST /chats/{chatId}/end`를 다시 부르면 다시 만들어요 */
+            502: {
                 headers: {
                     [name: string]: unknown;
                 };

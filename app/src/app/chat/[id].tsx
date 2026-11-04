@@ -9,6 +9,7 @@ import { AppText } from '@/components/AppText';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { Icon } from '@/components/Icon';
+import { ConversationScreen } from '@/features/past/ConversationScreen';
 import { useChat, useCreateChat } from '@/features/past/hooks';
 import { personaRingLabel, personaTitle, windowText } from '@/features/past/labels';
 import { notify } from '@/lib/dialog';
@@ -28,7 +29,7 @@ function leave() {
  * 과거의 나와의 대화 방. 세션 상태에 따라 보여줘요.
  *  - PREPARING: 스토리보드 B-3 "불러오는 중" (1.5초마다 상태를 확인해요)
  *  - FAILED: 이유를 알려주고 새 세션으로 다시 시도해요
- *  - READY: 대화 화면(B-4)은 다음 단계에서 만들어요. 지금은 안내만 보여줘요.
+ *  - READY: 대화 화면(B-4). 끝난 대화도 여기서 읽고, 끝내기와 리포트(B-6)로 이어져요.
  */
 export default function ChatScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -61,11 +62,11 @@ export default function ChatScreen() {
 
   if (session.status === 'PREPARING') return <PreparingView session={session} />;
   if (session.status === 'FAILED') return <FailedView session={session} />;
-  return <ReadyView session={session} />;
+  return <ConversationScreen session={session} />;
 }
 
 /** 화면 맨 위 뒤로 가기 줄 + 아래 내용 */
-function Shell({ title, children }: { title?: string; children: ReactNode }) {
+function Shell({ children }: { children: ReactNode }) {
   const insets = useSafeAreaInsets();
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
@@ -73,11 +74,6 @@ function Shell({ title, children }: { title?: string; children: ReactNode }) {
         <Pressable accessibilityRole="button" accessibilityLabel="뒤로 가기" hitSlop={12} onPress={leave}>
           <Icon name="chevronLeft" size={22} color={colors.brown} />
         </Pressable>
-        {title ? (
-          <AppText weight="bold" size={17}>
-            {title}
-          </AppText>
-        ) : null}
         <View style={styles.navSide} />
       </View>
       {children}
@@ -225,21 +221,6 @@ function FailedView({ session }: { session: ChatSession }) {
           <Button label="다시 시도" loading={createChat.isPending} onPress={() => void retry()} />
           <Button variant="line" label="목록으로" onPress={() => router.replace('/past')} />
         </View>
-      </View>
-    </Shell>
-  );
-}
-
-function ReadyView({ session }: { session: ChatSession }) {
-  return (
-    <Shell title={personaTitle(session)}>
-      <View style={styles.center}>
-        <AppText serif weight="bold" size={20} lineHeight={28} style={styles.centered}>
-          {`${personaTitle(session)}가 준비됐어요`}
-        </AppText>
-        <AppText size={13.5} lineHeight={21} color={colors.brown} style={styles.centered}>
-          대화 화면은 다음 단계에서 만들어요
-        </AppText>
       </View>
     </Shell>
   );
