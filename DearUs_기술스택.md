@@ -4,12 +4,12 @@
 >
 > 표기 규칙: 발표 · 문서에서는 'Dear Us', 코드 식별자(패키지 `com.dearus`, 저장소, 환경변수 등)는 `dearus`
 >
-> 최신화: 2026.10.14 스토리보드 기준으로 메신저 캡처 업로드, 시점 선택, 커플 부분을 고쳤어요. 2026.10.28에 사진은 폰 밖으로 보내지 않기로 해서, 글자 읽기와 가리기를 앱(폰) 안에서 해요. AI는 Claude Haiku 5.5로 정했어요. 2026.11.2에 서버 구현(대화 SSE, Anthropic Java SDK 스트리밍)에 맞춰 서버 표와 AI 호출 규칙을 고쳤어요.
+> 최신화: 2026.10.14 스토리보드 기준으로 메신저 캡처 업로드, 시점 선택, 커플 부분을 고쳤어요. 2026.10.28에 사진은 폰 밖으로 보내지 않기로 해서, 글자 읽기와 가리기를 앱(폰) 안에서 해요. AI는 Claude Haiku 5.5로 정했어요. 2026.11.2에 서버 구현(대화 SSE, Anthropic Java SDK 스트리밍)에 맞춰 서버 표와 AI 호출 규칙을 고쳤어요. 2026.11.4에 앱을 Expo SDK 58(React Native 0.88)로 올렸어요.
 
 ## 한 줄 요약
 
 ```
-앱: Expo SDK 57 · React Native 0.86 · React 19.2 · TypeScript · Node.js 24 LTS
+앱: Expo SDK 58 · React Native 0.88 · React 19.3 · TypeScript · Node.js 24 LTS
 글자 읽기: 폰 안에서 (Android Google ML Kit · iOS Apple Vision), 사진은 서버로 보내지 않음
 서버: Spring Boot 4.1 · Spring Framework 7.0 · Java 21 LTS · Gradle
 DB: Supabase (PostgreSQL 17)
@@ -33,16 +33,16 @@ React Native 앱 (Expo) → Spring Boot 서버 (Render) → Supabase (PostgreSQL
 
 | 기술 | 버전 | 비고 |
 |---|---|---|
-| Node.js | 24 LTS | React Native 0.85 이상은 Node.js v20.19.4 이상 필요 |
-| Expo SDK | 57 (expo 57.0.9 이상) | 2026년 6월 30일 출시, React Native 0.86 포함 |
-| React Native | 0.86 | Expo SDK 57 기본값 |
-| React | 19.2 | Expo SDK 56 · 57 공통 |
+| Node.js | 24 LTS (24.3 이상) | Expo SDK 58은 Node 22.13 이상 · 24.3 이상 · 26 이상이 필요하고 홀수 버전(23 · 25)은 지원하지 않아요 |
+| Expo SDK | 58 | 2026년 10월 15일 출시, React Native 0.88 포함. 2026.11.4에 57에서 올렸어요 |
+| React Native | 0.88 | Expo SDK 58 기본값. 0.87부터 Strict TypeScript API가 기본이라 `react-native/Libraries/*` 깊은 import는 타입 오류예요 |
+| React | 19.3 | Expo SDK 58 기본값 |
 | TypeScript | Expo 기본 템플릿 버전 | `create-expo-app`이 자동 설정 |
-| Expo Router | SDK 57 포함 버전 | 화면 이동 (SDK 56부터 React Navigation 의존성 제거) |
+| Expo Router | SDK 58 포함 버전 | 화면 이동. SDK 58에서 내비게이션 코어를 개편했고 네이티브 탭 경로는 `expo-router/native-tabs`예요 |
 | TanStack Query | v5 | 서버 데이터 조회 · 캐싱 |
-| expo-secure-store | SDK 57 호환 버전 | 로그인 토큰 저장 |
-| expo-image-picker | SDK 57 호환 버전 | 메신저 캡처 사진 선택 (여러 장) |
-| 글자 읽기(OCR) · 가리기 | 개발 빌드 필요 (Expo Go 불가) | 사진은 폰 밖으로 보내지 않아요. 안드로이드는 Google ML Kit 글자 인식 v2(한국어 모델은 Google Play 서비스가 내려받아요), iOS는 Apple Vision(한국어는 iOS 16부터라는 설명이 있고 공식 문서로는 확인 필요)을 써요. Expo용 연결 패키지로 `expo-mlkit-ocr`(줄 단위 좌표), `@zhanziyang/expo-text-extractor`, `rn-mlkit-ocr` 등이 있지만 모두 0.x~1.0이라 Expo SDK 57과 맞는지 확인하고, 안 맞으면 Expo Modules API로 직접 얇게 감싸요. 전화 · 계좌 · 주소 · 이메일 가림 규칙과 내 말풍선 구분(카카오톡은 오른쪽 · 노란색)은 앱의 TypeScript로 구현해요 |
+| expo-secure-store | SDK 58 호환 버전 | 로그인 토큰 저장 |
+| expo-image-picker | SDK 58 호환 버전 | 메신저 캡처 사진 선택 (여러 장) |
+| 글자 읽기(OCR) · 가리기 | 개발 빌드 필요 (Expo Go 불가) | 사진은 폰 밖으로 보내지 않아요. 안드로이드는 Google ML Kit 글자 인식 v2(한국어 모델은 Google Play 서비스가 내려받아요), iOS는 Apple Vision(한국어는 iOS 16부터라는 설명이 있고 공식 문서로는 확인 필요)을 써요. Expo용 연결 패키지로 `expo-mlkit-ocr`(줄 단위 좌표), `@zhanziyang/expo-text-extractor`, `rn-mlkit-ocr` 등이 있지만 모두 0.x~1.0이라 Expo SDK 58(React Native 0.88)과 맞는지 확인하고, 안 맞으면 Expo Modules API로 직접 얇게 감싸요. 전화 · 계좌 · 주소 · 이메일 가림 규칙과 내 말풍선 구분(카카오톡은 오른쪽 · 노란색)은 앱의 TypeScript로 구현해요 |
 | 직접 가리기 그리기 | 화면을 만들 때 확정 | 사진 위에 손가락으로 사각형 · 브러시 영역 그리기. Expo에 포함된 제스처 · 애니메이션 라이브러리(후보)로 만들어요. 가림은 사진이 아니라 글자에 적용해요(가림 영역과 겹치는 글자를 '[전화번호]' 같은 표시로 바꿔서 보내요) |
 | 카카오 로그인 | @react-native-seoul/kakao-login | 개발 빌드 필요 |
 | 구글 로그인 | @react-native-google-signin/google-signin | 개발 빌드 필요 |
@@ -51,8 +51,8 @@ React Native 앱 (Expo) → Spring Boot 서버 (Render) → Supabase (PostgreSQL
 **주의**
 
 - Expo 패키지는 `npx expo install`로 설치해야 SDK에 맞는 버전이 들어가요.
-- expo 57.0.9 미만은 reanimated 등을 사용할 때 메모리 사용량이 크게 늘어나는 문제가 있어서 57.0.9 이상을 사용해요.
-- 다음 SDK가 2026년 9~10월 중 출시될 수 있어요. 프로젝트 시작 시 버전을 정하고 발표가 끝날 때까지 고정해요.
+- 스토어의 Expo Go는 최신 SDK 하나만 지원해요. 폰의 Expo Go가 SDK 58인지 먼저 확인하고, 아니면 개발 빌드(또는 `eas go`)를 써요.
+- SDK 58로 정하고 발표가 끝날 때까지 고정해요(다음 SDK가 나와도 올리지 않아요).
 
 ---
 
@@ -221,8 +221,8 @@ com.dearus
 
 ## 참고 자료
 
-- Expo SDK 57 릴리스: https://expo.dev/changelog/sdk-57
-- Expo SDK 56 릴리스: https://expo.dev/sdk/56
+- Expo SDK 58 릴리스: https://expo.dev/changelog/sdk-58
+- Expo SDK 58 업그레이드 안내: https://expo.dev/blog/how-to-upgrade-to-sdk-58
 - Spring Boot 버전 정보: https://www.marcobehler.com/guides/spring-and-spring-boot-versions
 - Spring Boot 4 · Spring Framework 7 변경점: https://www.baeldung.com/spring-boot-4-spring-framework-7
 - Supabase 요금제: https://supabase.com/pricing

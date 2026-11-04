@@ -47,7 +47,7 @@
 
 | 구분 | 기술 |
 |---|---|
-| 앱 | Expo SDK 57 · React Native 0.86 · TypeScript · Expo Router · TanStack Query v5 |
+| 앱 | Expo SDK 58 · React Native 0.88 · TypeScript · Expo Router · TanStack Query v5 |
 | 글자 읽기 (폰 안) | Android Google ML Kit · iOS Apple Vision. 개발 빌드(EAS)가 필요해요 |
 | 서버 | Java 21 · Spring Boot 4.1 · Gradle · Flyway |
 | DB | Supabase (PostgreSQL). DB 용도로만 쓰고 인증 · 로직은 서버가 맡아요 |

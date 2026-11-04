@@ -42,10 +42,10 @@
 ## 개발 환경
 
 - Node.js 24 LTS, npm
-- 앱: Expo SDK 57 · React Native 0.86 · React 19.2 · TypeScript · Expo Router · TanStack Query v5 (자세한 버전은 `DearUs_기술스택.md`)
+- 앱: Expo SDK 58 · React Native 0.88 · React 19.3 · TypeScript · Expo Router · TanStack Query v5 (자세한 버전은 `DearUs_기술스택.md`)
 - 서버: Java 21 · Spring Boot 4.1 · Gradle
 - 서버를 로컬에서 켜려면 `server/.env.example`을 복사해 `server/.env`를 채우고(DB 접속 값은 백엔드 담당에게 받아요) `cd server` 뒤 `./gradlew bootRun`을 실행해요. `ENCRYPTION_KEY`(암호화 키)는 같은 DB를 쓰는 사람 모두가 같은 값이어야 서로 저장한 요약을 읽어요. AI 키(`ANTHROPIC_API_KEY`) 없이 개발하려면 `AI_PROVIDER=fake`로 켜면 가짜 요약이 나와요. 로컬 가짜 로그인은 `POST /auth/dev`예요(`DEV_LOGIN_ENABLED=true`일 때만 켜져요). 단위 테스트는 DB 없이 `./gradlew test`로 돌려요. 진짜 DB로 도는 시험은 `DEARUS_DB_TEST=true`, 진짜 Claude를 부르는 시험은 `ANTHROPIC_API_KEY`가 있을 때만 돌아요(비용이 들어요. 없으면 건너뛰어요).
-- 앱은 실제 폰에서 Expo Go로 확인해요. 메신저 글자 읽기(OCR)와 소셜 로그인처럼 네이티브 모듈이 필요한 기능은 Expo Go에서 안 돼서, 그때는 개발 빌드(EAS)를 써요.
+- 앱은 실제 폰에서 Expo Go로 확인해요(스토어의 Expo Go는 최신 SDK 하나만 지원하니 폰의 Expo Go가 SDK 58인지 먼저 봐요). 메신저 글자 읽기(OCR)와 소셜 로그인처럼 네이티브 모듈이 필요한 기능은 Expo Go에서 안 돼서, 그때는 개발 빌드(EAS)를 써요.
 
 ## 확정된 결정
 
@@ -94,7 +94,7 @@
 - ERD: 일기 하루 1건, 감정 태그 여러 개, 일기 본문과 대화 내용은 암호화하지 않음, 커플 철회 시 본인의 분석 결과는 유지
 - 스토리보드: 샘플 이름 서연(나)과 도윤(연인), 초대 코드 24시간 유효, "하루 30분 권장" 문구, 상담전화 109 · 1577-0199(발표 전 공식 안내로 확인 필요)
 - API: 기록 수준(`RecordLevel`) 기준은 임시 초안이고, 두 담당이 상의해서 정해요.
-- 폰 안 글자 읽기(OCR): Android는 Google ML Kit, iOS는 Apple Vision을 쓰는 것으로 정했지만, 한국어 카카오톡 캡처 정확도는 아직 시험하지 않았어요. 가짜 캡처 30~50장으로 두 기기에서 먼저 시험해요. Expo 연결 패키지가 Expo SDK 57과 맞는지도 확인해요.
+- 폰 안 글자 읽기(OCR): Android는 Google ML Kit, iOS는 Apple Vision을 쓰는 것으로 정했지만, 한국어 카카오톡 캡처 정확도는 아직 시험하지 않았어요. 가짜 캡처 30~50장으로 두 기기에서 먼저 시험해요. Expo 연결 패키지가 Expo SDK 58과 맞는지도 확인해요.
 - 메신저 업로드: 이름 · 학교 후보는 "가릴 이름 목록" 입력 + 대화창 위쪽 이름 자동 후보로 시작해요. 가정이고 스토리보드에 입력 화면이 없어서 프론트엔드 담당과 확인해요.
 - 커플 모드: 스토리보드를 따라 "같은 날 기억 비교"(각자 자기 과거의 나와 대화한 요약을 나란히 비교)로 정리했어요. 상대 페르소나와 대화하는 방식이 맞는지 팀이 확인해요.
 - 스토리보드의 "연결" 칸과 명세의 이름이 달라요(`POST /users/consent` ↔ `PUT /me/consent`, `diary_entries` ↔ `diaries`). 명세 이름을 따라요.
