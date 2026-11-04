@@ -1,7 +1,7 @@
 import type { UseQueryResult } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View, useWindowDimensions, type ScrollViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { ChatCreateInput } from '@/api/chats';
@@ -74,7 +74,7 @@ export default function PickScreen() {
         : null;
 
   // 낮은 폰에서는 아래의 요약 카드가 버튼 뒤로 가려질 수 있어서, 고른 시점의 기록량이 오면 카드가 보이게 맨 아래로 내려요
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null); // React Native 0.88부터 ref는 컴포넌트가 아니라 인스턴스 타입을 써요
   const summaryKey = chatInput ? `${chatInput.scope}|${chatInput.anchorDate}` : null;
   useEffect(() => {
     if (summaryKey === null) return;
