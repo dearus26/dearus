@@ -117,9 +117,9 @@ com.dearus
 | GET | /personas/shortcuts · /personas/preview | 시점 고르기 (바로가기는 전후 2주, 캘린더 날짜는 그날 하루) |
 | GET | /chats | 과거의 나 목록 |
 | POST | /chats | 과거의 나와 대화 세션 생성. 요청에 시점 포함, 최대 1년 전까지. 답변 스트리밍은 `POST /chats/{chatId}/messages` (SSE `token` · `safety` · `done` · `error`, 또는 `Accept: application/json`) |
-| POST | /chats/{chatId}/end | 대화 끝내기 (아직 구현 전) |
-| GET | /chats/{chatId}/report | 회고 리포트 (아직 구현 전) |
-| GET | /me/usage/today | 오늘 대화 시간 (아직 구현 전) |
+| POST | /chats/{chatId}/end | 대화 끝내기. 리포트 만들기를 시작하고(뒤에서 AI가 만들어요), 실패한 리포트는 다시 부르면 재시도해요 |
+| GET | /chats/{chatId}/report | 회고 리포트. 만드는 중이면 202(1~2초 뒤 다시), 완성이면 200 |
+| GET | /me/usage/today | 오늘 대화 시간(분). 메시지 사이 간격의 합이고 한 간격은 5분까지만 인정해요 |
 | POST | /couples/invite · /couples/invite/accept | 초대 코드 발급 · 입력 |
 | POST | /couples/consent | 동의 처리 |
 | GET | /couples/days · /couples/comparisons | 함께 볼 날, 같은 날 두 사람의 기억 비교 |

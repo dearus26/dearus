@@ -123,6 +123,18 @@ public class ChatReplyService {
 		}
 	}
 
+	/**
+	 * 대화를 끝내는 동안 같은 세션에 말을 걸지 못하게 잠가요(앞 답변이 아직 오는 중이면 false).
+	 * 끝내기가 마지막 답변이 저장되기 전에 일어나지 않고, 끝나는 중에 새 말이 들어오지 않게 해요. 다 쓰면 {@link #unlock}으로 풀어요.
+	 */
+	public boolean tryLock(UUID chatId) {
+		return inFlight.add(chatId);
+	}
+
+	public void unlock(UUID chatId) {
+		inFlight.remove(chatId);
+	}
+
 	/** run을 부르지 못하는 경우(작업 줄이 가득 참 등)에 잠금을 풀어요. */
 	public void release(Prepared prepared) {
 		inFlight.remove(prepared.chatId());

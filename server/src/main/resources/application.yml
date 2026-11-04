@@ -46,6 +46,10 @@ app:
         phone: 1577-0199
         hours: 24시간
 
+  usage:
+    # 화면 상단 "하루 30분 정도를 권장해요"의 권장 시간(분). 스토리보드 문구를 그대로 가정한 값이에요.
+    recommended-minutes: 30
+
 server:
   port: ${PORT:8080}
 

@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component;
 public class FakeAiClient implements AiClient {
 
 	/**
-	 * 메신저 주간 요약(summary · traits · sample)과 시점 분석(voice 등)의 필드를 한 JSON에 모두 담아요.
+	 * 메신저 주간 요약(summary · traits · sample), 시점 분석(voice 등), 회고 리포트(pastConcern 등)의 필드를 한 JSON에 모두 담아요.
 	 * 각 파서는 자기 필드만 읽어서 어느 호출에 써도 돼요.
 	 */
 	@Override
@@ -28,7 +28,10 @@ public class FakeAiClient implements AiClient {
 			"concerns": "(가짜) 시험과 진로가 고민이에요.", \
 			"emotion": "(가짜) 피곤하지만 크게 나쁘지는 않아요.", \
 			"samples": ["(가짜 문장) 오늘 진짜 피곤했어 ㅋㅋ"], \
-			"greetings": ["(가짜 인사) 어 왔어? ㅋㅋ", "(가짜 인사) 오랜만이네", "(가짜 인사) 야 뭐해"]}""";
+			"greetings": ["(가짜 인사) 어 왔어? ㅋㅋ", "(가짜 인사) 오랜만이네", "(가짜 인사) 야 뭐해"], \
+			"pastConcern": "(가짜 리포트) 그때는 시험과 진로가 막막했어요.", \
+			"presentChange": "(가짜 리포트) 지금은 방향을 조금 잡았어요.", \
+			"oneLineSummary": "(가짜 리포트) 막막함은 줄고 해 본 일은 늘었어요."}""";
 		return new AiResult(json, 0, 0);
 	}
 

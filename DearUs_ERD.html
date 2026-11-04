@@ -323,7 +323,7 @@
 <text class="ctype" x="795" y="514">timestamptz</text>
 </g>
 <g>
-<rect class="tbl" x="840" y="40" width="235" height="196" rx="10"/>
+<rect class="tbl" x="840" y="40" width="235" height="276" rx="10"/>
 <path class="th th-rec" d="M840,70 V50 Q840,40 850,40 H1065 Q1075,40 1075,50 V70 Z"/>
 <text class="tname tname-rec mono" x="852" y="60">reports</text>
 <rect class="bdg bdg-PK" x="848" y="74" width="22" height="12" rx="3"/>
@@ -336,102 +336,114 @@
 <text class="cname mono" x="876" y="104.2">session_id</text>
 <text class="ctype" x="1065" y="104">uuid</text>
 <line class="sep" x1="848" y1="110" x2="1067" y2="110"/>
-<text class="cname mono" x="876" y="124.2">past_concern</text>
-<text class="ctype" x="1065" y="124">text?</text>
+<text class="cname mono" x="876" y="124.2">status</text>
+<text class="ctype" x="1065" y="124">varchar</text>
 <line class="sep" x1="848" y1="130" x2="1067" y2="130"/>
-<text class="cname mono" x="876" y="144.2">present_change</text>
-<text class="ctype" x="1065" y="144">text?</text>
+<text class="cname mono" x="876" y="144.2">failure_code</text>
+<text class="ctype" x="1065" y="144">varchar?</text>
 <line class="sep" x1="848" y1="150" x2="1067" y2="150"/>
-<text class="cname mono" x="876" y="164.2">one_line_summary</text>
-<text class="ctype" x="1065" y="164">varchar</text>
+<text class="cname mono" x="876" y="164.2">duration_minutes</text>
+<text class="ctype" x="1065" y="164">int</text>
 <line class="sep" x1="848" y1="170" x2="1067" y2="170"/>
-<text class="cname mono" x="876" y="184.2">memory_summary</text>
+<text class="cname mono" x="876" y="184.2">past_concern</text>
 <text class="ctype" x="1065" y="184">text?</text>
 <line class="sep" x1="848" y1="190" x2="1067" y2="190"/>
-<text class="cname mono" x="876" y="204.2">gap_summary</text>
-<text class="ctype" x="1065" y="204">varchar?</text>
+<text class="cname mono" x="876" y="204.2">present_change</text>
+<text class="ctype" x="1065" y="204">text?</text>
 <line class="sep" x1="848" y1="210" x2="1067" y2="210"/>
-<text class="cname mono" x="876" y="224.2">created_at</text>
-<text class="ctype" x="1065" y="224">timestamptz</text>
+<text class="cname mono" x="876" y="224.2">one_line_summary</text>
+<text class="ctype" x="1065" y="224">varchar?</text>
+<line class="sep" x1="848" y1="230" x2="1067" y2="230"/>
+<text class="cname mono" x="876" y="244.2">memory_summary</text>
+<text class="ctype" x="1065" y="244">text?</text>
+<line class="sep" x1="848" y1="250" x2="1067" y2="250"/>
+<text class="cname mono" x="876" y="264.2">gap_summary</text>
+<text class="ctype" x="1065" y="264">varchar?</text>
+<line class="sep" x1="848" y1="270" x2="1067" y2="270"/>
+<text class="cname mono" x="876" y="284.2">created_at</text>
+<text class="ctype" x="1065" y="284">timestamptz</text>
+<line class="sep" x1="848" y1="290" x2="1067" y2="290"/>
+<text class="cname mono" x="876" y="304.2">updated_at</text>
+<text class="ctype" x="1065" y="304">timestamptz</text>
 </g>
 <g>
-<rect class="tbl" x="840" y="290" width="235" height="296" rx="10"/>
-<path class="th th-rec" d="M840,320 V300 Q840,290 850,290 H1065 Q1075,290 1075,300 V320 Z"/>
-<text class="tname tname-rec mono" x="852" y="310">chat_sessions</text>
-<rect class="bdg bdg-PK" x="848" y="324" width="22" height="12" rx="3"/>
-<text class="btxt btxt-PK" x="859" y="333.2">PK</text>
-<text class="cname mono" x="876" y="334.2">id</text>
-<text class="ctype" x="1065" y="334">uuid</text>
-<line class="sep" x1="848" y1="340" x2="1067" y2="340"/>
-<rect class="bdg bdg-FK" x="848" y="344" width="22" height="12" rx="3"/>
-<text class="btxt btxt-FK" x="859" y="353.2">FK</text>
-<text class="cname mono" x="876" y="354.2">user_id</text>
-<text class="ctype" x="1065" y="354">uuid</text>
-<line class="sep" x1="848" y1="360" x2="1067" y2="360"/>
-<rect class="bdg bdg-FK" x="848" y="364" width="22" height="12" rx="3"/>
-<text class="btxt btxt-FK" x="859" y="373.2">FK</text>
-<text class="cname mono" x="876" y="374.2">persona_owner_id</text>
-<text class="ctype" x="1065" y="374">uuid</text>
-<line class="sep" x1="848" y1="380" x2="1067" y2="380"/>
-<rect class="bdg bdg-FK" x="848" y="384" width="22" height="12" rx="3"/>
-<text class="btxt btxt-FK" x="859" y="393.2">FK</text>
-<text class="cname mono" x="876" y="394.2">couple_id</text>
-<text class="ctype" x="1065" y="394">uuid?</text>
-<line class="sep" x1="848" y1="400" x2="1067" y2="400"/>
-<rect class="bdg bdg-FK" x="848" y="404" width="22" height="12" rx="3"/>
-<text class="btxt btxt-FK" x="859" y="413.2">FK</text>
-<text class="cname mono" x="876" y="414.2">analysis_id</text>
-<text class="ctype" x="1065" y="414">uuid?</text>
-<line class="sep" x1="848" y1="420" x2="1067" y2="420"/>
-<text class="cname mono" x="876" y="434.2">anchor_date</text>
-<text class="ctype" x="1065" y="434">date</text>
-<line class="sep" x1="848" y1="440" x2="1067" y2="440"/>
-<text class="cname mono" x="876" y="454.2">window_days</text>
-<text class="ctype" x="1065" y="454">smallint</text>
-<line class="sep" x1="848" y1="460" x2="1067" y2="460"/>
-<text class="cname mono" x="876" y="474.2">shortcut_key</text>
-<text class="ctype" x="1065" y="474">varchar?</text>
-<line class="sep" x1="848" y1="480" x2="1067" y2="480"/>
-<text class="cname mono" x="876" y="494.2">status</text>
-<text class="ctype" x="1065" y="494">varchar</text>
-<line class="sep" x1="848" y1="500" x2="1067" y2="500"/>
-<text class="cname mono" x="876" y="514.2">failure_code</text>
-<text class="ctype" x="1065" y="514">varchar?</text>
-<line class="sep" x1="848" y1="520" x2="1067" y2="520"/>
-<text class="cname mono" x="876" y="534.2">record_level</text>
-<text class="ctype" x="1065" y="534">varchar</text>
-<line class="sep" x1="848" y1="540" x2="1067" y2="540"/>
-<text class="cname mono" x="876" y="554.2">started_at</text>
-<text class="ctype" x="1065" y="554">timestamptz</text>
-<line class="sep" x1="848" y1="560" x2="1067" y2="560"/>
-<text class="cname mono" x="876" y="574.2">ended_at</text>
-<text class="ctype" x="1065" y="574">timestamptz?</text>
+<rect class="tbl" x="840" y="366" width="235" height="296" rx="10"/>
+<path class="th th-rec" d="M840,396 V376 Q840,366 850,366 H1065 Q1075,366 1075,376 V396 Z"/>
+<text class="tname tname-rec mono" x="852" y="386">chat_sessions</text>
+<rect class="bdg bdg-PK" x="848" y="400" width="22" height="12" rx="3"/>
+<text class="btxt btxt-PK" x="859" y="409.2">PK</text>
+<text class="cname mono" x="876" y="410.2">id</text>
+<text class="ctype" x="1065" y="410">uuid</text>
+<line class="sep" x1="848" y1="416" x2="1067" y2="416"/>
+<rect class="bdg bdg-FK" x="848" y="420" width="22" height="12" rx="3"/>
+<text class="btxt btxt-FK" x="859" y="429.2">FK</text>
+<text class="cname mono" x="876" y="430.2">user_id</text>
+<text class="ctype" x="1065" y="430">uuid</text>
+<line class="sep" x1="848" y1="436" x2="1067" y2="436"/>
+<rect class="bdg bdg-FK" x="848" y="440" width="22" height="12" rx="3"/>
+<text class="btxt btxt-FK" x="859" y="449.2">FK</text>
+<text class="cname mono" x="876" y="450.2">persona_owner_id</text>
+<text class="ctype" x="1065" y="450">uuid</text>
+<line class="sep" x1="848" y1="456" x2="1067" y2="456"/>
+<rect class="bdg bdg-FK" x="848" y="460" width="22" height="12" rx="3"/>
+<text class="btxt btxt-FK" x="859" y="469.2">FK</text>
+<text class="cname mono" x="876" y="470.2">couple_id</text>
+<text class="ctype" x="1065" y="470">uuid?</text>
+<line class="sep" x1="848" y1="476" x2="1067" y2="476"/>
+<rect class="bdg bdg-FK" x="848" y="480" width="22" height="12" rx="3"/>
+<text class="btxt btxt-FK" x="859" y="489.2">FK</text>
+<text class="cname mono" x="876" y="490.2">analysis_id</text>
+<text class="ctype" x="1065" y="490">uuid?</text>
+<line class="sep" x1="848" y1="496" x2="1067" y2="496"/>
+<text class="cname mono" x="876" y="510.2">anchor_date</text>
+<text class="ctype" x="1065" y="510">date</text>
+<line class="sep" x1="848" y1="516" x2="1067" y2="516"/>
+<text class="cname mono" x="876" y="530.2">window_days</text>
+<text class="ctype" x="1065" y="530">smallint</text>
+<line class="sep" x1="848" y1="536" x2="1067" y2="536"/>
+<text class="cname mono" x="876" y="550.2">shortcut_key</text>
+<text class="ctype" x="1065" y="550">varchar?</text>
+<line class="sep" x1="848" y1="556" x2="1067" y2="556"/>
+<text class="cname mono" x="876" y="570.2">status</text>
+<text class="ctype" x="1065" y="570">varchar</text>
+<line class="sep" x1="848" y1="576" x2="1067" y2="576"/>
+<text class="cname mono" x="876" y="590.2">failure_code</text>
+<text class="ctype" x="1065" y="590">varchar?</text>
+<line class="sep" x1="848" y1="596" x2="1067" y2="596"/>
+<text class="cname mono" x="876" y="610.2">record_level</text>
+<text class="ctype" x="1065" y="610">varchar</text>
+<line class="sep" x1="848" y1="616" x2="1067" y2="616"/>
+<text class="cname mono" x="876" y="630.2">started_at</text>
+<text class="ctype" x="1065" y="630">timestamptz</text>
+<line class="sep" x1="848" y1="636" x2="1067" y2="636"/>
+<text class="cname mono" x="876" y="650.2">ended_at</text>
+<text class="ctype" x="1065" y="650">timestamptz?</text>
 </g>
 <g>
-<rect class="tbl" x="840" y="650" width="235" height="156" rx="10"/>
-<path class="th th-rec" d="M840,680 V660 Q840,650 850,650 H1065 Q1075,650 1075,660 V680 Z"/>
-<text class="tname tname-rec mono" x="852" y="670">chat_messages</text>
-<rect class="bdg bdg-PK" x="848" y="684" width="22" height="12" rx="3"/>
-<text class="btxt btxt-PK" x="859" y="693.2">PK</text>
-<text class="cname mono" x="876" y="694.2">id</text>
-<text class="ctype" x="1065" y="694">bigint</text>
-<line class="sep" x1="848" y1="700" x2="1067" y2="700"/>
-<rect class="bdg bdg-FK" x="848" y="704" width="22" height="12" rx="3"/>
-<text class="btxt btxt-FK" x="859" y="713.2">FK</text>
-<text class="cname mono" x="876" y="714.2">session_id</text>
-<text class="ctype" x="1065" y="714">uuid</text>
-<line class="sep" x1="848" y1="720" x2="1067" y2="720"/>
-<text class="cname mono" x="876" y="734.2">seq</text>
-<text class="ctype" x="1065" y="734">int</text>
-<line class="sep" x1="848" y1="740" x2="1067" y2="740"/>
-<text class="cname mono" x="876" y="754.2">role</text>
-<text class="ctype" x="1065" y="754">varchar</text>
-<line class="sep" x1="848" y1="760" x2="1067" y2="760"/>
-<text class="cname mono" x="876" y="774.2">content</text>
-<text class="ctype" x="1065" y="774">text</text>
-<line class="sep" x1="848" y1="780" x2="1067" y2="780"/>
-<text class="cname mono" x="876" y="794.2">created_at</text>
-<text class="ctype" x="1065" y="794">timestamptz</text>
+<rect class="tbl" x="840" y="726" width="235" height="156" rx="10"/>
+<path class="th th-rec" d="M840,756 V736 Q840,726 850,726 H1065 Q1075,726 1075,736 V756 Z"/>
+<text class="tname tname-rec mono" x="852" y="746">chat_messages</text>
+<rect class="bdg bdg-PK" x="848" y="760" width="22" height="12" rx="3"/>
+<text class="btxt btxt-PK" x="859" y="769.2">PK</text>
+<text class="cname mono" x="876" y="770.2">id</text>
+<text class="ctype" x="1065" y="770">bigint</text>
+<line class="sep" x1="848" y1="776" x2="1067" y2="776"/>
+<rect class="bdg bdg-FK" x="848" y="780" width="22" height="12" rx="3"/>
+<text class="btxt btxt-FK" x="859" y="789.2">FK</text>
+<text class="cname mono" x="876" y="790.2">session_id</text>
+<text class="ctype" x="1065" y="790">uuid</text>
+<line class="sep" x1="848" y1="796" x2="1067" y2="796"/>
+<text class="cname mono" x="876" y="810.2">seq</text>
+<text class="ctype" x="1065" y="810">int</text>
+<line class="sep" x1="848" y1="816" x2="1067" y2="816"/>
+<text class="cname mono" x="876" y="830.2">role</text>
+<text class="ctype" x="1065" y="830">varchar</text>
+<line class="sep" x1="848" y1="836" x2="1067" y2="836"/>
+<text class="cname mono" x="876" y="850.2">content</text>
+<text class="ctype" x="1065" y="850">text</text>
+<line class="sep" x1="848" y1="856" x2="1067" y2="856"/>
+<text class="cname mono" x="876" y="870.2">created_at</text>
+<text class="ctype" x="1065" y="870">timestamptz</text>
 </g>
 
 <path class="edge" d="M130,116 V290"/>
@@ -455,27 +467,27 @@
 <path class="edge" d="M535,340 H570"/>
 <text class="card" x="541" y="334" text-anchor="start">1</text>
 <text class="card" x="564" y="334" text-anchor="end">N</text>
-<path class="edge dash" d="M805,400 H840"/>
-<text class="card" x="811" y="394" text-anchor="start">1</text>
-<text class="card" x="834" y="394" text-anchor="end">N</text>
-<path class="edge dash" d="M805,100 H822 V370 H840"/>
+<path class="edge dash" d="M805,476 H840"/>
+<text class="card" x="811" y="470" text-anchor="start">1</text>
+<text class="card" x="834" y="470" text-anchor="end">N</text>
+<path class="edge dash" d="M805,100 H822 V446 H840"/>
 <text class="card" x="811" y="94" text-anchor="start">1</text>
-<text class="card" x="834" y="364" text-anchor="end">N</text>
-<path class="edge dash" d="M960,236 V290"/>
-<text class="card" x="966" y="254" text-anchor="start">0..1</text>
-<text class="card" x="966" y="284" text-anchor="start">1</text>
-<path class="edge" d="M1000,586 V650"/>
-<text class="card" x="1006" y="602" text-anchor="start">1</text>
-<text class="card" x="1006" y="644" text-anchor="start">N</text>
-<path class="edge" d="M510,486 V606 H900 V587"/>
+<text class="card" x="834" y="440" text-anchor="end">N</text>
+<path class="edge dash" d="M960,316 V366"/>
+<text class="card" x="966" y="334" text-anchor="start">0..1</text>
+<text class="card" x="966" y="360" text-anchor="start">1</text>
+<path class="edge" d="M1000,662 V726"/>
+<text class="card" x="1006" y="678" text-anchor="start">1</text>
+<text class="card" x="1006" y="720" text-anchor="start">N</text>
+<path class="edge" d="M510,486 V682 H900 V663"/>
 <text class="card" x="516" y="502" text-anchor="start">1</text>
-<text class="card" x="906" y="600" text-anchor="start">N</text>
-<path class="edge" d="M470,486 V622 H940 V587"/>
+<text class="card" x="906" y="676" text-anchor="start">N</text>
+<path class="edge" d="M470,486 V698 H940 V663"/>
 <text class="card" x="476" y="502" text-anchor="start">1</text>
-<text class="card" x="946" y="600" text-anchor="start">N</text>
+<text class="card" x="946" y="676" text-anchor="start">N</text>
 
-<text class="lane" x="560" y="601">chat_sessions.user_id — 대화하는 사람</text>
-<text class="lane" x="560" y="637">chat_sessions.persona_owner_id — 페르소나 주인 (지금은 항상 user_id와 같음)</text>
+<text class="lane" x="560" y="677">chat_sessions.user_id — 대화하는 사람</text>
+<text class="lane" x="560" y="713">chat_sessions.persona_owner_id — 페르소나 주인 (지금은 항상 user_id와 같음)</text>
 </svg>
       </div>
       <div class="legend">
@@ -540,7 +552,7 @@
           <li>시점 선택(바로가기 또는 캘린더 날짜) → <code>persona_analyses</code> 조회 (키 + digest 확인)</li>
           <li>없거나 다르면 → 일기(<code>diaries</code>) + 겹치는 주 요약 읽기 → AI 분석 → 같은 행에 저장</li>
           <li><code>chat_sessions</code> 생성 (<code>analysis_id</code> 연결) → <code>chat_messages</code> 누적</li>
-          <li>대화 종료 → <code>reports</code> 한 행 (세션당 하나)</li>
+          <li>대화 끝내기 → <code>chat_sessions.ended_at</code> 기록 + <code>reports</code> 한 행 (세션당 하나, <code>status</code>가 <code>GENERATING</code>에서 <code>READY</code> · <code>FAILED</code> · <code>NONE</code>으로 바뀜)</li>
           <li>“과거의 나” 탭의 대화 목록은 <code>chat_sessions</code>를 최근 메시지 순으로 보여주고, 다시 들어갈 수 있습니다.</li>
         </ul>
       </div>
@@ -558,10 +570,11 @@
       <li><b>하루 단위 대화</b> — 캘린더에서 날짜를 탭하면 그날 하루의 기록으로 페르소나를 만들기 때문에 <code>window_days = 0</code> 행이 생깁니다. 메신저 요약은 주 단위라 하루로 자를 수 없어서, 그날이 속한 주의 요약 중 말투 분석(<code>traits_enc</code>)만 함께 씁니다(그 주의 일이나 대표 문장은 쓰지 않습니다). 그래서 이 행의 <code>messenger_weeks</code>는 0 또는 1입니다.</li>
       <li><b>대화 세션의 상태</b> — 시점 분석이 오래 걸려서 세션을 만들 때 <code>status = PREPARING</code>으로 시작하고, 분석이 끝나면 <code>READY</code>(실패하면 <code>FAILED</code> + <code>failure_code</code>)가 됩니다. <code>record_level</code>은 세션을 만들 때의 기록 수준(<code>NONE</code> · <code>LOW</code> · <code>ENOUGH</code> · <code>RICH</code>)을 그대로 남기고, 기록이 전혀 없으면(<code>NONE</code>) 분석 없이 <code>analysis_id</code>가 빈 채로 <code>READY</code>입니다. 분석 행이 먼저 지워지는 경우에 대비해, 분석 행이 지워지면 <code>analysis_id</code>는 비워집니다(동의 철회 뒤 30일이 지나면 분석과 대화 기록을 함께 지웁니다). 커플 연결(<code>couple_id</code>)의 외래 키는 커플 테이블을 만들 때 더합니다.</li>
       <li><b>대화 목록 칩</b> — “과거의 나” 목록의 “1개월”, “1년” 같은 칩을 위해 <code>chat_sessions.shortcut_key</code>(<code>ONE_MONTH</code> 등, 날짜를 직접 골랐으면 비어 있음)를 두었습니다.</li>
-      <li><b>없는 것</b> — 위기 신호 감지 기록(기획서 5.6), 로그인 갱신 토큰 저장, 이용 시간 집계 전용 테이블, 푸시 알림용 기기 토큰 저장(알림 보내는 방식이 정해지지 않았습니다)은 넣지 않았습니다. 이용 시간은 <code>chat_sessions</code>의 시작 · 종료 시각으로 계산할 수 있습니다.</li>
+      <li><b>없는 것</b> — 위기 신호 감지 기록(기획서 5.6), 로그인 갱신 토큰 저장, 이용 시간 집계 전용 테이블, 푸시 알림용 기기 토큰 저장(알림 보내는 방식이 정해지지 않았습니다)은 넣지 않았습니다. 이용 시간은 <code>chat_messages</code>의 시각으로 계산합니다(연속한 메시지 사이 간격의 합이고 한 간격은 5분까지만 인정, 2026.11.4 결정).</li>
       <li><b>동의 시각은 하나</b> — 서비스 이용 동의 화면은 필수 3개(이용약관 · 개인정보 · AI 분석)를 한 번에 받으므로 시각을 <code>users.ai_consent_at</code> 하나에 기록합니다. 철회는 AI 분석 동의만 대상이고 <code>ai_revoked_at</code>에 기록하며, 철회한 뒤 다시 동의하면 <code>ai_consent_at</code>을 새로 기록하고 <code>ai_revoked_at</code>을 비웁니다. 선택 항목인 알림만 <code>notifications_opt_in</code> 컬럼을 추가했습니다. 이용약관과 개인정보 동의 시각을 따로 남겨야 하면 컬럼을 나눠야 합니다.</li>
       <li><b>메신저 업로드의 숫자 컬럼</b> — 분석 완료 화면이 보여주는 “읽은 대화 캡처 N장”, “가려진 민감정보 N건(직접 N건)”을 <code>photo_count</code>, <code>masked_count</code>, <code>user_masked_count</code>로 저장합니다. 이 값은 앱이 글자와 함께 보내므로 처음부터 채워져 있습니다. 개인을 식별하는 값이 아니라 개수뿐입니다. 서버가 한 번 더 가린 건수 <code>server_masked_count</code>와 대화 기간 <code>period_start</code>, <code>period_end</code>는 분석이 끝나야 채워집니다.</li>
       <li><b>사진은 폰 밖으로 보내지 않음(2026.10.28 결정)</b> — 글자 읽기(OCR), 자동 가림, 내 말풍선 구분, 검수 · 직접 가리기는 모두 폰 안에서 하고, 서버는 가린 글자만 받습니다. 그래서 사진 · 가림 영역을 담는 테이블(<code>messenger_photos</code>, <code>mask_regions</code>)을 두지 않았습니다. 가림은 사진이 아니라 글자에 적용되어(가림 영역과 겹치는 글자를 “[전화번호]” 같은 표시로 바꿈) 서버에 오는 글자에는 원문이 없습니다.</li>
+      <li><b>리포트의 상태와 저장</b> — 끝내기를 누르면 <code>reports</code> 한 행이 만들어지고 <code>status</code>가 <code>GENERATING</code>(AI가 만드는 중)에서 <code>READY</code>(완성) · <code>FAILED</code>(실패, 끝내기를 다시 부르면 재시도) · <code>NONE</code>(내 말이 2개 미만이라 만들지 않음)로 바뀝니다. <code>duration_minutes</code>는 끝낼 때 계산해 둔 대화 시간이고 <code>updated_at</code>은 마지막으로 상태가 바뀐 시각입니다(만드는 중이 10분을 넘으면 실패로 봅니다). 서버는 대화를 자동으로 끝내지 않습니다. 리포트는 대화 메시지와 같이 암호화하지 않고 저장하며, 세션이 지워지면(동의 철회 30일 뒤, 회원 탈퇴) 함께 지워집니다(2026.11.4 결정).</li>
       <li><b>커플 리포트 확장</b> — 기획서 9장의 “연인에게 물어보면 좋을 질문”은 아직 검토 중이라 <code>reports</code>에 컬럼을 두지 않았습니다.</li>
     </ul>
   </section>

@@ -101,7 +101,7 @@ public class PersonaAnalyzer {
 	}
 
 	/** 글 안의 꺾쇠가 우리 태그를 닫거나 새 태그를 흉내 내지 못하게 전각 문자로 바꿔요(줄바꿈은 그대로 둬요). */
-	static String neutralize(String text) {
+	public static String neutralize(String text) {
 		return text.replace('<', '＜').replace('>', '＞');
 	}
 
