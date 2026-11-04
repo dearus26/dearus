@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Alert, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { errorMessage } from '@/api/errors';
 import { AppText } from '@/components/AppText';
 import { BrandLogo } from '@/components/BrandLogo';
 import { Button } from '@/components/Button';
+import { notify } from '@/lib/dialog';
 import { useSession } from '@/session/SessionProvider';
 import type { SocialProvider } from '@/session/socialLogin';
 import { colors } from '@/theme/colors';
@@ -21,7 +22,7 @@ export default function LoginScreen() {
     try {
       await signIn(provider);
     } catch (error) {
-      Alert.alert('로그인하지 못했어요', errorMessage(error));
+      notify('로그인하지 못했어요', errorMessage(error));
     } finally {
       setPending(null);
     }

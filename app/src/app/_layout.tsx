@@ -61,6 +61,10 @@ function RootNavigator() {
       </Stack.Protected>
       <Stack.Protected guard={signedIn && !needsConsent}>
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="diary/[date]" />
+        <Stack.Screen name="persona/pick" />
+        <Stack.Screen name="chat/[id]" />
+        <Stack.Screen name="settings" />
       </Stack.Protected>
       {/* 약관 문서는 로그인 상태와 상관없이 볼 수 있어요 */}
       <Stack.Screen name="legal/[type]" />
