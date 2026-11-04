@@ -44,7 +44,8 @@
 - Node.js 24 LTS, npm
 - 앱: Expo SDK 58 · React Native 0.88 · React 19.3 · TypeScript · Expo Router · TanStack Query v5 (자세한 버전은 `DearUs_기술스택.md`)
 - 서버: Java 21 · Spring Boot 4.1 · Gradle
-- 서버를 로컬에서 켜려면 `server/.env.example`을 복사해 `server/.env`를 채우고(DB 접속 값은 백엔드 담당에게 받아요) `cd server` 뒤 `./gradlew bootRun`을 실행해요. `ENCRYPTION_KEY`(암호화 키)는 같은 DB를 쓰는 사람 모두가 같은 값이어야 서로 저장한 요약을 읽어요. AI 키(`ANTHROPIC_API_KEY`) 없이 개발하려면 `AI_PROVIDER=fake`로 켜면 가짜 요약이 나와요. 로컬 가짜 로그인은 `POST /auth/dev`예요(`DEV_LOGIN_ENABLED=true`일 때만 켜져요). 단위 테스트는 DB 없이 `./gradlew test`로 돌려요. 진짜 DB로 도는 시험은 `DEARUS_DB_TEST=true`, 진짜 Claude를 부르는 시험은 `ANTHROPIC_API_KEY`가 있을 때만 돌아요(비용이 들어요. 없으면 건너뛰어요).
+- 서버를 로컬에서 켜려면 `server/.env.example`을 복사해 `server/.env`를 채우고(DB 접속 값은 백엔드 담당에게 받아요) `cd server` 뒤 `./gradlew bootRun`을 실행해요. `ENCRYPTION_KEY`(암호화 키)는 같은 DB를 쓰는 사람 모두가 같은 값이어야 서로 저장한 요약을 읽어요. AI 키(`ANTHROPIC_API_KEY`) 없이 개발하려면 `AI_PROVIDER=fake`로 켜면 가짜 요약이 나와요. 로컬 가짜 로그인은 `POST /auth/dev`예요(`DEV_LOGIN_ENABLED=true`일 때만 켜져요). 소셜 로그인을 켜려면 `KAKAO_APP_ID`와 `GOOGLE_CLIENT_IDS`도 채워요(비워 두면 그 방식은 501이에요). 단위 테스트는 DB 없이 `./gradlew test`로 돌려요. 진짜 DB로 도는 시험은 `DEARUS_DB_TEST=true`, 진짜 Claude를 부르는 시험은 `ANTHROPIC_API_KEY`가 있을 때만 돌아요(비용이 들어요. 없으면 건너뛰어요).
+- 앱은 기본으로 가짜 데이터(`mock`)로 동작하고, `app/.env`의 `EXPO_PUBLIC_API_MODE=live`와 `EXPO_PUBLIC_API_URL`로 실제 서버에 붙어요(폰에서는 `localhost`가 PC가 아니라서 PC의 IP를 써요). 아이폰 실기기는 Expo CLI(`npx expo login`)와 Expo Go에 같은 계정으로 로그인해야 열려요(Windows에서 브라우저 로그인이 죽으면 `npx expo login --no-browser`). 새 화면(라우트)을 만들면 자동 생성 타입(`.expo/types`)이 낡아 타입 오류가 날 수 있어서 `npx expo start`를 한 번 켜요.
 - 앱은 실제 폰에서 Expo Go로 확인해요(스토어의 Expo Go는 최신 SDK 하나만 지원하니 폰의 Expo Go가 SDK 58인지 먼저 봐요). 메신저 글자 읽기(OCR)와 소셜 로그인처럼 네이티브 모듈이 필요한 기능은 Expo Go에서 안 돼서, 그때는 개발 빌드(EAS)를 써요.
 
 ## 확정된 결정
@@ -71,7 +72,8 @@
 - UI/UX는 `DearUs_스토리보드.html`을 따라요. 이미지(`storyboard_images/`)와 다르면 HTML이 맞아요.
 - Expo 패키지는 `npx expo install`로 설치해요.
 - 앱은 Spring Boot 서버만 호출해요. AI API나 Supabase를 앱에서 직접 부르지 않아요.
-- 서버 호출의 요청 · 응답은 `server/openapi.yaml`을 따라요. 명세에 없는 필드나 경로는 앱에서 마음대로 만들지 않고, 필요하면 명세를 먼저 고쳐요(백엔드 · 프론트엔드 담당이 함께 합의).
+- 서버 호출의 요청 · 응답은 `server/openapi.yaml`을 따라요. 명세에 없는 필드나 경로는 앱에서 마음대로 만들지 않고, 필요하면 명세를 먼저 고쳐요(백엔드 · 프론트엔드 담당이 함께 합의). 명세가 바뀌면 `app/`에서 `npm run gen:api`로 `src/api/schema.d.ts`를 다시 만들어요.
+- React Native 0.88부터 `ref`에는 컴포넌트가 아니라 인스턴스 타입을 써요(예: `useRef<ScrollViewInstance>`).
 - 채팅 답변은 SSE로 와요. React Native의 기본 `fetch`는 스트림이 불안정해서 `expo/fetch`로 받아요.
 - API 키, DB 비밀번호 같은 비밀 값은 앱에 넣지 않아요. 앱 환경변수는 `.env`에 두고 git에는 `.env.example`만 올려요.
 - 사진을 서버로 보내는 코드를 만들지 않아요. 글자 읽기와 가리기를 마치고 사용자가 확인한 글자만 `POST /uploads/messenger`로 보내요. 개발 중에 앱의 네트워크 요청에 사진이 없는지 확인해요.
@@ -86,7 +88,7 @@
 - 서버는 사진을 받지 않아요(이미지 수신 API를 만들지 않아요). 앱이 보낸 글자도 한 번 더 규칙으로 가린 뒤에만 AI로 보내고, 받은 글자는 요약이 끝나면(실패해도) 지워요. 일기는 마스킹한 뒤에만 AI로 보내요.
 - AI를 부르는 API(메신저 업로드 · 대화 · 리포트)는 먼저 AI 분석 동의가 유효한지(`users`의 `aiConsentActive`) 확인하고, 아니면 403 `AI_CONSENT_REQUIRED`를 돌려줘요. 동의를 철회하면 AI를 부르는 API는 바로 막고, 저장된 분석 데이터와 대화 기록은 30일 보관한 뒤 지워요(`ConsentPurgeJob`, 그 안에 다시 동의하면 이어서 써요). 일기는 지우지 않아요.
 - AI 프롬프트는 `chat/ChatPromptBuilder`(대화), `persona/PersonaAnalyzer`(시점 분석), `upload/WeeklySummarizer`(메신저 주간 요약), `report/ReportGenerator`(회고 리포트)에 있어요. 시점 분석 프롬프트를 고치면 `PersonaAnalyzer.PROMPT_VERSION`을 올려야 저장된 분석이 새 프롬프트로 다시 만들어져요.
-- AI를 부르는 동안에는 DB 연결(트랜잭션)을 잡고 있지 않아요. 연결 풀이 5개뿐이라 AI 호출이 느리면 서버 전체가 멈춰요.
+- AI나 소셜 제공자(카카오 · 구글)처럼 느린 외부를 부르는 동안에는 DB 연결(트랜잭션)을 잡고 있지 않아요. 연결 풀이 5개뿐이라 외부 호출이 느리면 서버 전체가 멈춰요. 소셜 토큰과 제공자 응답은 로그에 남기지 않아요.
 - 새 테이블을 만들면 Flyway 마이그레이션에서 행 수준 보안(`ENABLE ROW LEVEL SECURITY`)을 켜요. Supabase가 `public` 테이블을 외부 REST API에 열어 두기 때문이에요. 서버만 DB에 붙으니 정책은 만들지 않아요.
 
 ## 아직 확정되지 않은 가정
