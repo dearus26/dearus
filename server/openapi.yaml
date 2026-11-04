@@ -98,7 +98,16 @@ paths:
         | `dev` | 개발용 가짜 로그인. 아무 문자열이나 넣어요. 같은 문자열이면 같은 사용자예요 |
 
         `dev`는 서버에 `DEV_LOGIN_ENABLED=true`일 때만 켜지고(로컬 개발용), 꺼져 있으면 404예요. 배포 서버에서는 꺼 둬요.
-        `kakao` · `google` · `apple`은 제공자 토큰 검증을 붙이기 전까지 501(`AUTH_PROVIDER_NOT_READY`)을 돌려줘요.
+
+        **제공자 검증 (2026.11.4 구현)**
+        - `kakao`: 서버가 카카오 API로 토큰이 **우리 앱에서 발급된 것인지**(`app_id`) 확인하고 사용자 `id`와 닉네임을 읽어요. 이메일은 요청하지 않아서 카카오 콘솔에서 닉네임 동의항목만 켜면 돼요.
+        - `google`: 서버가 구글 공개키로 ID token의 서명 · 발급자 · 대상(우리 클라이언트 ID) · 만료를 확인해요. 앱의 구글 로그인이 웹 클라이언트 ID로 ID token을 만들면 그 ID가 서버 설정(`GOOGLE_CLIENT_IDS`)에 들어 있어야 해요.
+        - `apple`: 아직 없어서 501이에요.
+        - 서버에 앱 ID · 클라이언트 ID(`KAKAO_APP_ID`, `GOOGLE_CLIENT_IDS`)가 설정되지 않은 제공자도 501이에요.
+
+        **계정 규칙**
+        - 제공자마다 별개 계정이에요. 같은 사람이 카카오와 구글로 각각 로그인하면 계정이 둘이고, 서로의 일기 · 대화는 이어지지 않아요. 이메일은 받지도 저장하지도 않아요.
+        - 닉네임은 요청의 `nickname` → 제공자 프로필의 이름 → "사용자" 순으로 정하고, **계정을 처음 만들 때만** 정해요(다음 로그인에는 바꾸지 않아요).
       x-schedule: 10월 3~4주
       x-screen: 로그인
       security: []
@@ -123,7 +132,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/AuthResponse'
         '401':
-          description: 제공자 토큰이 올바르지 않아요 (`AUTH_PROVIDER_TOKEN_INVALID`)
+          description: 제공자 토큰이 올바르지 않아요 — 잘못됐거나 만료됐거나 다른 앱(클라이언트)에서 발급된 토큰이에요 (`AUTH_PROVIDER_TOKEN_INVALID`). 소셜 로그인을 다시 하게 해요
           content:
             application/json:
               schema:
@@ -135,7 +144,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
         '501':
-          description: 아직 준비 중인 로그인 방식이에요 (`AUTH_PROVIDER_NOT_READY`)
+          description: 아직 준비 중이거나(`apple`) 서버에 설정이 없는 로그인 방식이에요 (`AUTH_PROVIDER_NOT_READY`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: 제공자(카카오 서버, 구글 공개키)에 서버가 닿지 못했어요 (`AUTH_PROVIDER_UNAVAILABLE`). 토큰 문제가 아니라서 잠시 뒤에 같은 토큰으로 다시 시도해도 돼요
           content:
             application/json:
               schema:
@@ -1163,7 +1178,8 @@ components:
       properties:
         token:
           type: string
-          description: 소셜 SDK가 준 토큰 (provider마다 종류가 달라요)
+          maxLength: 4096
+          description: 소셜 SDK가 준 토큰 (provider마다 종류가 달라요). 구글 ID token이나 애플 identity token은 보통 1,000자 안팎이에요. 개발용 `dev`는 255자까지예요
         nickname:
           type: string
           maxLength: 20

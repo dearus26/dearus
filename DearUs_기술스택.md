@@ -46,7 +46,7 @@ React Native 앱 (Expo) → Spring Boot 서버 (Render) → Supabase (PostgreSQL
 | 직접 가리기 그리기 | 화면을 만들 때 확정 | 사진 위에 손가락으로 사각형 · 브러시 영역 그리기. Expo에 포함된 제스처 · 애니메이션 라이브러리(후보)로 만들어요. 가림은 사진이 아니라 글자에 적용해요(가림 영역과 겹치는 글자를 '[전화번호]' 같은 표시로 바꿔서 보내요) |
 | 카카오 로그인 | @react-native-seoul/kakao-login | 개발 빌드 필요 |
 | 구글 로그인 | @react-native-google-signin/google-signin | 개발 빌드 필요 |
-| 애플 로그인 | expo-apple-authentication | 소셜 로그인 제공 시 iOS 필수 |
+| 애플 로그인 | expo-apple-authentication | 소셜 로그인 제공 시 iOS 필수. 서버 검증은 아직 없어요(2026.11.4 이번 범위에서 제외) |
 
 **주의**
 
@@ -110,7 +110,7 @@ com.dearus
 
 | 메서드 | 경로 | 기능 |
 |---|---|---|
-| POST | /auth/{provider} | 소셜 로그인 |
+| POST | /auth/{provider} | 소셜 로그인. 카카오는 access token을 카카오 API로, 구글은 ID token을 구글 공개키로 서버가 확인해요(애플은 아직 501). 제공자마다 별개 계정이고 이메일은 받지 않아요 |
 | PUT / DELETE | /me/consent | 서비스 이용 동의 · AI 분석 동의 철회 |
 | GET / POST / PUT / DELETE | /diaries | 일기 조회 · 작성 · 수정 · 삭제 (캘린더용 작성일 · 감정 태그 포함) |
 | POST | /uploads/messenger | 메신저 대화 올리기. 앱이 폰 안에서 가린 글자(JSON)만 보내고 사진은 받지 않아요. 요약은 비동기(202 + 상태 조회) |

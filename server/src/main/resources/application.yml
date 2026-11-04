@@ -26,6 +26,12 @@ app:
   auth:
     # 로컬 개발에서만 true. 가짜 로그인(POST /auth/dev)을 켜요. 배포 서버에서는 꺼 두어요.
     dev-login-enabled: ${DEV_LOGIN_ENABLED:false}
+    kakao:
+      # 카카오 개발자 콘솔의 앱 ID(숫자)예요. 카카오 access token이 우리 앱에서 발급된 것인지 확인하는 데 써요. 비워 두면 카카오 로그인은 501이에요.
+      app-id: ${KAKAO_APP_ID:}
+    google:
+      # 구글 ID token의 대상(aud)으로 받아들일 클라이언트 ID 목록이에요(쉼표로 구분). 비워 두면 구글 로그인은 501이에요.
+      client-ids: ${GOOGLE_CLIENT_IDS:}
   crypto:
     # 메신저 요약처럼 암호화해서 저장하는 값의 키예요(AES-256-GCM). base64로 인코딩한 32바이트이고, 서버가 바뀌어도 같은 값을 써야 저장된 값을 읽어요.
     key: ${ENCRYPTION_KEY}
