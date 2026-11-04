@@ -102,6 +102,17 @@ public class ChatSession {
 		this.failureCode = failureCode;
 	}
 
+	/** 대화를 끝내요. 이미 끝났으면 처음 끝낸 시각을 그대로 둬요. */
+	public void end(OffsetDateTime endedAt) {
+		if (this.endedAt == null) {
+			this.endedAt = endedAt;
+		}
+	}
+
+	public boolean isEnded() {
+		return endedAt != null;
+	}
+
 	public PersonaScope scope() {
 		return windowDays == 0 ? PersonaScope.DAY : PersonaScope.AROUND;
 	}

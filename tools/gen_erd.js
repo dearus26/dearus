@@ -39,16 +39,18 @@ const T = [
     ['analyzed_at', 'timestamptz', ''] ] },
 
   { id: 'reports', x: 840, y: 40, kind: 'rec', cols: [
-    ['id', 'uuid', 'PK'], ['session_id', 'uuid', 'FK'], ['past_concern', 'text?', ''],
-    ['present_change', 'text?', ''], ['one_line_summary', 'varchar', ''],
-    ['memory_summary', 'text?', ''], ['gap_summary', 'varchar?', ''], ['created_at', 'timestamptz', ''] ] },
-  { id: 'chat_sessions', x: 840, y: 290, kind: 'rec', cols: [
+    ['id', 'uuid', 'PK'], ['session_id', 'uuid', 'FK'], ['status', 'varchar', ''],
+    ['failure_code', 'varchar?', ''], ['duration_minutes', 'int', ''], ['past_concern', 'text?', ''],
+    ['present_change', 'text?', ''], ['one_line_summary', 'varchar?', ''],
+    ['memory_summary', 'text?', ''], ['gap_summary', 'varchar?', ''], ['created_at', 'timestamptz', ''],
+    ['updated_at', 'timestamptz', ''] ] },
+  { id: 'chat_sessions', x: 840, y: 366, kind: 'rec', cols: [
     ['id', 'uuid', 'PK'], ['user_id', 'uuid', 'FK'], ['persona_owner_id', 'uuid', 'FK'],
     ['couple_id', 'uuid?', 'FK'], ['analysis_id', 'uuid?', 'FK'], ['anchor_date', 'date', ''],
     ['window_days', 'smallint', ''], ['shortcut_key', 'varchar?', ''],
     ['status', 'varchar', ''], ['failure_code', 'varchar?', ''], ['record_level', 'varchar', ''],
     ['started_at', 'timestamptz', ''], ['ended_at', 'timestamptz?', ''] ] },
-  { id: 'chat_messages', x: 840, y: 650, kind: 'rec', cols: [
+  { id: 'chat_messages', x: 840, y: 726, kind: 'rec', cols: [
     ['id', 'bigint', 'PK'], ['session_id', 'uuid', 'FK'], ['seq', 'int', ''],
     ['role', 'varchar', ''], ['content', 'text', ''], ['created_at', 'timestamptz', ''] ] },
 ];
@@ -88,12 +90,12 @@ const E = [
   { d: 'M420,290 V196', l: [['1', 426, 284, 's'], ['N', 426, 212, 's']] },
   { d: 'M535,80 H570', l: [['N', 541, 74, 's'], ['1', 564, 74, 'e']] },
   { d: 'M535,340 H570', l: [['1', 541, 334, 's'], ['N', 564, 334, 'e']] },
-  { d: 'M805,400 H840', dash: true, l: [['1', 811, 394, 's'], ['N', 834, 394, 'e']] },
-  { d: 'M805,100 H822 V370 H840', dash: true, l: [['1', 811, 94, 's'], ['N', 834, 364, 'e']] },
-  { d: 'M960,236 V290', dash: true, l: [['0..1', 966, 254, 's'], ['1', 966, 284, 's']] },
-  { d: 'M1000,586 V650', l: [['1', 1006, 602, 's'], ['N', 1006, 644, 's']] },
-  { d: 'M510,486 V606 H900 V587', l: [['1', 516, 502, 's'], ['N', 906, 600, 's']] },
-  { d: 'M470,486 V622 H940 V587', l: [['1', 476, 502, 's'], ['N', 946, 600, 's']] },
+  { d: 'M805,476 H840', dash: true, l: [['1', 811, 470, 's'], ['N', 834, 470, 'e']] },
+  { d: 'M805,100 H822 V446 H840', dash: true, l: [['1', 811, 94, 's'], ['N', 834, 440, 'e']] },
+  { d: 'M960,316 V366', dash: true, l: [['0..1', 966, 334, 's'], ['1', 966, 360, 's']] },
+  { d: 'M1000,662 V726', l: [['1', 1006, 678, 's'], ['N', 1006, 720, 's']] },
+  { d: 'M510,486 V682 H900 V663', l: [['1', 516, 502, 's'], ['N', 906, 676, 's']] },
+  { d: 'M470,486 V698 H940 V663', l: [['1', 476, 502, 's'], ['N', 946, 676, 's']] },
 ];
 
 function edgeSvg(e) {
@@ -107,8 +109,8 @@ function edgeSvg(e) {
 const svg = `<svg viewBox="0 0 1110 960" role="img" aria-label="열한 개 테이블의 관계도. users를 중심으로 일기, 메신저 업로드(개수와 요약만), 페르소나 분석, 대화, 커플 테이블이 연결되고, 사진을 담는 테이블은 없다">
 ${T.map(tableSvg).join('')}
 ${E.map(edgeSvg).join('')}
-<text class="lane" x="560" y="601">chat_sessions.user_id — 대화하는 사람</text>
-<text class="lane" x="560" y="637">chat_sessions.persona_owner_id — 페르소나 주인 (지금은 항상 user_id와 같음)</text>
+<text class="lane" x="560" y="677">chat_sessions.user_id — 대화하는 사람</text>
+<text class="lane" x="560" y="713">chat_sessions.persona_owner_id — 페르소나 주인 (지금은 항상 user_id와 같음)</text>
 </svg>`;
 
 const html = `<!doctype html>
@@ -250,7 +252,7 @@ ${svg}
           <li>시점 선택(바로가기 또는 캘린더 날짜) → <code>persona_analyses</code> 조회 (키 + digest 확인)</li>
           <li>없거나 다르면 → 일기(<code>diaries</code>) + 겹치는 주 요약 읽기 → AI 분석 → 같은 행에 저장</li>
           <li><code>chat_sessions</code> 생성 (<code>analysis_id</code> 연결) → <code>chat_messages</code> 누적</li>
-          <li>대화 종료 → <code>reports</code> 한 행 (세션당 하나)</li>
+          <li>대화 끝내기 → <code>chat_sessions.ended_at</code> 기록 + <code>reports</code> 한 행 (세션당 하나, <code>status</code>가 <code>GENERATING</code>에서 <code>READY</code> · <code>FAILED</code> · <code>NONE</code>으로 바뀜)</li>
           <li>“과거의 나” 탭의 대화 목록은 <code>chat_sessions</code>를 최근 메시지 순으로 보여주고, 다시 들어갈 수 있습니다.</li>
         </ul>
       </div>
@@ -268,10 +270,11 @@ ${svg}
       <li><b>하루 단위 대화</b> — 캘린더에서 날짜를 탭하면 그날 하루의 기록으로 페르소나를 만들기 때문에 <code>window_days = 0</code> 행이 생깁니다. 메신저 요약은 주 단위라 하루로 자를 수 없어서, 그날이 속한 주의 요약 중 말투 분석(<code>traits_enc</code>)만 함께 씁니다(그 주의 일이나 대표 문장은 쓰지 않습니다). 그래서 이 행의 <code>messenger_weeks</code>는 0 또는 1입니다.</li>
       <li><b>대화 세션의 상태</b> — 시점 분석이 오래 걸려서 세션을 만들 때 <code>status = PREPARING</code>으로 시작하고, 분석이 끝나면 <code>READY</code>(실패하면 <code>FAILED</code> + <code>failure_code</code>)가 됩니다. <code>record_level</code>은 세션을 만들 때의 기록 수준(<code>NONE</code> · <code>LOW</code> · <code>ENOUGH</code> · <code>RICH</code>)을 그대로 남기고, 기록이 전혀 없으면(<code>NONE</code>) 분석 없이 <code>analysis_id</code>가 빈 채로 <code>READY</code>입니다. 분석 행이 먼저 지워지는 경우에 대비해, 분석 행이 지워지면 <code>analysis_id</code>는 비워집니다(동의 철회 뒤 30일이 지나면 분석과 대화 기록을 함께 지웁니다). 커플 연결(<code>couple_id</code>)의 외래 키는 커플 테이블을 만들 때 더합니다.</li>
       <li><b>대화 목록 칩</b> — “과거의 나” 목록의 “1개월”, “1년” 같은 칩을 위해 <code>chat_sessions.shortcut_key</code>(<code>ONE_MONTH</code> 등, 날짜를 직접 골랐으면 비어 있음)를 두었습니다.</li>
-      <li><b>없는 것</b> — 위기 신호 감지 기록(기획서 5.6), 로그인 갱신 토큰 저장, 이용 시간 집계 전용 테이블, 푸시 알림용 기기 토큰 저장(알림 보내는 방식이 정해지지 않았습니다)은 넣지 않았습니다. 이용 시간은 <code>chat_sessions</code>의 시작 · 종료 시각으로 계산할 수 있습니다.</li>
+      <li><b>없는 것</b> — 위기 신호 감지 기록(기획서 5.6), 로그인 갱신 토큰 저장, 이용 시간 집계 전용 테이블, 푸시 알림용 기기 토큰 저장(알림 보내는 방식이 정해지지 않았습니다)은 넣지 않았습니다. 이용 시간은 <code>chat_messages</code>의 시각으로 계산합니다(연속한 메시지 사이 간격의 합이고 한 간격은 5분까지만 인정, 2026.11.4 결정).</li>
       <li><b>동의 시각은 하나</b> — 서비스 이용 동의 화면은 필수 3개(이용약관 · 개인정보 · AI 분석)를 한 번에 받으므로 시각을 <code>users.ai_consent_at</code> 하나에 기록합니다. 철회는 AI 분석 동의만 대상이고 <code>ai_revoked_at</code>에 기록하며, 철회한 뒤 다시 동의하면 <code>ai_consent_at</code>을 새로 기록하고 <code>ai_revoked_at</code>을 비웁니다. 선택 항목인 알림만 <code>notifications_opt_in</code> 컬럼을 추가했습니다. 이용약관과 개인정보 동의 시각을 따로 남겨야 하면 컬럼을 나눠야 합니다.</li>
       <li><b>메신저 업로드의 숫자 컬럼</b> — 분석 완료 화면이 보여주는 “읽은 대화 캡처 N장”, “가려진 민감정보 N건(직접 N건)”을 <code>photo_count</code>, <code>masked_count</code>, <code>user_masked_count</code>로 저장합니다. 이 값은 앱이 글자와 함께 보내므로 처음부터 채워져 있습니다. 개인을 식별하는 값이 아니라 개수뿐입니다. 서버가 한 번 더 가린 건수 <code>server_masked_count</code>와 대화 기간 <code>period_start</code>, <code>period_end</code>는 분석이 끝나야 채워집니다.</li>
       <li><b>사진은 폰 밖으로 보내지 않음(2026.10.28 결정)</b> — 글자 읽기(OCR), 자동 가림, 내 말풍선 구분, 검수 · 직접 가리기는 모두 폰 안에서 하고, 서버는 가린 글자만 받습니다. 그래서 사진 · 가림 영역을 담는 테이블(<code>messenger_photos</code>, <code>mask_regions</code>)을 두지 않았습니다. 가림은 사진이 아니라 글자에 적용되어(가림 영역과 겹치는 글자를 “[전화번호]” 같은 표시로 바꿈) 서버에 오는 글자에는 원문이 없습니다.</li>
+      <li><b>리포트의 상태와 저장</b> — 끝내기를 누르면 <code>reports</code> 한 행이 만들어지고 <code>status</code>가 <code>GENERATING</code>(AI가 만드는 중)에서 <code>READY</code>(완성) · <code>FAILED</code>(실패, 끝내기를 다시 부르면 재시도) · <code>NONE</code>(내 말이 2개 미만이라 만들지 않음)로 바뀝니다. <code>duration_minutes</code>는 끝낼 때 계산해 둔 대화 시간이고 <code>updated_at</code>은 마지막으로 상태가 바뀐 시각입니다(만드는 중이 10분을 넘으면 실패로 봅니다). 서버는 대화를 자동으로 끝내지 않습니다. 리포트는 대화 메시지와 같이 암호화하지 않고 저장하며, 세션이 지워지면(동의 철회 30일 뒤, 회원 탈퇴) 함께 지워집니다(2026.11.4 결정).</li>
       <li><b>커플 리포트 확장</b> — 기획서 9장의 “연인에게 물어보면 좋을 질문”은 아직 검토 중이라 <code>reports</code>에 컬럼을 두지 않았습니다.</li>
     </ul>
   </section>

@@ -14,7 +14,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * AI 분석 동의를 철회한 지 30일({@link ConsentRetention#AFTER_REVOKE})이 지난 사람의 분석 데이터와 대화 기록을 지워요.
- * 지우는 것: 대화 세션과 메시지, 시점 분석, 메신저 업로드와 주간 요약. 일기는 지우지 않아요.
+ * 지우는 것: 대화 세션과 메시지(리포트는 세션을 지우면 ON DELETE CASCADE로 함께), 시점 분석, 메신저 업로드와 주간 요약. 일기는 지우지 않아요.
  * 그 안에 다시 동의했으면 철회 시각이 비워져서 여기에 걸리지 않아요. 같은 일을 여러 번 해도 결과가 같아서(없으면 건너뛰어요)
  * 서버가 여러 대 켜져 있어도 괜찮아요. 로그에는 사용자 수만 남겨요.
  */
