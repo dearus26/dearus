@@ -33,6 +33,9 @@ export const emotionColors: Record<Emotion, string> = {
   ANGRY: '#C14B3F',
 };
 
+/** 칩 · 범례에 보여주는 순서(스토리보드 기준) */
+export const emotionOrder: Emotion[] = ['JOY', 'EXCITED', 'CALM', 'TIRED', 'SAD', 'ANXIOUS', 'ANGRY'];
+
 export const emotionLabels: Record<Emotion, string> = {
   JOY: '기쁨',
   EXCITED: '설렘',

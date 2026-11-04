@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { errorMessage } from '@/api/errors';
@@ -10,6 +10,7 @@ import { Card } from '@/components/Card';
 import { CheckBox } from '@/components/CheckBox';
 import { Icon } from '@/components/Icon';
 import { Tag } from '@/components/Tag';
+import { notify } from '@/lib/dialog';
 import type { LegalDocType } from '@/legal/documents';
 import { useSession } from '@/session/SessionProvider';
 import { colors } from '@/theme/colors';
@@ -42,7 +43,7 @@ export default function ConsentScreen() {
       // 성공하면 needsConsent가 false가 되어 루트 레이아웃이 알아서 홈으로 넘겨요
       await giveConsent(notifications);
     } catch (error) {
-      Alert.alert('동의를 저장하지 못했어요', errorMessage(error));
+      notify('동의를 저장하지 못했어요', errorMessage(error));
     } finally {
       setSubmitting(false);
     }
