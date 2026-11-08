@@ -13,7 +13,7 @@ npx expo start
 
 - **아이폰 실기기**는 Expo CLI와 Expo Go에 **같은 Expo 계정**으로 로그인해야 열려요. PC에서 `npx expo login`, 폰의 Expo Go에서 계정 아이콘으로 로그인해요. Windows에서 브라우저 로그인이 죽으면 `npx expo login --no-browser`를 써요. (안드로이드와 시뮬레이터는 로그인이 필요 없어요.)
 - 스토어의 Expo Go는 최신 SDK 하나만 지원해서, 폰의 Expo Go가 SDK 58이 아니면 열리지 않아요.
-- 글자 읽기(OCR)와 소셜 로그인은 Expo Go에서 안 돼서 개발 빌드(EAS)가 필요해요.
+- 소셜 로그인은 Expo Go에서 안 돼서 개발 빌드(EAS)가 필요해요. 메신저 업로드(이미지 · txt)는 글자 읽기 모듈이 필요 없어서 Expo Go에서도 만들 수 있어요.
 
 ## 가짜 데이터 모드와 실제 서버 모드
 
@@ -50,7 +50,7 @@ EXPO_PUBLIC_API_URL=http://<내 PC의 IP>:8080
 ## 지켜야 할 규칙
 
 - 앱은 Spring Boot 서버만 불러요. AI API나 Supabase를 직접 부르지 않아요.
-- 사진은 폰 밖으로 보내지 않아요. 글자 읽기와 가리기를 마치고 사용자가 확인한 글자만 `POST /uploads/messenger`로 보내요.
+- 메신저 업로드는 두 갈래예요. txt는 폰 안에서 읽어 내 말만 추리고, 사용자가 확인한 글자를 그대로 `POST /uploads/messenger`로 보내요(상대 말은 폰에서 버려요). 이미지는 가공하지 않고 `POST /uploads/messenger/images`(multipart, 한 번에 최대 100장, 서버에서 새로 만들어요)로 보내요. 메신저 업로드는 개인정보 이용에 동의해야만 쓸 수 있어요.
 - 채팅 답변은 SSE로 와요. React Native 기본 `fetch`는 스트림이 불안정해서 `expo/fetch`로 받아요(`src/api/client.ts`).
 - 명세에 없는 필드나 경로는 앱에서 마음대로 만들지 않고, 필요하면 명세를 먼저 고쳐요.
 - Expo 패키지는 `npx expo install`로 설치해요(SDK에 맞는 버전이 들어가요).
