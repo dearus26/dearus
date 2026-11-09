@@ -11,7 +11,6 @@ import com.dearus.persona.PersonaInput.DiaryEntry;
 import com.dearus.persona.PersonaInput.OriginalEntry;
 import com.dearus.persona.PersonaInput.WeekEntry;
 import com.dearus.upload.MessengerOriginal;
-import com.dearus.upload.SensitiveMasker;
 import com.dearus.upload.WeeklySummarizer.DatedText;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -35,7 +34,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 한 시점의 분석을 찾거나 만들어요. 기록을 모아 지문을 계산하고, 저장된 분석의 지문과 같으면 AI를 부르지 않고 재사용해요.
- * 다르면 일기를 가려서 AI로 분석하고 같은 행을 덮어써요. 분석에 실패하면 이전에 저장한 분석은 그대로 남아요.
+ * 다르면 AI로 분석하고(일기는 가리지 않은 원문 그대로) 같은 행을 덮어써요. 분석에 실패하면 이전에 저장한 분석은 그대로 남아요.
  * 같은 시점의 분석이 동시에 여러 번 요청되면 하나만 하고 나머지는 그 결과를 기다려요(AI 호출과 비용이 겹치지 않게요).
  * 오래 걸려서 호출하는 쪽(POST /chats의 PREPARING)이 뒤에서 부르고, 단계는 progress로 알려줘요.
  */
@@ -57,18 +56,16 @@ public class PersonaAnalysisService {
 	private final PersonaAnalysisRepository analyses;
 	private final PersonaAnalyzer analyzer;
 	private final CryptoService crypto;
-	private final SensitiveMasker masker;
 	private final AiProperties aiProperties;
 	private final TransactionTemplate tx;
 	private final ConcurrentHashMap<String, CompletableFuture<Result>> inFlight = new ConcurrentHashMap<>();
 
 	public PersonaAnalysisService(PersonaCollector collector, PersonaAnalysisRepository analyses, PersonaAnalyzer analyzer,
-		CryptoService crypto, SensitiveMasker masker, AiProperties aiProperties, TransactionTemplate tx) {
+		CryptoService crypto, AiProperties aiProperties, TransactionTemplate tx) {
 		this.collector = collector;
 		this.analyses = analyses;
 		this.analyzer = analyzer;
 		this.crypto = crypto;
-		this.masker = masker;
 		this.aiProperties = aiProperties;
 		this.tx = tx;
 	}
@@ -139,7 +136,7 @@ public class PersonaAnalysisService {
 		PersonaRange range = input.range();
 		progress.accept(Step.ANALYZE);
 		List<DiaryView> diaries = input.diaries().stream()
-			.map(d -> new DiaryView(d.date(), d.emotions(), masker.mask(d.content()).text())).toList();
+			.map(d -> new DiaryView(d.date(), d.emotions(), d.content())).toList();
 		List<WeekView> weeks = input.weeks().stream().map(w -> weekView(range.scope(), w)).toList();
 		List<DatedText> raw = rawLines(input);
 

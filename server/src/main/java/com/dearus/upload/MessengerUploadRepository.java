@@ -35,4 +35,12 @@ public interface MessengerUploadRepository extends JpaRepository<MessengerUpload
 	@Modifying(flushAutomatically = true)
 	@Query("delete from MessengerUpload u where u.userId = :userId")
 	int deleteAllByUserId(@Param("userId") UUID userId);
+
+	/**
+	 * 보관 기간(업로드 1년 뒤, expires_at)이 지난 업로드를 한 번에 지워요. 내 말 원문(original_enc)은 같은 행이라 함께 지워지고,
+	 * 주간 요약은 DB의 ON DELETE CASCADE로 함께 지워져요. 상태(DONE · FAILED · PROCESSING)와 상관없이 지워요.
+	 */
+	@Modifying(flushAutomatically = true)
+	@Query("delete from MessengerUpload u where u.expiresAt <= :now")
+	int deleteExpired(@Param("now") OffsetDateTime now);
 }

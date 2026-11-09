@@ -23,7 +23,6 @@ import com.dearus.persona.PersonaAnalysisService;
 import com.dearus.persona.PersonaContent;
 import com.dearus.persona.PersonaScope;
 import com.dearus.persona.RecordLevel;
-import com.dearus.upload.SensitiveMasker;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -43,7 +42,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-/** DB · 실제 AI 없이 대화 보내기의 규칙(검증 · 잠금 · 저장 · 실패 · 위기 신호 · 마스킹)을 확인해요. */
+/** DB · 실제 AI 없이 대화 보내기의 규칙(검증 · 잠금 · 저장 · 실패 · 위기 신호 · 원문 그대로 보내기)을 확인해요. */
 class ChatReplyServiceTest {
 
 	private final ChatSessionRepository sessions = mock(ChatSessionRepository.class);
@@ -97,7 +96,7 @@ class ChatReplyServiceTest {
 			onText.accept("그래?");
 			return new AiResult("어, 그래?", 12, 3);
 		});
-		service = new ChatReplyService(sessions, messages, users, persona, new ChatPromptBuilder(new SensitiveMasker()), new RuleSafetyDetector(),
+		service = new ChatReplyService(sessions, messages, users, persona, new ChatPromptBuilder(), new RuleSafetyDetector(),
 			safetyProperties, ai, new TransactionTemplate(mock(PlatformTransactionManager.class)));
 	}
 
@@ -273,14 +272,14 @@ class ChatReplyServiceTest {
 	}
 
 	@Test
-	void AI에는_가린_글자를_보내고_저장은_원문으로_해요() {
+	void AI에도_저장에도_가리지_않은_원문을_써요() {
 		ChatReplyService.Prepared prepared = service.prepare(userId, chatId, "내 번호는 010-1234-5678이야");
 		ArgumentCaptor<AiRequest> captor = ArgumentCaptor.forClass(AiRequest.class);
 
 		service.run(prepared, ChatReplyService.Sink.NONE);
 
 		verify(ai).stream(captor.capture(), any());
-		assertThat(captor.getValue().messages().get(captor.getValue().messages().size() - 1).text()).isEqualTo("내 번호는 [전화번호]이야");
+		assertThat(captor.getValue().messages().get(captor.getValue().messages().size() - 1).text()).isEqualTo("내 번호는 010-1234-5678이야");
 		assertThat(store.stream().filter(m -> m.getRole() == ChatRole.USER).findFirst().orElseThrow().getContent()).isEqualTo("내 번호는 010-1234-5678이야");
 	}
 

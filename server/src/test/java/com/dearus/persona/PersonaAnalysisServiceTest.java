@@ -28,7 +28,6 @@ import com.dearus.persona.PersonaInput.OriginalEntry;
 import com.dearus.persona.PersonaInput.WeekEntry;
 import com.dearus.common.Weeks;
 import com.dearus.upload.MessengerOriginal;
-import com.dearus.upload.SensitiveMasker;
 import com.dearus.upload.WeeklySummarizer.DatedText;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -50,7 +49,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/** DB · 실제 AI 없이 시점 분석의 규칙(재사용 · 덮어쓰기 · 가림 · 동시 요청 · 실패)을 확인해요. */
+/** DB · 실제 AI 없이 시점 분석의 규칙(재사용 · 덮어쓰기 · 원문 그대로 보내기 · 동시 요청 · 실패)을 확인해요. */
 class PersonaAnalysisServiceTest {
 
 	private final PersonaCollector collector = mock(PersonaCollector.class);
@@ -88,7 +87,7 @@ class PersonaAnalysisServiceTest {
 	}
 
 	private PersonaAnalysisService newService(AiProperties properties) {
-		return new PersonaAnalysisService(collector, analyses, new PersonaAnalyzer(ai), crypto, new SensitiveMasker(), properties,
+		return new PersonaAnalysisService(collector, analyses, new PersonaAnalyzer(ai), crypto, properties,
 			new TransactionTemplate(mock(PlatformTransactionManager.class)));
 	}
 
@@ -233,13 +232,13 @@ class PersonaAnalysisServiceTest {
 	}
 
 	@Test
-	void 일기는_가린_뒤에_AI로_보내요() {
+	void 일기는_가리지_않고_원문_그대로_AI로_보내요() {
 		current = input(PersonaScope.AROUND, List.of(diary("내 번호 010-1234-5678 이야", 1)), List.of());
 
 		run(PersonaScope.AROUND, new ArrayList<>());
 
 		String sent = aiRequests.get(0).messages().get(0).text();
-		assertThat(sent).contains("[전화번호]").doesNotContain("010-1234-5678");
+		assertThat(sent).contains("010-1234-5678").doesNotContain("[전화번호]");
 	}
 
 	@Test

@@ -30,7 +30,6 @@ import com.dearus.persona.PersonaAnalysisService;
 import com.dearus.persona.PersonaContent;
 import com.dearus.persona.PersonaScope;
 import com.dearus.persona.RecordLevel;
-import com.dearus.upload.SensitiveMasker;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -50,7 +49,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/** DB · 실제 AI 없이 대화 끝내기와 리포트의 규칙(검증 · 잠금 · 상태 전환 · 재시도 · 마스킹)을 확인해요. */
+/** DB · 실제 AI 없이 대화 끝내기와 리포트의 규칙(검증 · 잠금 · 상태 전환 · 재시도 · 원문 그대로 보내기)을 확인해요. */
 class ReportServiceTest {
 
 	private static final String GOOD_JSON = "{\"pastConcern\": \"그때 고민\", \"presentChange\": \"지금 변화\", \"oneLineSummary\": \"한 줄 요약\"}";
@@ -113,7 +112,7 @@ class ReportServiceTest {
 			}
 			queued.add(task);
 		};
-		service = new ReportService(sessions, messages, users, reports, personas, new ReportGenerator(ai), new SensitiveMasker(), replies,
+		service = new ReportService(sessions, messages, users, reports, personas, new ReportGenerator(ai), replies,
 			new TransactionTemplate(mock(PlatformTransactionManager.class)), executor);
 	}
 
@@ -316,7 +315,7 @@ class ReportServiceTest {
 	}
 
 	@Test
-	void AI로_가는_내_말은_가리고_과거의_나의_말은_그대로_보내요() {
+	void AI로_가는_내_말도_과거의_나의_말도_가리지_않고_그대로_보내요() {
 		add(1, ChatRole.PERSONA, "연락처 알려줄래?", 0);
 		add(2, ChatRole.USER, "내 번호는 010-1234-5678이야", 1);
 		add(3, ChatRole.PERSONA, "고마워 ㅋㅋ", 2);
@@ -329,7 +328,7 @@ class ReportServiceTest {
 		ArgumentCaptor<AiRequest> request = ArgumentCaptor.forClass(AiRequest.class);
 		verify(ai).complete(request.capture());
 		String sent = request.getValue().messages().get(0).text();
-		assertThat(sent).contains("[전화번호]").contains("[이메일]").doesNotContain("010-1234-5678").doesNotContain("a@b.com");
+		assertThat(sent).contains("010-1234-5678").contains("a@b.com").doesNotContain("[전화번호]").doesNotContain("[이메일]");
 		assertThat(sent).contains("<turn speaker=\"past\">연락처 알려줄래?</turn>").contains("<turn speaker=\"past\">고마워 ㅋㅋ</turn>");
 		assertThat(sent).contains("고민: 진로 고민"); // 그 시점의 분석도 같이 가요
 	}

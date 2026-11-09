@@ -4,7 +4,7 @@ import java.util.function.Consumer;
 
 /**
  * 서버가 AI를 부르는 유일한 입구예요. 회사나 모델이 바뀌어도 이 인터페이스를 쓰는 코드는 그대로라서,
- * 구현(`AnthropicAiClient` 등)만 바꾸면 돼요. 호출 전에 동의 확인과 마스킹을 마쳤다는 약속 위에서 불러요.
+ * 구현(`AnthropicAiClient` 등)만 바꾸면 돼요. 호출 전에 AI 분석 동의를 확인했다는 약속 위에서 불러요(글자는 가리지 않아요, 2026.11.8 결정).
  */
 public interface AiClient {
 
