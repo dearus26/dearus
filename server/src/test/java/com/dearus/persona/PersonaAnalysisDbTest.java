@@ -14,11 +14,13 @@ import com.dearus.diary.Diary;
 import com.dearus.diary.DiaryRepository;
 import com.dearus.diary.Emotion;
 import com.dearus.persona.PersonaAnalysisService.Result;
+import com.dearus.upload.MessengerOriginal;
 import com.dearus.upload.MessengerSource;
 import com.dearus.upload.MessengerUpload;
 import com.dearus.upload.MessengerUploadRepository;
 import com.dearus.upload.MessengerWeeklySummary;
 import com.dearus.upload.MessengerWeeklySummaryRepository;
+import com.dearus.upload.WeeklySummarizer.DatedText;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -29,6 +31,7 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 진짜 DB(server/.env의 Supabase)에 저장 · 조회 · 덮어쓰기 · 철회 삭제가 되는지 확인하는 시험이에요.
@@ -50,6 +53,8 @@ class PersonaAnalysisDbTest {
 	@Autowired ConsentService consent;
 	@Autowired ConsentPurgeJob purge;
 	@Autowired CryptoService crypto;
+	@Autowired PersonaCollector collector;
+	@Autowired TransactionTemplate tx;
 
 	@Test
 	void 분석을_저장하고_재사용하고_덮어쓰고_철회_뒤_30일이_지나면_지워요() {
@@ -62,11 +67,27 @@ class PersonaAnalysisDbTest {
 			for (int i = 0; i < 3; i++) {
 				written.add(diaries.saveAndFlush(Diary.create(userId, anchor.plusDays(i), "일기 " + i + " 내 번호 010-1234-5678", Set.of(Emotion.TIRED))));
 			}
-			MessengerUpload upload = MessengerUpload.receive(userId, MessengerSource.KAKAOTALK, 1, 0, 0);
-			upload.complete(anchor, anchor, 0);
+			MessengerUpload upload = MessengerUpload.receive(userId, MessengerSource.KAKAOTALK, 0);
+			upload.complete(anchor, anchor);
 			upload = uploads.saveAndFlush(upload);
 			summaries.saveAndFlush(MessengerWeeklySummary.create(upload.getId(), anchor, crypto.encrypt("요약"), crypto.encrypt("짧은 반말"),
 				crypto.encrypt("[\"오늘 피곤\"]"), upload.getExpiresAt()));
+			// 내 말 원문(V7의 original_enc)은 엔티티에 매핑하지 않아서 전용 쿼리로 쓰고 읽어요
+			UUID uploadId = upload.getId();
+			assertThat(uploads.findOriginal(uploadId)).isNull(); // 요약 전에는 비어 있어요
+			byte[] originalEnc = crypto.encrypt(MessengerOriginal.toJson(List.of(
+				new DatedText(anchor, "월요일 한 말"), new DatedText(anchor.plusDays(1), "화요일 한 말"))));
+			tx.executeWithoutResult(status -> uploads.storeOriginal(uploadId, originalEnc));
+			assertThat(MessengerOriginal.fromJson(crypto.decrypt(uploads.findOriginal(uploadId))))
+				.extracting(DatedText::text).containsExactly("월요일 한 말", "화요일 한 말");
+			assertThat(uploads.findById(uploadId).orElseThrow().getStatus()).isEqualTo(upload.getStatus()); // 다른 컬럼은 그대로
+
+			// 시점 분석은 고른 주의 업로드 원문을 모아요. 하루 단위는 그날의 말만 써요
+			PersonaInput aroundInput = collector.collect(userId, PersonaRange.of(PersonaScope.AROUND, anchor, Kst.today()));
+			assertThat(aroundInput.originals()).extracting(PersonaInput.OriginalEntry::uploadId).containsExactly(uploadId);
+			assertThat(service.rawLines(aroundInput)).extracting(DatedText::text).containsExactly("월요일 한 말", "화요일 한 말");
+			PersonaInput dayInput = collector.collect(userId, PersonaRange.of(PersonaScope.DAY, anchor, Kst.today()));
+			assertThat(service.rawLines(dayInput)).extracting(DatedText::text).containsExactly("월요일 한 말");
 
 			// 고른 구간의 기록량(DB에서 모아요): 일기 3건 + 겹치는 메신저 1주
 			PersonaWindowResponse window = windows.window(userId, PersonaScope.AROUND, anchor);
@@ -82,7 +103,7 @@ class PersonaAnalysisDbTest {
 			List<PersonaAnalysisService.Step> steps = new ArrayList<>();
 			Result first = service.getOrCreate(userId, PersonaScope.AROUND, anchor, steps::add).orElseThrow();
 			assertThat(first.reused()).isFalse();
-			assertThat(steps).containsExactly(PersonaAnalysisService.Step.COLLECT, PersonaAnalysisService.Step.MASK,
+			assertThat(steps).containsExactly(PersonaAnalysisService.Step.COLLECT,
 				PersonaAnalysisService.Step.ANALYZE, PersonaAnalysisService.Step.BUILD);
 			PersonaAnalysis row = analyses.findById(first.analysisId()).orElseThrow();
 			assertThat(row.getWindowDays()).isEqualTo((short) 14);
@@ -134,6 +155,7 @@ class PersonaAnalysisDbTest {
 			assertThat(analyses.findById(dayResult.analysisId())).isEmpty();
 			assertThat(uploads.findByUserIdOrderByUploadedAtDesc(userId)).isEmpty();
 			assertThat(summaries.findByUploadIdOrderByWeekStartAsc(upload.getId())).isEmpty();
+			assertThat(uploads.findOriginal(uploadId)).isNull(); // 원문도 업로드 행과 함께 지워졌어요
 			assertThat(diaries.findByUserIdAndDiaryDateBetweenOrderByDiaryDateAsc(userId, anchor, anchor.plusDays(2))).hasSize(3);
 		} finally {
 			users.deleteById(userId); // 일기 · 업로드 · 요약 · 분석이 ON DELETE CASCADE로 함께 지워져요

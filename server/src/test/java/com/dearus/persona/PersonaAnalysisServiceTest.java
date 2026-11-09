@@ -24,13 +24,18 @@ import com.dearus.diary.Emotion;
 import com.dearus.persona.PersonaAnalysisService.Result;
 import com.dearus.persona.PersonaAnalysisService.Step;
 import com.dearus.persona.PersonaInput.DiaryEntry;
+import com.dearus.persona.PersonaInput.OriginalEntry;
 import com.dearus.persona.PersonaInput.WeekEntry;
+import com.dearus.common.Weeks;
+import com.dearus.upload.MessengerOriginal;
 import com.dearus.upload.SensitiveMasker;
+import com.dearus.upload.WeeklySummarizer.DatedText;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -121,13 +126,48 @@ class PersonaAnalysisServiceTest {
 		verify(ai, never()).complete(any());
 	}
 
+	private OriginalEntry original(LocalDate weekStart, DatedText... lines) {
+		return new OriginalEntry(UUID.randomUUID(), Set.of(weekStart),
+			crypto.encrypt(MessengerOriginal.toJson(List.of(lines))));
+	}
+
+	@Test
+	void 메신저_원문은_구간_안이고_그_업로드에서_고른_주의_말만_AI로_보내요() {
+		PersonaRange range = PersonaRange.of(PersonaScope.AROUND, anchor, Kst.today());
+		LocalDate inWeek = Weeks.startOf(anchor);
+		current = new PersonaInput(range, List.of(diary("시험이 걱정돼", 1)), List.of(), List.of(
+			original(inWeek,
+				new DatedText(anchor, "구간 안 내 말"),
+				new DatedText(range.start().minusDays(1), "구간 밖 말"),
+				new DatedText(anchor.plusDays(7), "고르지 않은 주의 말"))));
+
+		run(PersonaScope.AROUND, new ArrayList<>());
+
+		String prompt = aiRequests.get(0).messages().get(0).text();
+		// 7일 뒤는 언제나 다음 주라서, 구간 안이어도 이 업로드에서 고른 주가 아니면 빼요
+		assertThat(prompt).contains("구간 안 내 말").doesNotContain("고르지 않은 주의 말").doesNotContain("구간 밖 말");
+	}
+
+	@Test
+	void 하루_단위는_그날의_메신저_원문만_보내요() {
+		current = new PersonaInput(PersonaRange.of(PersonaScope.DAY, anchor, Kst.today()), List.of(diary("오늘 일기", 0)), List.of(),
+			List.of(original(Weeks.startOf(anchor),
+				new DatedText(anchor, "그날 한 말"),
+				new DatedText(anchor.plusDays(1), "다음 날 한 말"))));
+
+		run(PersonaScope.DAY, new ArrayList<>());
+
+		String prompt = aiRequests.get(0).messages().get(0).text();
+		assertThat(prompt).contains("그날 한 말").doesNotContain("다음 날 한 말");
+	}
+
 	@Test
 	void 처음에는_AI로_분석해서_암호화해_저장하고_단계를_알려줘요() {
 		List<Step> steps = new ArrayList<>();
 
 		Result result = run(PersonaScope.AROUND, steps).orElseThrow();
 
-		assertThat(steps).containsExactly(Step.COLLECT, Step.MASK, Step.ANALYZE, Step.BUILD);
+		assertThat(steps).containsExactly(Step.COLLECT, Step.ANALYZE, Step.BUILD);
 		assertThat(result.reused()).isFalse();
 		assertThat(result.content().voice()).isEqualTo("짧은 반말을 써요.");
 		assertThat(result.analysisId()).isEqualTo(stored.getId());

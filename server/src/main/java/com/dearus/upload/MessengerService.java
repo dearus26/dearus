@@ -26,8 +26,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 메신저 업로드(가린 글자)를 받아요. 받은 글자는 서버에서 한 번 더 가리고 주 단위로 묶은 뒤, 요약은 백그라운드에서 해요.
- * 글자는 이 클래스 안에서 메모리에만 있다가 요약 작업(MessengerSummaryJob)으로 넘어가고, DB에는 한 번도 쓰지 않아요.
+ * 메신저 업로드(txt에서 앱이 추린 내 말)를 받아요. 글자는 가리지 않고(2026.11.8 결정) 주 단위로 묶은 뒤, 요약은 백그라운드에서 해요.
+ * 요약이 모두 끝나 DONE이 될 때 내 말 원문을 암호화해 업로드 행에 1년 보관해요(MessengerSummaryJob). 실패하면 원문도 남기지 않아요.
  */
 @Service
 public class MessengerService {
@@ -44,16 +44,14 @@ public class MessengerService {
 	private final UserRepository users;
 	private final MessengerUploadRepository uploads;
 	private final MessengerWeeklySummaryRepository summaries;
-	private final SensitiveMasker masker;
 	private final MessengerSummaryJob job;
 	private final Executor executor;
 
 	public MessengerService(UserRepository users, MessengerUploadRepository uploads, MessengerWeeklySummaryRepository summaries,
-		SensitiveMasker masker, MessengerSummaryJob job, @Qualifier("messengerExecutor") Executor executor) {
+		MessengerSummaryJob job, @Qualifier("messengerExecutor") Executor executor) {
 		this.users = users;
 		this.uploads = uploads;
 		this.summaries = summaries;
-		this.masker = masker;
 		this.job = job;
 		this.executor = executor;
 	}
@@ -67,8 +65,8 @@ public class MessengerService {
 		if (!user.aiConsentActive()) {
 			throw new ApiException(HttpStatus.FORBIDDEN, "AI_CONSENT_REQUIRED", "AI 분석에 동의해야 쓸 수 있어요.");
 		}
-		if (request.userMaskedCount() > request.maskedCount()) {
-			throw ApiException.validation("userMaskedCount", "maskedCount보다 클 수 없어요");
+		if (request.source() != MessengerSource.KAKAOTALK) {
+			throw ApiException.validation("source", "지금은 카카오톡만 올릴 수 있어요");
 		}
 
 		LocalDate today = Kst.today();
@@ -83,16 +81,13 @@ public class MessengerService {
 			throw payloadTooLarge();
 		}
 
-		// 가리고, 주(월요일 시작) 단위로 묶어요. 글자는 여기서부터 메모리에만 있어요.
+		// 주(월요일 시작) 단위로 묶어요. 같은 날 안에서는 받은 순서를 지켜요(정렬이 안정적이에요).
 		Map<LocalDate, List<DatedText>> byWeek = new TreeMap<>();
-		int serverMasked = 0;
 		LocalDate first = null;
 		LocalDate last = null;
 		for (MessengerMessage message : request.messages()) {
-			SensitiveMasker.Result masked = masker.mask(message.text());
-			serverMasked += masked.count();
 			byWeek.computeIfAbsent(weekStart(message.date()), k -> new ArrayList<>())
-				.add(new DatedText(message.date(), masked.text().strip()));
+				.add(new DatedText(message.date(), message.text().strip()));
 			if (first == null || message.date().isBefore(first)) {
 				first = message.date();
 			}
@@ -114,14 +109,12 @@ public class MessengerService {
 			throw new ApiException(HttpStatus.CONFLICT, "UPLOAD_IN_PROGRESS", "이전에 올린 대화를 아직 분석하고 있어요. 끝난 뒤에 다시 올려 주세요.");
 		}
 
-		MessengerUpload upload = uploads.saveAndFlush(MessengerUpload.receive(
-			userId, request.source(), request.photoCount(), request.maskedCount(), request.userMaskedCount()));
+		MessengerUpload upload = uploads.saveAndFlush(MessengerUpload.receive(userId, request.source(), 0));
 		UUID uploadId = upload.getId();
 		LocalDate periodStart = first;
 		LocalDate periodEnd = last;
-		int serverMaskedCount = serverMasked;
 		try {
-			executor.execute(() -> job.run(uploadId, weeks, serverMaskedCount, periodStart, periodEnd));
+			executor.execute(() -> job.run(uploadId, weeks, periodStart, periodEnd));
 		} catch (RejectedExecutionException e) {
 			log.error("요약 작업을 시작하지 못했어요 uploadId={}", uploadId, e);
 			upload.fail("INTERNAL_ERROR");
@@ -141,7 +134,7 @@ public class MessengerService {
 		return toResponse(uploads.findByIdAndUserId(uploadId, userId).orElseThrow(ApiException::notFound));
 	}
 
-	/** 이 업로드와 거기서 만든 주간 요약을 모두 지워요 (요약은 DB의 ON DELETE CASCADE). */
+	/** 이 업로드(내 말 원문 포함)와 거기서 만든 주간 요약을 모두 지워요 (요약은 DB의 ON DELETE CASCADE). */
 	@Transactional
 	public void delete(UUID userId, UUID uploadId) {
 		uploads.delete(uploads.findByIdAndUserId(uploadId, userId).orElseThrow(ApiException::notFound));
