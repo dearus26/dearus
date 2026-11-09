@@ -32,7 +32,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/** DB · 실제 AI 없이 메신저 업로드의 규칙(동의 · 검증 · 가림 · 주 묶기 · 성공 · 실패)을 확인해요. */
+/** DB · 실제 AI 없이 메신저 업로드의 규칙(동의 · 검증 · 주 묶기 · 원문 저장 · 성공 · 실패)을 확인해요. */
 class MessengerServiceTest {
 
 	private static final String GOOD = "{\"summary\":\"이번 주 요약\",\"traits\":\"말투 분석\",\"sample\":[\"문장 하나\"]}";
@@ -73,11 +73,11 @@ class MessengerServiceTest {
 		Executor direct = Runnable::run; // 뒤에서 하는 일을 테스트에서는 바로 실행해요
 		TransactionTemplate tx = new TransactionTemplate(mock(PlatformTransactionManager.class));
 		MessengerSummaryJob job = new MessengerSummaryJob(new WeeklySummarizer(ai), crypto, uploads, summaries, tx, direct);
-		service = new MessengerService(users, uploads, summaries, new SensitiveMasker(), job, direct);
+		service = new MessengerService(users, uploads, summaries, job, direct);
 	}
 
 	private MessengerUploadRequest request(MessengerMessage... messages) {
-		return new MessengerUploadRequest(MessengerSource.KAKAOTALK, true, 3, 5, 2, List.of(messages));
+		return new MessengerUploadRequest(MessengerSource.KAKAOTALK, true, List.of(messages));
 	}
 
 	private MessengerMessage msg(String date, String text) {
@@ -95,7 +95,7 @@ class MessengerServiceTest {
 
 	@Test
 	void 동의_체크가_없으면_400_CONSENT_REQUIRED예요() {
-		var request = new MessengerUploadRequest(MessengerSource.KAKAOTALK, false, 1, 0, 0, List.of(msg("2026-09-28", "안녕")));
+		var request = new MessengerUploadRequest(MessengerSource.KAKAOTALK, false, List.of(msg("2026-09-28", "안녕")));
 
 		ApiException e = apiError(() -> service.accept(userId, request));
 
@@ -119,12 +119,13 @@ class MessengerServiceTest {
 	}
 
 	@Test
-	void 직접_가린_건수가_전체보다_크면_400이에요() {
-		var request = new MessengerUploadRequest(MessengerSource.KAKAOTALK, true, 1, 2, 3, List.of(msg("2026-09-28", "안녕")));
+	void 카카오톡이_아니면_400이에요() {
+		var request = new MessengerUploadRequest(MessengerSource.DISCORD, true, List.of(msg("2026-09-28", "안녕")));
 
 		ApiException e = apiError(() -> service.accept(userId, request));
 
 		assertThat(e.getCode()).isEqualTo("VALIDATION_FAILED");
+		verify(uploads, never()).saveAndFlush(any());
 	}
 
 	@Test
@@ -141,7 +142,7 @@ class MessengerServiceTest {
 		for (int i = 0; i < 400; i++) {
 			big.add(msg("2026-09-28", "가".repeat(1000))); // 한글은 3바이트라서 400 x 3000 = 1.2MB
 		}
-		var request = new MessengerUploadRequest(MessengerSource.KAKAOTALK, true, 1, 0, 0, big);
+		var request = new MessengerUploadRequest(MessengerSource.KAKAOTALK, true, big);
 
 		ApiException e = apiError(() -> service.accept(userId, request));
 
@@ -155,7 +156,7 @@ class MessengerServiceTest {
 		for (int i = 0; i < 61; i++) {
 			many.add(new MessengerMessage(monday.plusWeeks(i), "글"));
 		}
-		var request = new MessengerUploadRequest(MessengerSource.KAKAOTALK, true, 1, 0, 0, many);
+		var request = new MessengerUploadRequest(MessengerSource.KAKAOTALK, true, many);
 
 		ApiException e = apiError(() -> service.accept(userId, request));
 
@@ -174,7 +175,7 @@ class MessengerServiceTest {
 	}
 
 	@Test
-	void 받은_글자를_다시_가리고_주_단위로_묶어_요약해서_암호화해_저장해요() {
+	void 받은_글자를_가리지_않고_주_단위로_묶어_요약하고_원문과_함께_암호화해_저장해요() {
 		// 2026-09-28(월) ~ 10-04(일)가 한 주, 10-05(월)부터 다음 주
 		MessengerUploadResponse response = service.accept(userId, request(
 			msg("2026-10-05", "내 번호 010-1234-5678 이야"),
@@ -184,11 +185,17 @@ class MessengerServiceTest {
 
 		// 접수 응답은 아직 PROCESSING이 아니라 직접 실행해서 DONE이 되었지만, 응답 객체는 접수 시점의 값이에요
 		assertThat(response.id()).isEqualTo(uploadId);
-		assertThat(response.photoCount()).isEqualTo(3);
+		assertThat(response.format()).isEqualTo(MessengerFormat.TXT);
+		assertThat(response.photoCount()).isZero();
 		assertThat(saved.getStatus()).isEqualTo(MessengerStatus.DONE);
 		assertThat(saved.getPeriodStart()).isEqualTo(LocalDate.of(2026, 9, 28));
 		assertThat(saved.getPeriodEnd()).isEqualTo(LocalDate.of(2026, 10, 5));
-		assertThat(saved.getServerMaskedCount()).isEqualTo(1);
+
+		// 내 말 원문은 날짜 순으로 암호화돼 업로드 행에 저장돼요
+		ArgumentCaptor<byte[]> original = ArgumentCaptor.forClass(byte[].class);
+		verify(uploads).storeOriginal(org.mockito.ArgumentMatchers.eq(uploadId), original.capture());
+		assertThat(MessengerOriginal.fromJson(crypto.decrypt(original.getValue()))).extracting(WeeklySummarizer.DatedText::text)
+			.containsExactly("월요일이다", "오늘 피곤", "일요일 ㅋㅋ", "내 번호 010-1234-5678 이야");
 
 		// 주마다 AI를 한 번씩, 첫 주 → 둘째 주 순서로 불러요
 		assertThat(aiRequests).hasSize(2);
@@ -196,8 +203,8 @@ class MessengerServiceTest {
 		String secondWeek = aiRequests.get(1).messages().get(0).text();
 		assertThat(firstWeek).contains("week=\"2026-09-28\"").contains("09-28 월요일이다").contains("09-30 오늘 피곤").contains("10-04 일요일");
 		assertThat(firstWeek.indexOf("09-28")).isLessThan(firstWeek.indexOf("09-30"));
-		// 전화번호는 AI로 가기 전에 가려져요
-		assertThat(secondWeek).contains("week=\"2026-10-05\"").contains("[전화번호]").doesNotContain("010-1234-5678");
+		// 글자는 가리지 않아요(2026.11.8 결정)
+		assertThat(secondWeek).contains("week=\"2026-10-05\"").contains("010-1234-5678");
 
 		// 요약은 암호화돼서 저장되고, 풀면 원래 글이에요
 		assertThat(savedSummaries).hasSize(2);
@@ -219,6 +226,7 @@ class MessengerServiceTest {
 		assertThat(saved.getStatus()).isEqualTo(MessengerStatus.FAILED);
 		assertThat(saved.getFailureCode()).isEqualTo("AI_UNAVAILABLE");
 		assertThat(savedSummaries).isEmpty();
+		verify(uploads, never()).storeOriginal(any(), any()); // 실패하면 원문도 남기지 않아요
 	}
 
 	@Test
@@ -257,7 +265,7 @@ class MessengerServiceTest {
 
 	@Test
 	void 요약이_10분_넘게_끝나지_않으면_조회할_때_FAILED로_바꿔요() {
-		MessengerUpload stale = MessengerUpload.receive(userId, MessengerSource.KAKAOTALK, 1, 0, 0);
+		MessengerUpload stale = MessengerUpload.receive(userId, MessengerSource.KAKAOTALK, 0);
 		ReflectionTestUtils.setField(stale, "id", uploadId);
 		ReflectionTestUtils.setField(stale, "uploadedAt", Kst.now().minusMinutes(11));
 		when(uploads.findByIdAndUserId(uploadId, userId)).thenReturn(Optional.of(stale));

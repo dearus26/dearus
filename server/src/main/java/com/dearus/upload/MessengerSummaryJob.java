@@ -2,6 +2,7 @@ package com.dearus.upload;
 
 import com.dearus.common.CryptoService;
 import com.dearus.common.ai.AiException;
+import com.dearus.upload.WeeklySummarizer.DatedText;
 import com.dearus.upload.WeeklySummarizer.SummaryParts;
 import com.dearus.upload.WeeklySummarizer.WeekMessages;
 import java.time.LocalDate;
@@ -18,9 +19,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 받은 글자를 주 단위로 요약해서 암호화해 저장하는 일이에요. 글자는 이 메서드의 인자(메모리)에만 있고 DB에 쓰지 않아요.
- * 성공하든 실패하든 끝나면 글자를 담은 객체를 아무도 잡고 있지 않아서 곧 사라져요.
- * 일부 주만 성공한 채로 저장하지 않고, 하나라도 실패하면 전체를 FAILED로 바꿔요(앱이 같은 글자를 다시 보내요).
+ * 받은 글자를 주 단위로 요약해서 암호화해 저장하는 일이에요. 모든 주의 요약이 끝나면 요약과 내 말 원문(암호화)을
+ * 한 트랜잭션에서 저장하고 DONE으로 바꿔요(원문은 업로드와 함께 1년 보관해요).
+ * 일부 주만 성공한 채로 저장하지 않고, 하나라도 실패하면 전체를 FAILED로 바꾸고 원문도 남기지 않아요(앱이 같은 글자를 다시 보내요).
  * 로그에는 글자도 요약도 남기지 않고 업로드 ID와 개수만 남겨요.
  */
 @Component
@@ -45,10 +46,10 @@ public class MessengerSummaryJob {
 		this.aiCalls = aiCalls;
 	}
 
-	public void run(UUID uploadId, List<WeekMessages> weeks, int serverMaskedCount, LocalDate periodStart, LocalDate periodEnd) {
+	public void run(UUID uploadId, List<WeekMessages> weeks, LocalDate periodStart, LocalDate periodEnd) {
 		try {
 			List<SummaryParts> results = summarizeAll(weeks);
-			tx.executeWithoutResult(status -> save(uploadId, weeks, results, serverMaskedCount, periodStart, periodEnd));
+			tx.executeWithoutResult(status -> save(uploadId, weeks, results, periodStart, periodEnd));
 		} catch (AiException e) {
 			// e.getMessage()는 종류와 HTTP 상태만 담고 사용자의 글은 담지 않아요
 			log.warn("메신저 요약 실패 uploadId={} reason={} detail={}", uploadId, e.reason(), e.getMessage());
@@ -82,8 +83,8 @@ public class MessengerSummaryJob {
 		return results;
 	}
 
-	private void save(UUID uploadId, List<WeekMessages> weeks, List<SummaryParts> results, int serverMaskedCount,
-		LocalDate periodStart, LocalDate periodEnd) {
+	private void save(UUID uploadId, List<WeekMessages> weeks, List<SummaryParts> results, LocalDate periodStart,
+		LocalDate periodEnd) {
 		// 요약하는 동안 사용자가 지웠거나 동의를 철회했으면 저장하지 않아요
 		MessengerUpload upload = uploads.findById(uploadId).orElse(null);
 		if (upload == null) {
@@ -100,7 +101,9 @@ public class MessengerSummaryJob {
 				crypto.encrypt(WeeklySummarizer.samplesJson(parts.samples())),
 				upload.getExpiresAt()));
 		}
-		upload.complete(periodStart, periodEnd, serverMaskedCount);
+		List<DatedText> original = weeks.stream().flatMap(week -> week.lines().stream()).toList();
+		uploads.storeOriginal(uploadId, crypto.encrypt(MessengerOriginal.toJson(original)));
+		upload.complete(periodStart, periodEnd);
 		uploads.save(upload);
 		log.info("메신저 요약 완료 uploadId={} weeks={}", uploadId, weeks.size());
 	}

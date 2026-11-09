@@ -2,17 +2,23 @@ package com.dearus.persona;
 
 import com.dearus.common.CryptoService;
 import com.dearus.common.Kst;
+import com.dearus.common.Weeks;
 import com.dearus.common.ai.AiProperties;
 import com.dearus.persona.PersonaAnalyzer.DiaryView;
 import com.dearus.persona.PersonaAnalyzer.Prompt;
 import com.dearus.persona.PersonaAnalyzer.WeekView;
 import com.dearus.persona.PersonaInput.DiaryEntry;
+import com.dearus.persona.PersonaInput.OriginalEntry;
 import com.dearus.persona.PersonaInput.WeekEntry;
+import com.dearus.upload.MessengerOriginal;
 import com.dearus.upload.SensitiveMasker;
+import com.dearus.upload.WeeklySummarizer.DatedText;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
@@ -40,7 +46,7 @@ public class PersonaAnalysisService {
 
 	/** PREPARING 화면의 단계(API 명세의 preparingStep)예요. */
 	public enum Step {
-		COLLECT, MASK, ANALYZE, BUILD
+		COLLECT, ANALYZE, BUILD
 	}
 
 	/** content가 분석 결과, analysisId는 저장된 행이고, reused가 true면 AI를 부르지 않았어요. */
@@ -131,18 +137,19 @@ public class PersonaAnalysisService {
 
 	private Result analyze(UUID userId, PersonaInput input, String digest, Consumer<Step> progress) {
 		PersonaRange range = input.range();
-		progress.accept(Step.MASK);
+		progress.accept(Step.ANALYZE);
 		List<DiaryView> diaries = input.diaries().stream()
 			.map(d -> new DiaryView(d.date(), d.emotions(), masker.mask(d.content()).text())).toList();
 		List<WeekView> weeks = input.weeks().stream().map(w -> weekView(range.scope(), w)).toList();
+		List<DatedText> raw = rawLines(input);
 
-		progress.accept(Step.ANALYZE);
-		PersonaContent content = analyzer.analyze(new Prompt(range, diaries, weeks));
+		PersonaContent content = analyzer.analyze(new Prompt(range, diaries, weeks, raw));
 
 		progress.accept(Step.BUILD);
 		byte[] encrypted = crypto.encrypt(content.toJson());
 		UUID id = save(userId, input, digest, encrypted);
-		log.info("시점 분석 완료 userId={} scope={} diaries={} weeks={}", userId, range.scope(), input.diaries().size(), input.weeks().size());
+		log.info("시점 분석 완료 userId={} scope={} diaries={} weeks={} rawLines={}", userId, range.scope(), input.diaries().size(),
+			input.weeks().size(), raw.size());
 		return new Result(content, id, false);
 	}
 
@@ -165,6 +172,25 @@ public class PersonaAnalysisService {
 			return analyses.findByUserIdAndAnchorDateAndWindowDays(userId, range.anchor(), windowDays)
 				.map(PersonaAnalysis::getId).orElseThrow(() -> e);
 		}
+	}
+
+	/**
+	 * 메신저 원문 중 이 구간(start~end)의 말만 골라요. 하루 단위(DAY)는 start = end라서 그날의 말만 들어가요(그날 뒤의 일이 새지 않아요).
+	 * 업로드마다 그 업로드에서 고른 주의 말만 써서, 같은 주를 여러 번 올려도 겹치지 않아요. 글자 수는 MessengerRawPicker가 묶어요.
+	 */
+	List<DatedText> rawLines(PersonaInput input) {
+		PersonaRange range = input.range();
+		List<DatedText> lines = new ArrayList<>();
+		for (OriginalEntry original : input.originals()) {
+			for (DatedText line : MessengerOriginal.fromJson(crypto.decrypt(original.originalEnc()))) {
+				boolean inRange = !line.date().isBefore(range.start()) && !line.date().isAfter(range.end());
+				if (inRange && original.weekStarts().contains(Weeks.startOf(line.date()))) {
+					lines.add(line);
+				}
+			}
+		}
+		lines.sort(Comparator.comparing(DatedText::date)); // 안정 정렬이라 같은 날은 원래 순서예요
+		return MessengerRawPicker.pick(lines, MessengerRawPicker.MAX_CHARS);
 	}
 
 	/** 하루 단위(DAY)는 말투 분석(traits)만 풀고, 전후 2주(AROUND)는 요약 · 말투 · 대표 문장을 모두 풀어요. */

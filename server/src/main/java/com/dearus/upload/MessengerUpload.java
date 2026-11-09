@@ -17,8 +17,10 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * messenger_uploads 테이블 (ERD). 업로드 한 건의 개수와 상태만 담고, 사진이나 글자는 담지 않아요.
+ * messenger_uploads 테이블 (ERD). 업로드 한 건의 형식 · 상태를 담아요. 사진은 담지 않아요.
  * 요약이 끝나면 DONE, 실패하면 FAILED(+ failureCode)예요.
+ * 내 말 원문(original_enc, 암호화)은 이 엔티티에 매핑하지 않아요. 목록을 읽을 때마다 큰 값을 함께 읽지 않으려고
+ * MessengerUploadRepository의 전용 쿼리로만 쓰고 읽어요.
  */
 @Entity
 @Table(name = "messenger_uploads")
@@ -47,6 +49,7 @@ public class MessengerUpload {
 	@Column(name = "failure_code", length = 40)
 	private String failureCode;
 
+	/** 이미지 장수예요. txt로 올리면 0이에요. */
 	@Column(name = "photo_count", nullable = false, updatable = false)
 	private int photoCount;
 
@@ -56,43 +59,36 @@ public class MessengerUpload {
 	@Column(name = "period_end")
 	private LocalDate periodEnd;
 
-	@Column(name = "masked_count", nullable = false, updatable = false)
-	private int maskedCount;
-
-	@Column(name = "user_masked_count", nullable = false, updatable = false)
-	private int userMaskedCount;
-
-	@Column(name = "server_masked_count")
-	private Integer serverMaskedCount;
-
 	@Column(name = "expires_at", nullable = false, updatable = false)
 	private OffsetDateTime expiresAt;
 
-	/** 받은 직후의 업로드예요. 업로드 1년 뒤에 요약이 지워져요. */
-	public static MessengerUpload receive(UUID userId, MessengerSource source, int photoCount, int maskedCount, int userMaskedCount) {
+	/** 받은 직후의 업로드예요. photoCount는 이미지 장수이고 txt는 0이에요. 업로드 1년 뒤에 원문과 요약이 지워져요. */
+	public static MessengerUpload receive(UUID userId, MessengerSource source, int photoCount) {
 		MessengerUpload upload = new MessengerUpload();
 		upload.userId = userId;
 		upload.source = source;
 		upload.uploadedAt = Kst.now();
 		upload.status = MessengerStatus.PROCESSING;
 		upload.photoCount = photoCount;
-		upload.maskedCount = maskedCount;
-		upload.userMaskedCount = userMaskedCount;
 		upload.expiresAt = upload.uploadedAt.plusYears(1);
 		return upload;
 	}
 
-	public void complete(LocalDate periodStart, LocalDate periodEnd, int serverMaskedCount) {
+	public void complete(LocalDate periodStart, LocalDate periodEnd) {
 		this.status = MessengerStatus.DONE;
 		this.failureCode = null;
 		this.periodStart = periodStart;
 		this.periodEnd = periodEnd;
-		this.serverMaskedCount = serverMaskedCount;
 	}
 
 	public void fail(String failureCode) {
 		this.status = MessengerStatus.FAILED;
 		this.failureCode = failureCode;
+	}
+
+	/** 이미지로 올렸는지 txt로 올렸는지 (API의 format). 이미지는 1장 이상이라 0이면 txt예요. */
+	public MessengerFormat format() {
+		return photoCount > 0 ? MessengerFormat.IMAGE : MessengerFormat.TXT;
 	}
 
 	public boolean isProcessing() {

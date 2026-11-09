@@ -8,12 +8,10 @@ import java.util.UUID;
 /** API 명세의 MessengerUpload. weekCount · periodStart · periodEnd는 DONE일 때만 있어요. */
 public record MessengerUploadResponse(
 	UUID id,
+	MessengerFormat format,
 	MessengerStatus status,
 	OffsetDateTime uploadedAt,
 	int photoCount,
-	int maskedCount,
-	int userMaskedCount,
-	Integer serverMaskedCount,
 	LocalDate periodStart,
 	LocalDate periodEnd,
 	Integer weekCount,
@@ -24,12 +22,10 @@ public record MessengerUploadResponse(
 	public static MessengerUploadResponse from(MessengerUpload upload, Integer summaryCount) {
 		return new MessengerUploadResponse(
 			upload.getId(),
+			upload.format(),
 			upload.getStatus(),
 			Kst.toKst(upload.getUploadedAt()),
 			upload.getPhotoCount(),
-			upload.getMaskedCount(),
-			upload.getUserMaskedCount(),
-			upload.getServerMaskedCount(),
 			upload.getPeriodStart(),
 			upload.getPeriodEnd(),
 			upload.getStatus() == MessengerStatus.DONE ? summaryCount : null,
