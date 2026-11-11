@@ -52,6 +52,7 @@ class ChatServiceTest {
 	private final ChatMessageRepository messages = mock(ChatMessageRepository.class);
 	private final DiaryRepository diaries = mock(DiaryRepository.class);
 	private final PersonaAnalysisService persona = mock(PersonaAnalysisService.class);
+	private final com.dearus.couple.CoupleAccess couples = mock(com.dearus.couple.CoupleAccess.class);
 	private final UUID userId = UUID.randomUUID();
 	private final LocalDate anchor = Kst.today().minusDays(30);
 	private final List<ChatSession> sessionStore = new ArrayList<>();
@@ -99,7 +100,9 @@ class ChatServiceTest {
 		executor = queued::add;
 		TransactionTemplate tx = new TransactionTemplate(mock(PlatformTransactionManager.class));
 		job = new ChatPreparationJob(persona, sessions, messages, tx);
-		service = new ChatService(users, sessions, messages, diaries, persona, job, tx, command -> executor.execute(command));
+		when(couples.requirePartnerPersona(any())).thenThrow(
+			new ApiException(HttpStatus.FORBIDDEN, "COUPLE_ACCESS_DENIED", "두 사람이 모두 동의해야 만날 수 있어요."));
+		service = new ChatService(users, sessions, messages, diaries, persona, couples, job, tx, command -> executor.execute(command));
 	}
 
 	private ChatSession store(ChatSession session) {
@@ -159,7 +162,7 @@ class ChatServiceTest {
 	}
 
 	@Test
-	void 커플_세션은_커플_기능을_만들기_전까지_403이에요() {
+	void 커플_접근이_안_되면_커플_세션은_403이고_분석하지_않아요() {
 		ApiException e = apiError(() -> service.create(userId, new ChatCreateRequest(anchor, PersonaScope.DAY, null, true)));
 
 		assertThat(e.getStatus()).isEqualTo(HttpStatus.FORBIDDEN);

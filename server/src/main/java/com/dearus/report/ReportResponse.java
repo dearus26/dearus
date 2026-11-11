@@ -10,7 +10,7 @@ import java.util.UUID;
 
 /**
  * API 명세의 Report. 개인 모드는 pastConcern · presentChange · oneLineSummary가 있고 memorySummary는 null이에요.
- * (커플 모드 세션의 "그날의 기억"은 커플 기능을 만들 때 더해요.)
+ * 커플 모드는 memorySummary(그날의 연인에게서 들은 이야기)와 oneLineSummary가 있고 pastConcern · presentChange는 null이에요.
  */
 public record ReportResponse(
 	UUID id,
@@ -36,7 +36,7 @@ public record ReportResponse(
 			report.getPastConcern(),
 			report.getPresentChange(),
 			report.getOneLineSummary(),
-			null,
+			report.getMemorySummary(),
 			Kst.toKst(report.getCreatedAt()));
 	}
 }

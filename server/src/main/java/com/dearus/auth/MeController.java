@@ -1,6 +1,7 @@
 package com.dearus.auth;
 
 import com.dearus.common.ApiException;
+import com.dearus.couple.CoupleService;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -15,9 +16,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class MeController {
 
 	private final UserRepository users;
+	private final CoupleService couples;
 
-	public MeController(UserRepository users) {
+	public MeController(UserRepository users, CoupleService couples) {
 		this.users = users;
+		this.couples = couples;
 	}
 
 	/** GET /me — 내 정보 */
@@ -30,13 +33,17 @@ public class MeController {
 		return UserResponse.from(user);
 	}
 
-	/** DELETE /me — 회원 탈퇴. 일기 등 모든 데이터는 DB의 ON DELETE CASCADE로 함께 지워져요. */
+	/**
+	 * DELETE /me — 회원 탈퇴. 일기 등 모든 데이터는 DB의 ON DELETE CASCADE로 함께 지워져요.
+	 * 커플이 있으면 먼저 연결을 해제해요(이 커플의 대화를 지우고 연인 쪽 상태도 정리돼요).
+	 */
 	@DeleteMapping("/me")
 	@ResponseStatus(HttpStatus.NO_CONTENT)
 	@Transactional
 	public void deleteMe(@AuthenticationPrincipal Jwt jwt) {
 		UUID userId = CurrentUser.id(jwt);
 		User user = users.findById(userId).orElseThrow(ApiException::unauthorized);
+		couples.revoke(userId);
 		users.delete(user);
 	}
 }

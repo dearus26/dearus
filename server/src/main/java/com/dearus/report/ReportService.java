@@ -13,6 +13,8 @@ import com.dearus.chat.ChatStatus;
 import com.dearus.common.ApiException;
 import com.dearus.common.Kst;
 import com.dearus.common.ai.AiException;
+import com.dearus.couple.CoupleAccess;
+import com.dearus.couple.CoupleComparisonService;
 import com.dearus.persona.PersonaAnalysisService;
 import com.dearus.persona.PersonaContent;
 import java.time.Duration;
@@ -45,6 +47,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  * - AI를 부르는 동안에는 DB 연결을 잡지 않아요. 내 말은 대화와 같이 가리지 않은 원문 그대로 보내요.
  * - GENERATING이 {@link #STALE_AFTER}를 넘으면 실패로 봐요(서버가 다시 켜져서 작업이 사라진 경우).
  * 서버 한 대를 가정한 잠금이에요. 서버가 여러 대가 돼도 reports.session_id의 유일 키가 중복 생성을 막아요.
+ * 커플 모드 세션은 "그날의 연인에게서 들은 이야기"를 만들고, 끝낼 때 커플 접근을 다시 확인해요. 리포트가 READY가 되면
+ * 같은 날 연인의 리포트와 짝지어 두 사람의 간극을 만들도록 알려요(CoupleComparisonService).
  * 로그에는 글자 없이 세션 ID와 이유만 남겨요.
  */
 @Service
@@ -63,6 +67,10 @@ public class ReportService {
 	private record Ended(EndChatResult result, boolean generate) {
 	}
 
+	/** AI로 보낼 내용이에요. 개인 모드면 personal, 커플 모드면 couple 하나만 있어요. */
+	private record Work(ReportGenerator.Prompt personal, ReportGenerator.CouplePrompt couple) {
+	}
+
 	private final ChatSessionRepository sessions;
 	private final ChatMessageRepository messages;
 	private final UserRepository users;
@@ -70,11 +78,14 @@ public class ReportService {
 	private final PersonaAnalysisService personas;
 	private final ReportGenerator generator;
 	private final ChatReplyService replies;
+	private final CoupleAccess couples;
+	private final CoupleComparisonService comparisons;
 	private final TransactionTemplate tx;
 	private final Executor executor;
 
 	public ReportService(ChatSessionRepository sessions, ChatMessageRepository messages, UserRepository users, ReportRepository reports,
-		PersonaAnalysisService personas, ReportGenerator generator, ChatReplyService replies, TransactionTemplate tx,
+		PersonaAnalysisService personas, ReportGenerator generator, ChatReplyService replies, CoupleAccess couples,
+		CoupleComparisonService comparisons, TransactionTemplate tx,
 		@Qualifier("reportExecutor") Executor executor) {
 		this.sessions = sessions;
 		this.messages = messages;
@@ -83,6 +94,8 @@ public class ReportService {
 		this.personas = personas;
 		this.generator = generator;
 		this.replies = replies;
+		this.couples = couples;
+		this.comparisons = comparisons;
 		this.tx = tx;
 		this.executor = executor;
 	}
@@ -94,6 +107,7 @@ public class ReportService {
 		if (!user.aiConsentActive()) {
 			throw new ApiException(HttpStatus.FORBIDDEN, "AI_CONSENT_REQUIRED", "AI 분석에 동의해야 쓸 수 있어요.");
 		}
+		couples.requireForSession(session); // 커플 세션이면 리포트에 연인의 분석이 들어가서 접근을 다시 확인해요(아니면 403)
 		if (session.getStatus() != ChatStatus.READY) {
 			throw new ApiException(HttpStatus.CONFLICT, "CHAT_NOT_READY", "아직 끝낼 수 없는 대화예요.");
 		}
@@ -163,18 +177,28 @@ public class ReportService {
 	public void generate(UUID chatId) {
 		long started = System.nanoTime();
 		try {
-			ReportGenerator.Prompt prompt = tx.execute(status -> loadPrompt(chatId));
-			if (prompt == null) {
-				return; // 그 사이 지워졌어요(탈퇴)
+			Work work = tx.execute(status -> loadWork(chatId));
+			if (work == null) {
+				return; // 그 사이 지워졌어요(탈퇴 · 커플 철회)
 			}
-			ReportContent content = generator.generate(prompt); // AI 호출. 이 동안 DB 연결은 잡지 않아요
-			tx.executeWithoutResult(status -> reports.findBySessionId(chatId)
+			// AI 호출. 이 동안 DB 연결은 잡지 않아요
+			ReportContent content = work.personal() == null ? null : generator.generate(work.personal());
+			CoupleReportContent coupleContent = work.couple() == null ? null : generator.generateCouple(work.couple());
+			Boolean saved = tx.execute(status -> reports.findBySessionId(chatId)
 				.filter(report -> report.getStatus() == ReportStatus.GENERATING)
-				.ifPresent(report -> {
-					report.complete(content, Kst.now());
+				.map(report -> {
+					if (coupleContent != null) {
+						report.completeCouple(coupleContent.memorySummary(), coupleContent.oneLineSummary(), Kst.now());
+					} else {
+						report.complete(content, Kst.now());
+					}
 					reports.save(report);
-				}));
-			log.info("리포트 완성 sessionId={} totalMs={}", chatId, (System.nanoTime() - started) / 1_000_000);
+					return true;
+				}).orElse(false));
+			log.info("리포트 완성 sessionId={} couple={} totalMs={}", chatId, coupleContent != null, (System.nanoTime() - started) / 1_000_000);
+			if (coupleContent != null && Boolean.TRUE.equals(saved)) {
+				comparisons.onReportReady(chatId); // 연인의 같은 날 리포트도 있으면 간극을 만들어요
+			}
 		} catch (AiException e) {
 			log.warn("리포트 만들기 실패 sessionId={} reason={} detail={}", chatId, e.reason(), e.getMessage());
 			failReport(chatId, e.reason().code());
@@ -184,8 +208,8 @@ public class ReportService {
 		}
 	}
 
-	/** AI로 보낼 내용을 모아요. 내 말과 과거의 나의 말(AI가 만든 글) 모두 저장된 원문 그대로예요. */
-	private ReportGenerator.Prompt loadPrompt(UUID chatId) {
+	/** AI로 보낼 내용을 모아요. 내 말과 과거의 나(또는 그날의 연인)의 말(AI가 만든 글) 모두 저장된 원문 그대로예요. */
+	private Work loadWork(UUID chatId) {
 		ChatSession session = sessions.findById(chatId).orElse(null);
 		if (session == null) {
 			return null;
@@ -196,7 +220,11 @@ public class ReportService {
 		List<ReportGenerator.Turn> turns = recent.stream()
 			.map(message -> new ReportGenerator.Turn(message.getRole() == ChatRole.USER, message.getContent()))
 			.toList();
-		return new ReportGenerator.Prompt(session.scope(), session.getAnchorDate(), persona, turns);
+		if (session.getCoupleId() != null) {
+			String pastSelfName = users.findById(session.getPersonaOwnerId()).map(User::getNickname).orElse("연인");
+			return new Work(null, new ReportGenerator.CouplePrompt(session.scope(), session.getAnchorDate(), persona, pastSelfName, turns));
+		}
+		return new Work(new ReportGenerator.Prompt(session.scope(), session.getAnchorDate(), persona, turns), null);
 	}
 
 	private void failReport(UUID chatId, String failureCode) {
