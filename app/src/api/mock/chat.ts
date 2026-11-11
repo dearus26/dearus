@@ -1,5 +1,6 @@
 import { ApiError } from '@/api/errors';
-import { notFound, sortedEmotions, validationFailed, wait } from '@/api/mock/helpers';
+import { NOT_HANDLED, notFound, sortedEmotions, validationFailed, wait } from '@/api/mock/helpers';
+import { uploadedWeekStarts } from '@/api/mock/uploads';
 import type { components } from '@/api/schema';
 import type { SseEvent } from '@/api/sse';
 import {
@@ -9,6 +10,7 @@ import {
   daysBetween,
   daysInMonth,
   isValidDateString,
+  mondayOf,
   parseDateString,
   toDateString,
   todayString,
@@ -34,9 +36,6 @@ type SafetyNotice = components['schemas']['SafetyNotice'];
 
 /** index.ts가 요청마다 넘겨 주는 지금 사용자와 일기 목록이에요. */
 export type MockContext = { user: User; diaries: Diary[] };
-
-/** handleChatRoute가 이 경로를 처리하지 않았다는 표시예요(undefined도 정상 응답일 수 있어서 따로 둬요). */
-export const NOT_HANDLED = Symbol('not-handled');
 
 const AROUND_DAYS = 14;
 const MAX_ANCHOR_DAYS = 365;
@@ -103,13 +102,24 @@ function recordLevel(scope: PersonaScope, diaryCount: number, messengerWeeks: nu
   return diaryCount >= 1 ? 'LOW' : 'NONE';
 }
 
+/**
+ * 이 구간에 걸치는, 올려서 분석이 끝난 메신저 주(월요일)들. 전후 2주는 구간과 겹치는 주,
+ * 그날 하루는 그날이 속한 주예요(명세 PersonaWindow.messengerWeeks).
+ */
+function messengerWeeksIn(scope: PersonaScope, anchorDate: string, windowStart: string, windowEnd: string): string[] {
+  const weeks = [...new Set(uploadedWeekStarts())];
+  return scope === 'DAY'
+    ? weeks.filter((week) => week === mondayOf(anchorDate))
+    : weeks.filter((week) => week <= windowEnd && addDays(week, 6) >= windowStart);
+}
+
 function personaWindow(diaries: Diary[], anchorDate: string, scope: PersonaScope): PersonaWindow {
   const today = todayString();
   const windowStart = scope === 'DAY' ? anchorDate : addDays(anchorDate, -AROUND_DAYS);
   const after = addDays(anchorDate, AROUND_DAYS);
   const windowEnd = scope === 'DAY' ? anchorDate : after > today ? today : after;
   const inRange = diaries.filter((diary) => diary.date >= windowStart && diary.date <= windowEnd);
-  const messengerWeeks = 0; // 메신저 올리기는 아직 가짜 서버에 없어요
+  const messengerWeeks = messengerWeeksIn(scope, anchorDate, windowStart, windowEnd).length;
   return {
     anchorDate,
     scope,
@@ -124,10 +134,13 @@ function personaWindow(diaries: Diary[], anchorDate: string, scope: PersonaScope
 
 /** 그 범위의 일기가 바뀌었는지 알아보는 표(저장된 분석을 다시 쓸 수 있는지 볼 때 써요) */
 function recordsFingerprint(diaries: Diary[], range: PersonaWindow): string {
-  return diaries
+  const diaryPart = diaries
     .filter((diary) => diary.date >= range.windowStart && diary.date <= range.windowEnd)
     .map((diary) => `${diary.id}:${diary.updatedAt}`)
     .join(',');
+  // 메신저를 새로 올리면 그 구간의 분석은 다시 만들어요
+  const weeks = messengerWeeksIn(range.scope, range.anchorDate, range.windowStart, range.windowEnd).sort().join(',');
+  return `${diaryPart}|${weeks}`;
 }
 
 /** 앵커 날짜는 오늘로부터 365일 전 ~ 오늘만 고를 수 있어요. */
@@ -286,7 +299,7 @@ function isPreparing(chat: MockChat): boolean {
 
 function preparingStep(preparing: { from: number; until: number }): NonNullable<ChatSession['preparingStep']> {
   const progress = (Date.now() - preparing.from) / (preparing.until - preparing.from);
-  return progress < 0.2 ? 'COLLECT' : progress < 0.45 ? 'MASK' : progress < 0.8 ? 'ANALYZE' : 'BUILD';
+  return progress < 0.25 ? 'COLLECT' : progress < 0.7 ? 'ANALYZE' : 'BUILD';
 }
 
 function chatSession(chat: MockChat): ChatSession {

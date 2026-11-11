@@ -1,6 +1,7 @@
 import { ApiError, UNAUTHORIZED_MESSAGE } from '@/api/errors';
-import { NOT_HANDLED, handleChatRoute, resetChatMock, streamChatMessage } from '@/api/mock/chat';
-import { notFound, sortedEmotions, validationFailed, wait } from '@/api/mock/helpers';
+import { handleChatRoute, resetChatMock, streamChatMessage } from '@/api/mock/chat';
+import { NOT_HANDLED, notFound, sortedEmotions, validationFailed, wait } from '@/api/mock/helpers';
+import { handleUploadRoute, resetUploadMock } from '@/api/mock/uploads';
 import type { components } from '@/api/schema';
 import type { SseEvent } from '@/api/sse';
 import { addDays, daysBetween, isValidDateString, todayString } from '@/lib/date';
@@ -175,6 +176,7 @@ export async function mockRequest<T>(
     user = null;
     diaries = null;
     resetChatMock();
+    resetUploadMock();
     return undefined as T;
   }
 
@@ -253,8 +255,13 @@ export async function mockRequest<T>(
   }
 
   // 시점 고르기 · 대화 · 리포트 · 오늘 대화 시간
-  const chatResult = handleChatRoute(method, path, query, body, { user: current, diaries: store() });
+  const context = { user: current, diaries: store() };
+  const chatResult = handleChatRoute(method, path, query, body, context);
   if (chatResult !== NOT_HANDLED) return chatResult as T;
+
+  // 메신저 올리기(txt · 이미지)
+  const uploadResult = handleUploadRoute(method, path, body, context);
+  if (uploadResult !== NOT_HANDLED) return uploadResult as T;
 
   throw notFound();
 }

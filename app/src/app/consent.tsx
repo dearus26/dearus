@@ -126,7 +126,7 @@ export default function ConsentScreen() {
 
         <Card tint style={styles.notice}>
           <AppText size={12.5} lineHeight={20}>
-            {'가린 내용만 AI로 보내고 학습에는 쓰이지 않아요\n동의는 설정에서 언제든 철회할 수 있어요'}
+            {'글자를 가리지 않고 AI로 보내요. 학습에는 쓰이지 않아요\n동의는 설정에서 언제든 철회할 수 있어요'}
           </AppText>
         </Card>
       </ScrollView>

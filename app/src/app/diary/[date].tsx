@@ -208,12 +208,7 @@ export default function DiaryScreen() {
               메신저 대화를 올리면 대신 분석해 둘게요
             </AppText>
           </View>
-          <Pill
-            label="메신저 올리기"
-            tone="line"
-            // 메신저 올리기(글자 읽기 · 가리기)는 다음 단계에서 만들어요
-            onPress={() => notify('곧 열려요', '메신저 대화 올리기는 다음 단계에서 만들어요.')}
-          />
+          <Pill label="메신저 올리기" tone="line" onPress={() => router.push('/messenger')} />
         </Card>
       </ScrollView>
     </KeyboardAvoidingView>

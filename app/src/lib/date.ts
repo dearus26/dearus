@@ -84,6 +84,11 @@ export function addDays(value: string, delta: number): string {
   return toDateString(date.getFullYear(), date.getMonth() + 1, date.getDate());
 }
 
+/** 그 날짜가 속한 주의 월요일(주는 월요일에 시작해요 — 메신저 주간 요약의 기준) */
+export function mondayOf(value: string): string {
+  return addDays(value, -((weekdayOf(value) + 6) % 7));
+}
+
 /** from에서 to까지 며칠인지(to가 더 나중이면 양수) */
 export function daysBetween(from: string, to: string): number {
   const toMs = (value: string) => {

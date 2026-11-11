@@ -16,7 +16,7 @@ import { notify } from '@/lib/dialog';
 import { colors } from '@/theme/colors';
 
 /** 시점 분석의 단계 순서(명세 preparingStep) */
-const STEPS = ['COLLECT', 'MASK', 'ANALYZE', 'BUILD'] as const;
+const STEPS = ['COLLECT', 'ANALYZE', 'BUILD'] as const;
 /** 서버가 단계를 모를 때(null) 앱이 단계를 한 칸씩 넘기는 간격 */
 const MIMIC_STEP_MS = 3000;
 
@@ -86,7 +86,6 @@ function PreparingView({ session }: { session: ChatSession }) {
   const current = useStepIndex(session.preparingStep);
   const labels = [
     `${windowText(session)} 기록 모으기`,
-    '민감정보 가리기',
     '말투와 대화 방식 분석하기',
     '그때의 나 완성하기',
   ];

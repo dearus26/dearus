@@ -25,7 +25,16 @@ export interface paths {
          *     | `dev` | 개발용 가짜 로그인. 아무 문자열이나 넣어요. 같은 문자열이면 같은 사용자예요 |
          *
          *     `dev`는 서버에 `DEV_LOGIN_ENABLED=true`일 때만 켜지고(로컬 개발용), 꺼져 있으면 404예요. 배포 서버에서는 꺼 둬요.
-         *     `kakao` · `google` · `apple`은 제공자 토큰 검증을 붙이기 전까지 501(`AUTH_PROVIDER_NOT_READY`)을 돌려줘요.
+         *
+         *     **제공자 검증 (2026.11.4 구현)**
+         *     - `kakao`: 서버가 카카오 API로 토큰이 **우리 앱에서 발급된 것인지**(`app_id`) 확인하고 사용자 `id`와 닉네임을 읽어요. 이메일은 요청하지 않아서 카카오 콘솔에서 닉네임 동의항목만 켜면 돼요.
+         *     - `google`: 서버가 구글 공개키로 ID token의 서명 · 발급자 · 대상(우리 클라이언트 ID) · 만료를 확인해요. 앱의 구글 로그인이 웹 클라이언트 ID로 ID token을 만들면 그 ID가 서버 설정(`GOOGLE_CLIENT_IDS`)에 들어 있어야 해요.
+         *     - `apple`: 아직 없어서 501이에요.
+         *     - 서버에 앱 ID · 클라이언트 ID(`KAKAO_APP_ID`, `GOOGLE_CLIENT_IDS`)가 설정되지 않은 제공자도 501이에요.
+         *
+         *     **계정 규칙**
+         *     - 제공자마다 별개 계정이에요. 같은 사람이 카카오와 구글로 각각 로그인하면 계정이 둘이고, 서로의 일기 · 대화는 이어지지 않아요. 이메일은 받지도 저장하지도 않아요.
+         *     - 닉네임은 요청의 `nickname` → 제공자 프로필의 이름 → "사용자" 순으로 정하고, **계정을 처음 만들 때만** 정해요(다음 로그인에는 바꾸지 않아요).
          */
         post: operations["login"];
         delete?: never;
@@ -171,19 +180,47 @@ export interface paths {
         get: operations["listMessengerUploads"];
         put?: never;
         /**
-         * 메신저 대화 올리기 (가린 글자)
-         * @description 메신저(카톡 · 디스코드 등) 대화 캡처를 올릴 때 **사진은 보내지 않아요.** 앱이 폰 안에서 사진 속 글자를 읽고, 민감정보를 가리고, 내 말풍선만 골라서, 가린 글자만 이 API로 보내요(상대 메시지는 폰에서 버려요).
-         *     이 서버에는 사진을 받는 API가 없어요. 이미지나 `multipart/form-data`를 보내면 415예요.
+         * 메신저 대화 올리기 (txt에서 추린 내 말)
+         * @description 카카오톡 대화 내보내기 **txt**로 올릴 때 써요(2026.11.8 결정). 앱이 폰 안에서 txt를 읽어(말한 사람 · 날짜 · 내용) 사용자가 고른 내 이름의 말만 이 API로 보내요. 상대 말은 폰에서 버려요. 글자를 가리는 처리는 앱 · 서버 모두 하지 않아요.
+         *     스크린샷(이미지)은 `POST /uploads/messenger/images`로 보내요. 이 API에 이미지나 `multipart/form-data`를 보내면 415예요.
          *
-         *     서버는 받은 글자를 한 번 더 규칙으로 가린 뒤(앱이 놓친 전화번호 · 계좌번호 · 이메일 등), 주 단위로 묶어 AI로 요약하고 암호화해 저장해요. 시간이 걸릴 수 있어서 **202**로 바로 응답하고, 결과는 `GET /uploads/messenger/{uploadId}`를 1~2초 간격으로 조회해서 `status`가 `DONE` 또는 `FAILED`가 될 때까지 기다려요.
+         *     서버는 받은 글자를 주 단위로 묶어 AI로 요약하고 암호화해 저장해요. 시간이 걸릴 수 있어서 **202**로 바로 응답하고, 결과는 `GET /uploads/messenger/{uploadId}`를 1~2초 간격으로 조회해서 `status`가 `DONE` 또는 `FAILED`가 될 때까지 기다려요.
          *
-         *     `messages[].date`는 앱이 대화 화면의 날짜 구분선에서 읽어요. 날짜를 알 수 없는 글자는 앱이 사용자에게 물어서 채운 뒤 보내요.
-         *     서버는 받은 글자를 요약이 끝날 때까지만 메모리에 두고 저장하지 않아요(성공하든 실패하든 요약만 남겨요). 서버가 다시 시작되거나 10분이 지나도 끝나지 않으면 `FAILED`(`PROCESSING_TIMEOUT`)가 되니, 앱은 `DONE`을 받을 때까지 가린 글자를 폰에 갖고 있다가 필요하면 다시 보내요.
-         *     앞서 올린 글이 아직 `PROCESSING`이면 409 `UPLOAD_IN_PROGRESS`예요(같은 사람의 AI 호출이 겹치지 않게 막아요). 한 주라도 요약에 실패하면 그 업로드는 통째로 `FAILED`이고 요약은 하나도 저장하지 않아요.
+         *     `messages[].date`는 앱이 txt의 날짜 줄에서 읽어요. 읽지 못한 줄은 앱이 사용자에게 알리고 빼고 보내요.
+         *     `DONE`이 되면 받은 내 말 원문을 암호화해(`messenger_uploads.original_enc`) 요약과 함께 1년 보관해요(`expiresAt`). `FAILED`면 원문도 요약도 남기지 않아요. 서버가 다시 시작되거나 10분이 지나도 끝나지 않으면 `FAILED`(`PROCESSING_TIMEOUT`)가 되니, 앱은 `DONE`을 받을 때까지 추린 글자를 폰에 갖고 있다가 필요하면 다시 보내요.
+         *     앞서 올린 대화(txt · 이미지 모두)가 아직 `PROCESSING`이면 409 `UPLOAD_IN_PROGRESS`예요(같은 사람의 AI 호출이 겹치지 않게 막아요). 한 주라도 요약에 실패하면 그 업로드는 통째로 `FAILED`이고 요약은 하나도 저장하지 않아요.
          *     한도(초안): 메시지 5,000개, 한 메시지 2,000자, 요청 전체 1MB, 한 번에 60주(약 1년)까지. 주는 월요일에 시작해요.
          *     걸리는 시간: 한 주 요약은 최대 15초로 보고, 서버가 최대 4주씩 동시에 처리해요(8주면 30초 안쪽, 60주면 4분 안쪽). 앱의 "분석 중" 화면은 이 정도를 기다릴 수 있어야 해요.
          */
         post: operations["uploadMessenger"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/uploads/messenger/images": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 메신저 대화 올리기 (스크린샷 이미지)
+         * @description 카카오톡 대화 **스크린샷**으로 올릴 때 써요(2026.11.8 결정). 앱은 사진을 가공하지 않고 그대로 보내요. 올릴 때 사용자 확인 단계는 없어요.
+         *     서버가 AI의 이미지 입력으로 내 말(오른쪽 · 노란색 말풍선)과 날짜 구분선을 읽고, **읽은 직후 사진을 지워요**(성공하든 실패하든 사진은 디스크 · DB에 남기지 않아요). 사진에 찍힌 상대 말과 이름은 서버와 AI로 가지만 읽어낸 결과에는 내 말만 남겨요.
+         *     그 뒤는 txt와 같아요. 읽어낸 내 말을 주 단위로 AI 요약해 암호화 저장하고, `DONE`이면 내 말 원문을 암호화해 1년 보관해요. **202**로 바로 응답하고 `GET /uploads/messenger/{uploadId}`로 상태를 조회해요. 응답 · 409 · 실패 규칙은 `POST /uploads/messenger`와 같아요.
+         *
+         *     날짜: 스크린샷에는 날짜 구분선("2026년 9월 28일 일요일")이 날이 바뀔 때만 보여요. 그래서 `images`는 **대화 순서대로(오래된 것부터)** 보내고, 서버는 앞 장에서 읽은 날짜를 다음 장으로 이어서 써요. 첫 날짜 구분선보다 앞에 있는 말은 날짜를 알 수 없어서 빼요. 날짜 구분선이 한 장에도 안 보이면 `FAILED`(`DATE_NOT_FOUND`), 내 말을 하나도 읽지 못하면 `FAILED`(`NO_MESSAGES_FOUND`)예요. 앱은 올리기 전에 "날짜 줄이 보이게 캡처해 주세요"를 안내해요.
+         *     실패하면 사진이 서버에 남지 않으니 앱이 다시 올려요(사진은 폰 갤러리에 그대로 있어요).
+         *     한도(초안): 한 번에 1~100장, 한 장 5MB, 요청 전체 50MB. 형식은 JPEG · PNG · WebP예요. 서버는 형식을 파일 앞부분으로 알아내요(보낸 Content-Type은 보지 않아요).
+         *     서버는 AI 한 번에 최대 10장(원본 20MB)씩 나눠 여러 묶음을 동시에 읽고, 묶음 사이에 겹쳐 찍힌 말은 한 번만 남겨요. 읽은 말이 60주를 넘으면 가장 최근 60주만 요약해요.
+         *     걸리는 시간: 읽기는 20장에 약 30초로 봐요(시험 전 추정). 그 뒤 주 단위 요약 시간이 더해져요.
+         */
+        post: operations["uploadMessengerImages"];
         delete?: never;
         options?: never;
         head?: never;
@@ -204,8 +241,8 @@ export interface paths {
         put?: never;
         post?: never;
         /**
-         * 메신저 요약 지우기
-         * @description 이 업로드에서 만든 주간 요약을 모두 지워요. 이 기간의 시점 분석은 다음 대화 때 다시 해요.
+         * 올린 메신저 대화 지우기
+         * @description 이 업로드의 내 말 원문과, 이 업로드에서 만든 주간 요약을 모두 지워요. 이 기간의 시점 분석은 다음 대화 때 다시 해요.
          */
         delete: operations["deleteMessengerUpload"];
         options?: never;
@@ -279,13 +316,13 @@ export interface paths {
          * @description 선택한 시점의 대화 세션을 만들어요.
          *
          *     1. 같은 시점의 저장된 분석이 있고 그 무렵 기록이 바뀌지 않았으면 바로 `READY`예요.
-         *     2. 아니면 `PREPARING`으로 돌려주고, 서버가 기록 모으기 → 민감정보 가리기 → 말투 분석 → 페르소나 만들기를 진행해요. 앱은 `GET /chats/{chatId}`를 1~2초 간격으로 조회해요 (`preparingStep`으로 로딩 화면의 단계를 표시해요).
+         *     2. 아니면 `PREPARING`으로 돌려주고, 서버가 기록 모으기 → 말투 분석 → 페르소나 만들기를 진행해요. 앱은 `GET /chats/{chatId}`를 1~2초 간격으로 조회해요 (`preparingStep`으로 로딩 화면의 단계를 표시해요).
          *     3. `READY`가 되면 페르소나의 첫 인사가 `seq` 1번 메시지로 들어 있어요. `GET /chats/{chatId}/messages`로 가져와요.
          *
          *     기록이 전혀 없으면(`NONE`) AI를 부르지 않고 바로 `READY`예요(기본 말투로 대화하고 앱이 정확도 안내를 보여줘요). 분석에 실패하면 `FAILED`이고 이전에 저장한 분석은 그대로 남아요.
          *
          *     `scope`는 시점 고르기에서 정해져요. 바로가기는 `AROUND`(전후 2주, `shortcutKey`도 함께 보내요), 캘린더에서 고른 날은 `DAY`(그날 하루)예요.
-         *     `forCouple: true`는 커플 모드의 "같은 날 비교"를 위한 세션이에요. 대화 상대는 여전히 내 과거의 나이고, 커플이 `CONNECTED`이고 양측이 동의했고 철회가 없을 때만 만들 수 있어요.
+         *     `forCouple: true`는 커플 모드에서 연인의 과거 페르소나와 대화하는 세션이에요(2026.11.7 확정). 페르소나는 연인의 기록(고른 시점까지)과 연인의 저장된 분석으로 만들고, `persona_owner_id`는 연인이에요. 커플이 `CONNECTED`이고 양측이 동의했고 철회가 없으며, 연인의 AI 분석 동의도 유효할 때만 만들 수 있어요(연인의 일기 · 요약이 AI로 가기 때문이에요). 아니면 403 `COUPLE_ACCESS_DENIED`예요. 앱은 채팅 상단에 연인의 이름을 `GET /couples/me`의 `partner`로 보여줘요.
          *     커플 기능을 만들기 전(11월 3주 전)에는 `forCouple: true`가 항상 403 `COUPLE_ACCESS_DENIED`예요. `shortcutKey`는 `scope`가 `AROUND`일 때만 보낼 수 있어요(아니면 400).
          *     `PREPARING`이 10분이 지나도 끝나지 않으면 조회할 때 `FAILED`(`PREPARING_TIMEOUT`)가 돼요(서버가 다시 켜진 경우 포함). 분석은 전후 2주가 약 14초, 하루가 약 9초 걸리는 것으로 봐요.
          */
@@ -408,7 +445,7 @@ export interface paths {
          * @description 개인 모드는 당시 고민 · 현재 변화 · 한 줄 요약 3개 항목이에요 (세션당 1건). 아직 만드는 중이면 202를 돌려주니 1~2초 뒤에 다시 불러요.
          *     "현재 변화"는 이 대화에서 내가 한 말만 근거로 해요(최근 일기는 쓰지 않아요). 리포트는 평문으로 저장하고, 동의 철회 30일 뒤나 회원 탈퇴 때 대화와 함께 지워져요.
          *     내 말이 2개 미만이라 만들지 않은 대화는 404 `REPORT_NOT_AVAILABLE`이에요. 만들기에 실패했으면 502 `REPORT_FAILED`이고, `POST /chats/{chatId}/end`를 다시 부르면 다시 만들어요.
-         *     커플 모드(`forCouple`) 세션의 리포트는 3개 항목 대신 "그날의 기억"(`memorySummary`)과 한 줄 요약이에요. 두 사람의 기억을 나란히 보는 화면은 `GET /couples/comparisons`가 따로 만들어 줘요.
+         *     커플 모드(`forCouple`) 세션의 리포트는 3개 항목 대신 "그날의 연인에게서 들은 이야기"(`memorySummary`)와 한 줄 요약이에요. 두 사람의 대화를 나란히 보는 화면은 `GET /couples/comparisons`가 따로 만들어 줘요.
          */
         get: operations["getReport"];
         put?: never;
@@ -534,7 +571,7 @@ export interface paths {
         };
         /**
          * 같은 날 두 사람의 기억 비교
-         * @description "두 시점 비교" 화면이에요. 같은 날(`anchorDate` · `scope`)에 대해 각자 자기 과거의 나와 나눈 대화(`POST /chats`의 `forCouple: true` 세션)를 같은 틀("그날의 기억")로 요약해 나란히 보여주고, 두 사람의 간극을 한 줄로 합쳐 줘요.
+         * @description "두 시점 비교" 화면이에요. 같은 날(`anchorDate` · `scope`)에 대해 각자 그날의 연인(상대의 과거 페르소나)과 나눈 대화(`POST /chats`의 `forCouple: true` 세션)를 같은 틀("그날의 기억")로 요약해 나란히 보여주고, 두사람의 간극을 한 줄로 합쳐 줘요.
          *     두 사람 모두 대화를 끝내야 `READY`가 돼요. 한쪽만 끝냈으면 `WAITING_PARTNER`이고 상대의 기억은 아직 비어 있어요.
          *     연결됨 + 양측 동의 + 철회 없음일 때만 열려요. 철회하면 이 비교와 두 세션 · 리포트를 모두 지워요.
          *     초안이에요. 커플 단계에서 스토리보드와 다시 맞춰요.
@@ -591,7 +628,7 @@ export interface components {
             } | null;
         };
         AuthRequest: {
-            /** @description 소셜 SDK가 준 토큰 (provider마다 종류가 달라요) */
+            /** @description 소셜 SDK가 준 토큰 (provider마다 종류가 달라요). 구글 ID token이나 애플 identity token은 보통 1,000자 안팎이에요. 개발용 `dev`는 255자까지예요 */
             token: string;
             /** @description 애플은 처음 한 번만 이름을 주기 때문에, 있으면 함께 보내요. 없으면 서버가 제공자 프로필의 이름을 써요 */
             nickname?: string;
@@ -652,7 +689,7 @@ export interface components {
              */
             privacy: true;
             /**
-             * @description 일기 · 대화 내용 AI 분석 (필수). 가린 내용(글자)만 AI로 보내고 학습에는 쓰이지 않아요
+             * @description 일기 · 대화 내용 AI 분석 (필수). 일기 · 내 말 글자와 올린 스크린샷이 AI로 가고 학습에는 쓰이지 않아요(글자는 가리지 않아요. 화면 문구는 기획서의 동의 문구 항목을 따라요)
              * @enum {boolean}
              */
             aiAnalysis: true;
@@ -720,35 +757,33 @@ export interface components {
             items: components["schemas"]["Diary"][];
         };
         /**
-         * @description 어느 메신저의 캡처인지. 앱이 내 말풍선을 구분하는 방법이 앱마다 달라요.
-         *     첫 지원은 `KAKAOTALK`(오른쪽 · 노란색 말풍선이 나)이고, `DISCORD`처럼 말풍선이 없는 앱은 내 이름이 필요해서 뒤로 미뤄요.
+         * @description 어느 메신저의 대화인지. 내 말을 구분하는 방법이 메신저마다 달라요.
+         *     지금은 `KAKAOTALK`만 받아요(txt는 내 이름, 이미지는 오른쪽 · 노란색 말풍선). `DISCORD` · `OTHER`는 로드맵이라 지금 보내면 400 `VALIDATION_FAILED`예요.
          * @enum {string}
          */
         MessengerSource: "KAKAOTALK" | "DISCORD" | "OTHER";
         MessengerMessage: {
             /**
              * Format: date
-             * @description 이 글자가 쓰인 날짜 (대화 화면의 날짜 구분선에서 앱이 읽어요)
+             * @description 이 말을 한 날짜 (txt의 날짜 줄에서 앱이 읽어요)
              */
             date: string;
-            /** @description 내 말풍선의 글자. 민감정보는 `[전화번호]`, `[이름]` 같은 표시로 이미 바뀌어 있어야 해요 */
+            /** @description 내 말 그대로예요(가리지 않아요). 여러 줄로 보낸 한 메시지는 줄바꿈(`\n`)을 그대로 둬요 */
             text: string;
         };
         /**
+         * @description txt로 올릴 때의 요청이에요. 2026.11.8에 `photoCount` · `maskedCount` · `userMaskedCount`를 지웠어요(모르는 필드라 보내도 무시해요)
          * @example {
          *       "source": "KAKAOTALK",
          *       "consent": true,
-         *       "photoCount": 12,
-         *       "maskedCount": 56,
-         *       "userMaskedCount": 6,
          *       "messages": [
          *         {
          *           "date": "2026-09-28",
-         *           "text": "내 번호 [전화번호]이야"
+         *           "text": "오늘 도윤이랑 점심 먹었어"
          *         },
          *         {
          *           "date": "2026-09-28",
-         *           "text": "오늘 [이름]이랑 점심 먹었어"
+         *           "text": "과제 마감이 내일이라 좀 정신없어ㅠ"
          *         }
          *       ]
          *     }
@@ -760,32 +795,26 @@ export interface components {
              * @enum {boolean}
              */
             consent: true;
-            /**
-             * @description 폰이 읽은 대화 캡처 수 ("읽은 대화 캡처 12장"). 사진 자체는 보내지 않아요
-             * @example 12
-             */
-            photoCount: number;
-            /**
-             * @description 폰이 가린 민감정보 건수 ("가려진 민감정보 56건"). 직접 가린 건수를 포함해요
-             * @example 56
-             */
-            maskedCount: number;
-            /**
-             * @description 그중 사용자가 직접 가린 건수 ("직접 6건"). `maskedCount`보다 클 수 없어요
-             * @example 6
-             */
-            userMaskedCount: number;
             messages: components["schemas"]["MessengerMessage"][];
+        };
+        /** @description 스크린샷으로 올릴 때의 요청(`multipart/form-data`)이에요. 파트 이름은 `source` · `consent` · `images`예요 */
+        MessengerImageUploadRequest: {
+            source: components["schemas"]["MessengerSource"];
+            /**
+             * @description `POST /uploads/messenger`의 `consent`와 같아요. 문자열 `true`로 보내요
+             * @enum {boolean}
+             */
+            consent: true;
+            /** @description 카카오톡 스크린샷. **대화 순서대로(오래된 것부터)** 같은 이름(`images`)의 파트로 여러 개 보내요. 한 장 5MB, 전체 50MB, JPEG · PNG · WebP */
+            images: string[];
         };
         /**
          * @example {
          *       "id": "0c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f",
+         *       "format": "IMAGE",
          *       "status": "DONE",
          *       "uploadedAt": "2026-10-06T20:05:00+09:00",
          *       "photoCount": 12,
-         *       "maskedCount": 56,
-         *       "userMaskedCount": 6,
-         *       "serverMaskedCount": 0,
          *       "periodStart": "2026-08-04",
          *       "periodEnd": "2026-09-28",
          *       "weekCount": 8,
@@ -796,15 +825,17 @@ export interface components {
         MessengerUpload: {
             /** Format: uuid */
             id: string;
+            /**
+             * @description 어떤 형식으로 올렸는지. 설정의 "내 데이터 보기"에서 "txt" · "이미지 12장"으로 보여줘요(서버는 `photo_count`가 0이면 `TXT`로 계산해요)
+             * @enum {string}
+             */
+            format: "TXT" | "IMAGE";
             /** @enum {string} */
             status: "PROCESSING" | "DONE" | "FAILED";
             /** Format: date-time */
             uploadedAt: string;
+            /** @description 올린 이미지 장수 ("읽은 대화 캡처 12장"). txt는 0이에요. 사진 자체는 읽은 직후 지워요 */
             photoCount: number;
-            maskedCount: number;
-            userMaskedCount: number;
-            /** @description 서버가 한 번 더 가린 건수. 앱의 가림이 놓친 정도를 보는 값이고, 분석이 끝나야 채워져요 */
-            serverMaskedCount?: number | null;
             /**
              * Format: date
              * @description 대화에서 찾은 첫 날짜. `DONE`일 때만 있어요
@@ -819,13 +850,14 @@ export interface components {
             weekCount?: number | null;
             /**
              * Format: date-time
-             * @description 업로드 1년 뒤에 요약이 자동으로 지워져요
+             * @description 업로드 1년 뒤에 내 말 원문과 요약이 자동으로 지워져요(매일 새벽 도는 삭제 작업)
              */
             expiresAt: string;
             /**
              * @description `FAILED`일 때의 이유예요. `AI_UNAVAILABLE`(AI에 닿지 못했어요) · `AI_REFUSED`(AI의 안전 장치가 거절했어요) ·
              *     `AI_BAD_RESPONSE`(AI의 답을 읽지 못했어요) · `PROCESSING_TIMEOUT`(10분이 지나도 안 끝났어요) · `INTERNAL_ERROR`.
-             *     어느 경우든 앱은 가린 글자를 폰에 갖고 있다가 다시 보내요.
+             *     이미지만: `DATE_NOT_FOUND`(날짜 구분선이 한 장에도 안 보여요) · `NO_MESSAGES_FOUND`(내 말풍선을 하나도 읽지 못했어요).
+             *     txt는 앱이 추린 글자를 폰에 갖고 있다가 다시 보내고, 이미지는 사진을 다시 올려요(서버에 남지 않아요).
              */
             failureCode?: string | null;
         };
@@ -913,7 +945,7 @@ export interface components {
             /** @description 바로가기로 시작했을 때만 보내요. 직접 고른 날짜면 생략해요 */
             shortcutKey?: components["schemas"]["ShortcutKey"];
             /**
-             * @description 커플 모드의 같은 날 비교를 위한 세션이면 `true`. 커플이 연결 · 양측 동의 상태여야 해요
+             * @description 커플 모드에서 연인의 과거 페르소나와 대화하는 세션이면 `true`. 커플이 연결 · 양측 동의 상태이고 연인의 AI 분석 동의도 유효해야 해요
              * @default false
              */
             forCouple: boolean;
@@ -946,10 +978,10 @@ export interface components {
             status: "PREPARING" | "READY" | "FAILED";
             /**
              * @description `PREPARING`일 때의 단계예요. 서버가 단계를 추적하지 못하면 `null`이고, 앱은 단계 표시를 순서대로 흉내 내요.
-             *     기록 모으기 `COLLECT`, 민감정보 가리기 `MASK`, 말투와 대화 방식 분석하기 `ANALYZE`, 그때의 나 완성하기 `BUILD`
+             *     기록 모으기 `COLLECT`, 말투와 대화 방식 분석하기 `ANALYZE`, 그때의 나 완성하기 `BUILD`. 민감정보 가리기 `MASK`는 글자 가림을 없애면서 지웠어요(2026.11.8)
              * @enum {string|null}
              */
-            preparingStep?: "COLLECT" | "MASK" | "ANALYZE" | "BUILD" | null;
+            preparingStep?: "COLLECT" | "ANALYZE" | "BUILD" | null;
             /**
              * @description `FAILED`일 때의 이유예요. `AI_UNAVAILABLE`(AI에 닿지 못했어요) · `AI_REFUSED`(AI의 안전 장치가 거절했어요) ·
              *     `AI_BAD_RESPONSE`(AI의 답을 읽지 못했어요) · `PREPARING_TIMEOUT`(10분이 지나도 안 끝났어요) · `INTERNAL_ERROR`.
@@ -1129,7 +1161,7 @@ export interface components {
             /** @description 현재 변화. 개인 모드에만 있고 커플 모드 세션은 `null`이에요 */
             presentChange?: string | null;
             oneLineSummary: string;
-            /** @description "내가 기억하는 그날". 커플 모드 세션에만 있어요 */
+            /** @description "그날의 연인에게서 들은 이야기". 커플 모드 세션에만 있어요 */
             memorySummary?: string | null;
             /** Format: date-time */
             createdAt: string;
@@ -1234,18 +1266,18 @@ export interface components {
          *       "scope": "DAY",
          *       "chatId": "5b8c0d1e-2f3a-4b4c-9d5e-6f7a8b9c0d1e",
          *       "me": {
-         *         "memorySummary": "먼저 연락을 끊은 건 서운해서였는데, 그 마음을 설명하지 못해서 더 화가 났어요."
+         *         "memorySummary": "그날의 도윤은 갑자기 연락이 끊겨서 무슨 잘못을 했는지 몰라 불안했고, 그래서 다그치듯 물었다고 했어요."
          *       },
          *       "partner": {
          *         "nickname": "도윤",
-         *         "memorySummary": "갑자기 연락이 끊겨서 무슨 잘못을 했는지 몰라 불안했고, 그래서 다그치듯 물었어요."
+         *         "memorySummary": "그날의 서연은 먼저 연락을 끊은 건 서운해서였는데, 그 마음을 설명하지 못해서 더 화가 났다고 했어요."
          *       },
          *       "gapSummary": "서운함은 침묵으로, 불안함은 다그침으로 전해졌어요."
          *     }
          */
         CoupleComparison: {
             /**
-             * @description `NOT_STARTED` 내가 아직 이 날의 나와 대화하지 않았어요, `IN_PROGRESS` 대화 중이에요,
+             * @description `NOT_STARTED` 내가 아직 이 날의 연인과 대화하지 않았어요, `IN_PROGRESS` 대화 중이에요,
              *     `WAITING_PARTNER` 나는 끝냈고 상대를 기다려요, `READY` 두 사람이 모두 끝나서 비교할 수 있어요
              * @enum {string}
              */
@@ -1258,11 +1290,11 @@ export interface components {
              * @description 내 세션 ID. 아직 시작하지 않았으면 `null`
              */
             chatId?: string | null;
-            /** @description "내가 기억하는 그날" */
+            /** @description 내가 그날의 연인과 나눈 대화의 요약 ("그날의 도윤은 이렇게 말했어요") */
             me?: {
                 memorySummary?: string | null;
             } | null;
-            /** @description "도윤이 기억하는 그날". 상대가 끝나기 전에는 `memorySummary`가 `null`이에요 */
+            /** @description 연인이 그날의 나와 나눈 대화의 요약 ("그날의 서연은 이렇게 말했어요"). 상대가 끝나기 전에는 `memorySummary`가 `null`이에요 */
             partner?: {
                 nickname?: string;
                 memorySummary?: string | null;
@@ -1404,7 +1436,7 @@ export interface operations {
                     "application/json": components["schemas"]["AuthResponse"];
                 };
             };
-            /** @description 제공자 토큰이 올바르지 않아요 (`AUTH_PROVIDER_TOKEN_INVALID`) */
+            /** @description 제공자 토큰이 올바르지 않아요 — 잘못됐거나 만료됐거나 다른 앱(클라이언트)에서 발급된 토큰이에요 (`AUTH_PROVIDER_TOKEN_INVALID`). 소셜 로그인을 다시 하게 해요 */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -1422,8 +1454,17 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description 아직 준비 중인 로그인 방식이에요 (`AUTH_PROVIDER_NOT_READY`) */
+            /** @description 아직 준비 중이거나(`apple`) 서버에 설정이 없는 로그인 방식이에요 (`AUTH_PROVIDER_NOT_READY`) */
             501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description 제공자(카카오 서버, 구글 공개키)에 서버가 닿지 못했어요 (`AUTH_PROVIDER_UNAVAILABLE`). 토큰 문제가 아니라서 잠시 뒤에 같은 토큰으로 다시 시도해도 돼요 */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1731,7 +1772,69 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description 사진은 받지 않아요 (`IMAGES_NOT_ACCEPTED`). 앱이 폰 안에서 글자를 읽어 JSON으로 보내야 해요 */
+            /** @description 이 API는 JSON만 받아요 (`IMAGES_NOT_ACCEPTED`). 스크린샷은 `POST /uploads/messenger/images`로 보내요 */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    uploadMessengerImages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["MessengerImageUploadRequest"];
+            };
+        };
+        responses: {
+            /** @description 접수됨. 서버에서 이미지를 읽고 요약하는 중이에요 */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessengerUpload"];
+                };
+            };
+            /** @description 동의하지 않았거나(`CONSENT_REQUIRED`) 요청 값이 올바르지 않아요(`VALIDATION_FAILED`, 이미지가 없거나 100장 초과 포함) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["AiConsentRequired"];
+            /** @description 앞서 올린 대화를 아직 분석하고 있어요 (`UPLOAD_IN_PROGRESS`). `DONE`이나 `FAILED`가 된 뒤에 다시 올려요 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description 한 장 5MB나 전체 50MB를 넘었어요 (`PAYLOAD_TOO_LARGE`). 나눠서 올려요 */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description JPEG · PNG · WebP가 아닌 파일이 있어요 (`UNSUPPORTED_IMAGE_TYPE`), 또는 `multipart/form-data`가 아니에요 */
             415: {
                 headers: {
                     [name: string]: unknown;
