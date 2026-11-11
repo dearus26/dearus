@@ -1,6 +1,6 @@
 # Dear Us 앱
 
-Expo SDK 58 · React Native 0.88 · TypeScript · Expo Router · TanStack Query v5로 만드는 모바일 앱이에요. UI/UX는 레포 맨 위의 `DearUs_스토리보드.html`을 따르고, 서버와의 약속은 `server/openapi.yaml`이에요. 프로젝트 전체 안내는 [레포 README](../README.md)와 [CLAUDE.md](../CLAUDE.md)에 있어요.
+Expo SDK 58 · React Native 0.88 · TypeScript · Expo Router · TanStack Query v5로 만드는 모바일 앱이에요. UI/UX는 레포 맨 위의 `DearUs_스토리보드.html`을 따르고, 서버와의 약속은 `server/openapi.yaml`이에요. 프로젝트 전체 안내는 [레포 README](../README.md)와 [AGENTS.md](../AGENTS.md)에 있어요.
 
 ## 실행하기
 
