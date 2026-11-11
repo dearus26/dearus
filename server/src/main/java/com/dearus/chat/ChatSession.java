@@ -37,11 +37,11 @@ public class ChatSession {
 	@Column(name = "user_id", nullable = false, updatable = false)
 	private UUID userId;
 
-	/** 페르소나 주인. 지금은 항상 userId와 같아요. */
+	/** 페르소나 주인. 개인 모드는 userId와 같고, 커플 모드는 연인이에요(그날의 연인과 대화해요). */
 	@Column(name = "persona_owner_id", nullable = false, updatable = false)
 	private UUID personaOwnerId;
 
-	/** 커플 모드의 같은 날 비교 세션이면 커플 ID. 커플 기능을 만들기 전에는 항상 비어 있어요. */
+	/** 커플 모드의 같은 날 비교 세션이면 커플 ID. 개인 모드는 비어 있어요. */
 	@Column(name = "couple_id", updatable = false)
 	private UUID coupleId;
 
@@ -87,6 +87,15 @@ public class ChatSession {
 		session.status = ChatStatus.PREPARING;
 		session.recordLevel = recordLevel;
 		session.startedAt = Kst.now();
+		return session;
+	}
+
+	/** 커플 모드 세션이에요. 페르소나 주인은 연인이고(연인의 기록 · 분석으로 만든 그날의 연인), 커플 ID가 붙어요. */
+	public static ChatSession startCouple(UUID userId, UUID partnerId, UUID coupleId, LocalDate anchorDate, PersonaScope scope,
+		ShortcutKey shortcutKey, RecordLevel recordLevel) {
+		ChatSession session = start(userId, anchorDate, scope, shortcutKey, recordLevel);
+		session.personaOwnerId = partnerId;
+		session.coupleId = coupleId;
 		return session;
 	}
 

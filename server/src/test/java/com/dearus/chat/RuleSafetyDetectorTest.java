@@ -52,7 +52,7 @@ class RuleSafetyDetectorTest {
 
 	@Test
 	void 알려진_한계_농담도_걸려요() {
-		// 놓치는 것보다 걸리는 쪽이 낫다고 보고 두었어요. 정교화는 나중에 해요(DearUs_나중에처리할사항.md)
+		// 놓치는 것보다 걸리는 쪽이 낫다고 보고 두었어요. 정교화는 나중에 해요(skills/backlog.md)
 		assertThat(detector.detects("죽고 싶을 만큼 웃겨")).isTrue();
 	}
 }

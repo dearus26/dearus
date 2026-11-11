@@ -18,7 +18,9 @@ import lombok.NoArgsConstructor;
 
 /**
  * reports 테이블 (ERD). 대화 세션 하나에 한 건이에요. 끝내기를 누르면 GENERATING(또는 NONE)으로 만들어지고,
- * AI가 끝나면 READY, 실패하면 FAILED + failureCode가 돼요. memory_summary · gap_summary는 커플 모드에서 쓰는 컬럼이라 아직 매핑하지 않았어요.
+ * AI가 끝나면 READY, 실패하면 FAILED + failureCode가 돼요.
+ * 커플 모드 세션은 pastConcern · presentChange 대신 memorySummary(그날의 연인에게서 들은 이야기)를 채우고,
+ * 같은 날 연인의 리포트도 READY가 되면 두 사람의 간극(gapSummary)을 두 리포트에 같은 값으로 넣어요.
  */
 @Entity
 @Table(name = "reports")
@@ -52,6 +54,14 @@ public class Report {
 	@Column(name = "one_line_summary", length = 100)
 	private String oneLineSummary;
 
+	/** 커플 모드: 그날의 연인에게서 들은 이야기 */
+	@Column(name = "memory_summary", columnDefinition = "text")
+	private String memorySummary;
+
+	/** 커플 모드: 같은 날 두 사람의 간극 한 줄(두 리포트에 같은 값) */
+	@Column(name = "gap_summary", length = 200)
+	private String gapSummary;
+
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private OffsetDateTime createdAt;
 
@@ -84,6 +94,21 @@ public class Report {
 		this.pastConcern = content.pastConcern();
 		this.presentChange = content.presentChange();
 		this.oneLineSummary = content.oneLineSummary();
+		this.updatedAt = now;
+	}
+
+	/** 커플 모드 리포트를 채워요. */
+	public void completeCouple(String memorySummary, String oneLineSummary, OffsetDateTime now) {
+		this.status = ReportStatus.READY;
+		this.failureCode = null;
+		this.memorySummary = memorySummary;
+		this.oneLineSummary = oneLineSummary;
+		this.updatedAt = now;
+	}
+
+	/** 두 사람의 간극을 넣어요(같은 날 두 리포트에 같은 값). */
+	public void setGap(String gapSummary, OffsetDateTime now) {
+		this.gapSummary = gapSummary;
 		this.updatedAt = now;
 	}
 

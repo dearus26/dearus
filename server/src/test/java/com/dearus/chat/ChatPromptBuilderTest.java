@@ -187,4 +187,27 @@ class ChatPromptBuilderTest {
 		assertThat(request.messages()).hasSize(1);
 		assertThat(request.system()).contains("미래의 너 자신");
 	}
+
+	@Test
+	void 커플_모드는_그날의_연인으로_말하고_말을_거는_사람은_연인이에요() {
+		String system = builder.system(session(PersonaScope.DAY), persona, "어 왔어?", false, new ChatPromptBuilder.CoupleNames("도윤", "서연"));
+
+		assertThat(system).startsWith("너는 도윤의 과거 모습이야.").contains("말을 거는 사람은 너의 연인 서연야")
+			.contains("그 무렵의 도윤야").contains("기록을 출처로 말하지 말고").contains("누가 잘못했는지 따지지는 마")
+			.contains("네 말투: 짧은 반말을 쓰고 ㅋㅋ를 자주 써요.");
+		assertThat(system).doesNotContain("미래의 너 자신");
+	}
+
+	@Test
+	void 커플_모드의_이름은_꺾쇠를_바꿔서_넣어요() {
+		String system = builder.system(session(PersonaScope.DAY), null, null, false, new ChatPromptBuilder.CoupleNames("<도윤>", "서연"));
+
+		assertThat(system).contains("＜도윤＞").doesNotContain("<도윤>");
+	}
+
+	@Test
+	void 개인_모드는_이름_없이_미래의_나와_말해요() {
+		assertThat(builder.system(session(PersonaScope.DAY), persona, null, false, null))
+			.isEqualTo(builder.system(session(PersonaScope.DAY), persona, null, false));
+	}
 }

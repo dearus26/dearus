@@ -113,6 +113,7 @@ class ReportServiceTest {
 			queued.add(task);
 		};
 		service = new ReportService(sessions, messages, users, reports, personas, new ReportGenerator(ai), replies,
+			mock(com.dearus.couple.CoupleAccess.class), mock(com.dearus.couple.CoupleComparisonService.class),
 			new TransactionTemplate(mock(PlatformTransactionManager.class)), executor);
 	}
 
