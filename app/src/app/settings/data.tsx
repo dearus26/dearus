@@ -80,7 +80,7 @@ export default function MyDataScreen() {
                 <Card key={upload.id} style={styles.item}>
                   <View style={styles.itemHead}>
                     <AppText weight="bold" size={15} lineHeight={22} style={styles.grow}>
-                      {upload.format === 'IMAGE' ? `스크린샷 ${upload.photoCount}장` : 'txt 파일'}
+                      txt 파일
                     </AppText>
                     <AppText
                       weight="bold"

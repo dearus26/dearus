@@ -14,8 +14,6 @@ const API_URL = (process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8080').rep
 const TIMEOUT_MS = 15_000;
 /** 답변을 스트림으로 받는 요청은 일반 요청보다 오래 걸려서, 시작부터 끝까지 이만큼까지 기다려요. */
 const STREAM_TIMEOUT_MS = 60_000;
-/** 사진을 여러 장 올리는 요청은 용량이 커서(전체 최대 50MB) 더 오래 기다려요. */
-const UPLOAD_TIMEOUT_MS = 180_000;
 
 export const isMockApi = API_MODE === 'mock';
 
@@ -23,11 +21,6 @@ type Method = 'GET' | 'POST' | 'PUT' | 'DELETE';
 
 type Options = {
   body?: unknown;
-  /**
-   * 사진 업로드처럼 multipart/form-data로 보낼 때 폼을 만들어 주는 함수예요. 실제 서버(live)는 body 대신 이 폼을 보내고,
-   * 가짜 서버(mock)는 사진 파일을 다룰 수 없어서 body(장수 같은 요약)만 봐요.
-   */
-  multipart?: () => FormData;
   /** 로그인 API처럼 토큰 없이 부를 때만 false */
   auth?: boolean;
   query?: Record<string, string | number | undefined>;
@@ -46,13 +39,13 @@ export function setUnauthorizedHandler(handler: (() => void) | null) {
 }
 
 export async function request<T>(method: Method, path: string, options: Options = {}): Promise<T> {
-  const { body, multipart, auth = true, query } = options;
+  const { body, auth = true, query } = options;
   const token = auth ? accessToken : null;
   const fullPath = path + toQueryString(query);
   try {
     return API_MODE === 'mock'
       ? await mockRequest<T>(method, fullPath, body, token)
-      : await liveRequest<T>(method, fullPath, body, token, multipart);
+      : await liveRequest<T>(method, fullPath, body, token);
   } catch (error) {
     if (auth && token && error instanceof ApiError && error.status === 401) {
       unauthorizedHandler?.();
@@ -100,21 +93,19 @@ async function liveRequest<T>(
   path: string,
   body: unknown,
   token: string | null,
-  multipart?: () => FormData,
 ): Promise<T> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), multipart ? UPLOAD_TIMEOUT_MS : TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   let response: Response;
   try {
     response = await fetch(`${API_URL}${path}`, {
       method,
       headers: {
         Accept: 'application/json',
-        // multipart는 Content-Type(경계 문자열 포함)을 fetch가 직접 정해서 넣어야 해서 여기서는 빼요
-        ...(multipart === undefined && body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+        ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      body: multipart ? multipart() : body === undefined ? undefined : JSON.stringify(body),
+      body: body === undefined ? undefined : JSON.stringify(body),
       signal: controller.signal,
     });
   } catch {

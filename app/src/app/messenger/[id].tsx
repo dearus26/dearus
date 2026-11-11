@@ -17,9 +17,6 @@ import { dateStringOf, formatYearMonthDay } from '@/lib/date';
 import { notify } from '@/lib/dialog';
 import { colors } from '@/theme/colors';
 
-/** 같은 내용을 다시 보내도 소용없는 실패(올릴 사진을 바꿔야 해요) */
-const NEEDS_NEW_INPUT = ['DATE_NOT_FOUND', 'NO_MESSAGES_FOUND'];
-
 function goHome() {
   router.dismissTo('/');
 }
@@ -39,10 +36,6 @@ function failureMessage(code: string | null | undefined): string {
       return 'AI의 답을 읽지 못했어요. 다시 시도해 주세요.';
     case 'PROCESSING_TIMEOUT':
       return '분석이 너무 오래 걸렸어요. 다시 시도해 주세요.';
-    case 'DATE_NOT_FOUND':
-      return '캡처에서 날짜 줄이 보이지 않았어요. 날짜 구분선(예: 2026년 9월 28일 일요일)이 보이게 캡처해서 다시 올려 주세요.';
-    case 'NO_MESSAGES_FOUND':
-      return '내 말풍선을 읽지 못했어요. 내 말(오른쪽 노란 말풍선)이 나오게 캡처해서 다시 올려 주세요.';
     default:
       return '문제가 생겼어요. 잠시 뒤에 다시 시도해 주세요.';
   }
@@ -88,7 +81,7 @@ export default function MessengerUploadStatusScreen() {
       </Center>
     );
   } else if (data.status === 'PROCESSING') {
-    body = <ProcessingView upload={data} />;
+    body = <ProcessingView />;
   } else if (data.status === 'FAILED') {
     body = <FailedView upload={data} />;
   } else {
@@ -112,8 +105,7 @@ function Center({ children }: { children: ReactNode }) {
   return <View style={styles.center}>{children}</View>;
 }
 
-function ProcessingView({ upload }: { upload: MessengerUpload }) {
-  const images = upload.format === 'IMAGE';
+function ProcessingView() {
   return (
     <Center>
       <ActivityIndicator color={colors.gold} size="large" />
@@ -121,9 +113,7 @@ function ProcessingView({ upload }: { upload: MessengerUpload }) {
         대화를 분석하고 있어요
       </AppText>
       <AppText size={14} lineHeight={22} color={colors.brown} style={styles.centered}>
-        {images
-          ? '사진에서 내 말을 읽고 주 단위로 요약해요. 사진은 읽은 직후 지워요.'
-          : '내 말을 주 단위로 요약하고 있어요.'}
+        내 말을 주 단위로 요약하고 있어요.
       </AppText>
       <Card tint style={styles.note}>
         <AppText size={13} lineHeight={20} style={styles.centered}>
@@ -137,8 +127,8 @@ function ProcessingView({ upload }: { upload: MessengerUpload }) {
 function FailedView({ upload }: { upload: MessengerUpload }) {
   const startUpload = useStartUpload();
   const pending = getPendingUpload();
-  // 같은 내용을 다시 보내면 되는 실패일 때만 "다시 시도"를 보여줘요
-  const canRetry = pending !== null && !NEEDS_NEW_INPUT.includes(upload.failureCode ?? '');
+  // 앱을 다시 켜서 폰에 들고 있던 내 말이 사라졌으면 "다시 시도"를 못 해요(처음부터 다시 골라요)
+  const canRetry = pending !== null;
 
   async function retry() {
     if (!pending) return;
@@ -167,7 +157,6 @@ function FailedView({ upload }: { upload: MessengerUpload }) {
 }
 
 function DoneView({ upload, bottomInset }: { upload: MessengerUpload; bottomInset: number }) {
-  const images = upload.format === 'IMAGE';
   const expires = formatYearMonthDay(dateStringOf(new Date(upload.expiresAt)));
   const period =
     upload.periodStart && upload.periodEnd
@@ -189,9 +178,8 @@ function DoneView({ upload, bottomInset }: { upload: MessengerUpload; bottomInse
       </AppText>
 
       <Card style={styles.summary}>
-        <Row label="올린 방식" value={images ? `스크린샷 ${upload.photoCount}장` : 'txt (내 말만)'} />
-        <Row label="상대 말" value={images ? '읽은 뒤 저장하지 않음' : '폰에서 버림'} />
-        {images ? <Row label="사진" value="읽은 직후 지움" /> : null}
+        <Row label="올린 방식" value="txt (내 말만)" />
+        <Row label="상대 말" value="폰에서 버림" />
         <Row label="내 말 원문" value={`${expires}까지 보관`} last />
       </Card>
 

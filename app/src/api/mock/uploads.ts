@@ -2,12 +2,12 @@ import { ApiError } from '@/api/errors';
 import type { MockContext } from '@/api/mock/chat';
 import { NOT_HANDLED, notFound, validationFailed } from '@/api/mock/helpers';
 import type { components } from '@/api/schema';
-import { addDays, isValidDateString, mondayOf, todayString } from '@/lib/date';
+import { isValidDateString, mondayOf, todayString } from '@/lib/date';
 
 type MessengerUpload = components['schemas']['MessengerUpload'];
 
 /**
- * 가짜 서버 중 메신저 올리기(txt · 이미지)예요. 규칙은 server/openapi.yaml을 따라요.
+ * 가짜 서버 중 메신저 올리기(txt)예요. 규칙은 server/openapi.yaml을 따라요.
  * 올리면 PROCESSING이었다가 몇 초 뒤 DONE이 되고, 앞서 올린 게 분석 중이면 409예요.
  * DONE이 된 주(월요일)는 시점 고르기의 "메신저 N주" 기록량에 더해져요(chat.ts가 읽어 가요).
  */
@@ -15,15 +15,12 @@ type MessengerUpload = components['schemas']['MessengerUpload'];
 const MAX_MESSAGES = 5000;
 const MAX_TEXT = 2000;
 const MAX_WEEKS = 60;
-const MAX_IMAGES = 100;
-/** 분석에 걸리는 시간(가짜). 실제 서버는 txt 8주가 30초 안쪽, 이미지 20장이 읽기 30초 + 요약이에요. */
-const PROCESS_MS = { TXT: 3500, IMAGE: 7000 } as const;
+/** 분석에 걸리는 시간(가짜). 실제 서버는 txt 8주가 30초 안쪽이에요. */
+const PROCESS_MS = 3500;
 
 type MockUpload = {
   id: string;
-  format: MessengerUpload['format'];
   uploadedAt: string;
-  photoCount: number;
   periodStart: string;
   periodEnd: string;
   /** 요약된 주의 월요일들 */
@@ -50,10 +47,10 @@ function toResponse(upload: MockUpload): MessengerUpload {
   expires.setFullYear(expires.getFullYear() + 1);
   return {
     id: upload.id,
-    format: upload.format,
+    format: 'TXT',
     status: done ? 'DONE' : 'PROCESSING',
     uploadedAt: upload.uploadedAt,
-    photoCount: upload.photoCount,
+    photoCount: 0,
     periodStart: done ? upload.periodStart : null,
     periodEnd: done ? upload.periodEnd : null,
     weekCount: done ? upload.weeks.length : null,
@@ -74,17 +71,15 @@ function checkReady(ctx: MockContext, input: { consent?: unknown }) {
   }
 }
 
-function add(format: MockUpload['format'], photoCount: number, weeks: string[], periodStart: string, periodEnd: string): MockUpload {
+function add(weeks: string[], periodStart: string, periodEnd: string): MockUpload {
   const now = Date.now();
   const upload: MockUpload = {
     id: `mock-upload-${++uploadSeq}`,
-    format,
     uploadedAt: new Date(now).toISOString(),
-    photoCount,
     periodStart,
     periodEnd,
     weeks,
-    readyAt: now + PROCESS_MS[format],
+    readyAt: now + PROCESS_MS,
   };
   uploads.push(upload);
   return upload;
@@ -117,22 +112,7 @@ export function handleUploadRoute(method: string, path: string, body: unknown, c
     if (weeks.length > MAX_WEEKS) {
       throw validationFailed([{ field: 'messages', reason: `한 번에 ${MAX_WEEKS}주(약 1년)까지만 올릴 수 있어요` }]);
     }
-    return toResponse(add('TXT', 0, weeks, dates[0], dates[dates.length - 1]));
-  }
-
-  // POST /uploads/messenger/images — 스크린샷(가짜 서버는 장수만 받아요)
-  if (method === 'POST' && path === '/uploads/messenger/images') {
-    const input = (body ?? {}) as { source?: unknown; consent?: unknown; imageCount?: unknown };
-    checkReady(ctx, input);
-    const count = typeof input.imageCount === 'number' ? input.imageCount : 0;
-    if (count < 1 || count > MAX_IMAGES) {
-      throw validationFailed([{ field: 'images', reason: `1장 이상 ${MAX_IMAGES}장 이하여야 해요` }]);
-    }
-    // 읽은 대화를 8주로 꾸며요(실제 서버는 사진에서 날짜 구분선을 읽어요)
-    const end = addDays(todayString(), -2);
-    const start = addDays(end, -55);
-    const weeks = Array.from({ length: 8 }, (_, index) => mondayOf(addDays(start, index * 7)));
-    return toResponse(add('IMAGE', count, [...new Set(weeks)], start, end));
+    return toResponse(add(weeks, dates[0], dates[dates.length - 1]));
   }
 
   // GET /uploads/messenger — 목록(최신순)

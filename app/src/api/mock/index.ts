@@ -259,7 +259,7 @@ export async function mockRequest<T>(
   const chatResult = handleChatRoute(method, path, query, body, context);
   if (chatResult !== NOT_HANDLED) return chatResult as T;
 
-  // 메신저 올리기(txt · 이미지)
+  // 메신저 올리기(txt)
   const uploadResult = handleUploadRoute(method, path, body, context);
   if (uploadResult !== NOT_HANDLED) return uploadResult as T;
 

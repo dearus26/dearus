@@ -4,7 +4,6 @@ import {
   deleteMessengerUpload,
   getMessengerUpload,
   listMessengerUploads,
-  uploadMessengerImages,
   uploadMessengerTxt,
 } from '@/api/uploads';
 import type { PendingUpload } from '@/features/messenger/pending';
@@ -48,12 +47,11 @@ export function useMessengerUpload(id: string) {
   });
 }
 
-/** txt에서 추린 내 말, 또는 스크린샷을 올려요. 받은 상태를 바로 채워 두면 상태 화면이 같은 요청을 또 보내지 않아요. */
+/** txt에서 추린 내 말을 올려요. 받은 상태를 바로 채워 두면 상태 화면이 같은 요청을 또 보내지 않아요. */
 export function useStartUpload() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (pending: PendingUpload) =>
-      pending.kind === 'TXT' ? uploadMessengerTxt(pending.messages) : uploadMessengerImages(pending.images),
+    mutationFn: (pending: PendingUpload) => uploadMessengerTxt(pending.messages),
     onSuccess: (upload) => {
       queryClient.setQueryData(uploadKeys.detail(upload.id), upload);
       void queryClient.invalidateQueries({ queryKey: uploadKeys.list });

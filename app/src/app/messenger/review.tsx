@@ -43,7 +43,7 @@ export default function MessengerReviewScreen() {
 
   async function upload() {
     if (!plan) return;
-    const pending = { kind: 'TXT', messages: plan.messages } as const;
+    const pending = { messages: plan.messages };
     try {
       const created = await startUpload.mutateAsync(pending);
       setPendingUpload(pending);
