@@ -14,7 +14,7 @@
 서버: Spring Boot 4.1 · Spring Framework 7.0 · Java 21 LTS · Gradle
 DB: Supabase (PostgreSQL 17)
 AI: Anthropic Claude Haiku 5.5 (claude-haiku-5-5)
-배포: Render (Docker) · Expo EAS Build
+배포: Render (Docker, 싱가포르 지역) · Expo EAS Build
 ```
 
 ## 전체 구조
@@ -132,7 +132,7 @@ com.dearus
 
 | 기술 | 버전 | 비고 |
 |---|---|---|
-| Supabase | 무료 플랜 | DB 500MB, 7일간 활동 없으면 일시 정지 |
+| Supabase | 무료 플랜 | DB 500MB, 7일간 활동 없으면 일시 정지, 자동 백업 없음(백업 없이 진행하기로 했어요, 2026.11.11). 지역은 서울(`ap-northeast-2`) |
 | PostgreSQL | 17 | Supabase 플랫폼 기본 버전 |
 
 **테이블 설계:** [DearUs_ERD.html](DearUs_ERD.html) 참고
@@ -168,7 +168,7 @@ com.dearus
 
 | 기술 | 버전 | 비고 |
 |---|---|---|
-| Render | 무료 (발표 기간 Starter 권장) | Docker로 Spring Boot 배포 |
+| Render | 무료 (발표 기간 Starter 권장) | Docker로 Spring Boot 배포. 지역은 싱가포르예요(서울 지역이 없어서 서울 DB와 가장 가까운 곳, 2026.11.11). 서비스를 만든 뒤에는 지역을 바꿀 수 없어요 |
 | Docker 베이스 이미지 | eclipse-temurin:21-jre | Java 21 실행 환경 |
 | Expo EAS Build | 최신 CLI | 테스트용 앱 빌드 (소셜 로그인 때문에 개발 빌드가 필요해요) |
 | Android Studio / Xcode | 최신 안정 버전 | 개발 빌드 실행 |
