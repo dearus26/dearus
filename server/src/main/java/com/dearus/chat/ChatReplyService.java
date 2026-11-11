@@ -8,6 +8,7 @@ import com.dearus.common.ai.AiClient;
 import com.dearus.common.ai.AiException;
 import com.dearus.common.ai.AiRequest;
 import com.dearus.common.ai.AiResult;
+import com.dearus.couple.CoupleAccess;
 import com.dearus.persona.PersonaAnalysisService;
 import com.dearus.persona.PersonaContent;
 import java.time.OffsetDateTime;
@@ -31,6 +32,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  * 규칙:
  * - 답변이 끝나야 내 말과 답변을 한 번에 저장해요(seq 2개). 도중에 실패하면 아무것도 저장하지 않아요.
  * - 클라이언트가 끊겨도 run은 끝까지 돌아서 답변을 저장해요(앱이 다시 열릴 때 이어받아요).
+ * - 커플 세션은 연인의 분석이 매 턴 AI로 가서, 보낼 때마다 커플 접근(연결 · 양측 동의 · 연인의 AI 동의)을 다시 확인해요.
  * - 같은 세션에서 앞 답변이 끝나기 전에 또 보내면 409 CHAT_BUSY예요(서버 안 메모리 잠금, DB의 (session_id, seq) 유일 키가 마지막 방어선이에요).
  * - AI를 부르는 동안에는 DB 연결을 잡지 않아요(연결 풀이 작아요). 저장할 때만 짧은 트랜잭션을 써요.
  * 로그에는 글자 없이 세션 ID와 시간 · 토큰 수만 남겨요.
@@ -68,6 +70,7 @@ public class ChatReplyService {
 	private final ChatMessageRepository messages;
 	private final UserRepository users;
 	private final PersonaAnalysisService persona;
+	private final CoupleAccess couples;
 	private final ChatPromptBuilder prompts;
 	private final SafetyDetector detector;
 	private final SafetyProperties safetyProperties;
@@ -76,12 +79,13 @@ public class ChatReplyService {
 	private final Set<UUID> inFlight = ConcurrentHashMap.newKeySet();
 
 	public ChatReplyService(ChatSessionRepository sessions, ChatMessageRepository messages, UserRepository users,
-		PersonaAnalysisService persona, ChatPromptBuilder prompts, SafetyDetector detector, SafetyProperties safetyProperties,
+		PersonaAnalysisService persona, CoupleAccess couples, ChatPromptBuilder prompts, SafetyDetector detector, SafetyProperties safetyProperties,
 		AiClient ai, TransactionTemplate tx) {
 		this.sessions = sessions;
 		this.messages = messages;
 		this.users = users;
 		this.persona = persona;
+		this.couples = couples;
 		this.prompts = prompts;
 		this.detector = detector;
 		this.safetyProperties = safetyProperties;
@@ -97,6 +101,8 @@ public class ChatReplyService {
 		if (!user.aiConsentActive()) {
 			throw new ApiException(HttpStatus.FORBIDDEN, "AI_CONSENT_REQUIRED", "AI 분석에 동의해야 쓸 수 있어요.");
 		}
+		ChatPromptBuilder.CoupleNames names = couples.requireForSession(session) // 커플 세션이면 접근을 다시 확인해요(아니면 403)
+			.map(link -> new ChatPromptBuilder.CoupleNames(link.partner().getNickname(), link.me().getNickname())).orElse(null);
 		if (session.getEndedAt() != null) {
 			throw new ApiException(HttpStatus.CONFLICT, "CHAT_ENDED", "이미 끝난 대화예요.");
 		}
@@ -115,7 +121,7 @@ public class ChatReplyService {
 			List<ChatMessage> history = recent.stream().filter(m -> m.getSeq() > 1).toList(); // 첫 인사는 시스템 프롬프트에 있어요
 			PersonaContent content0 = session.getAnalysisId() == null ? null : persona.contentOf(session.getAnalysisId()).orElse(null);
 			boolean distress = detector.detects(content);
-			AiRequest request = prompts.build(session, content0, greeting, history, content, distress);
+			AiRequest request = prompts.build(session, content0, greeting, history, content, distress, names);
 			return new Prepared(chatId, request, content, receivedAt, nextSeq, distress ? SafetyNotice.distress(safetyProperties) : null);
 		} catch (RuntimeException e) {
 			inFlight.remove(chatId);

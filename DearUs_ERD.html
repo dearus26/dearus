@@ -528,7 +528,8 @@
           <li>두 행 모두 <code>revoked_at</code>이 비어 있음</li>
         </ul>
         <p>한 사용자는 활성 커플을 하나만 가집니다. <code>couple_members(user_id)</code>에 <code>WHERE revoked_at IS NULL</code> 조건의 부분 유니크 인덱스를 둡니다.</p>
-        <p>철회 · 해제 시 해당 <code>couple_id</code>의 <code>chat_sessions</code>(와 메시지 · 리포트)를 지우고 접근을 끊습니다.</p>
+        <p>철회 · 해제 시 해당 <code>couple_id</code>의 <code>chat_sessions</code>(와 메시지 · 리포트)를 지우고 접근을 끊습니다. 커플 행은 <code>DISCONNECTED</code>로 남기고 두 멤버 행의 <code>revoked_at</code>을 채웁니다. 연결 전에 취소한 초대는 행째 지웁니다. 회원 탈퇴도 같은 처리를 먼저 합니다.</p>
+        <p>두 사람의 간극(<code>gap_summary</code>)은 같은 날 두 세션의 리포트에 같은 값을 넣습니다(따로 테이블을 두지 않습니다, 2026.11.11). 기다리는 초대끼리는 <code>invite_code</code>가 겹치지 않도록 <code>status = 'PENDING'</code> 조건의 부분 유니크 인덱스를 둡니다(V8).</p>
       </div>
       <div class="card-box">
         <h3>삭제와 보관</h3>

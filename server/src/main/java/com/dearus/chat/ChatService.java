@@ -4,6 +4,7 @@ import com.dearus.auth.User;
 import com.dearus.auth.UserRepository;
 import com.dearus.common.ApiException;
 import com.dearus.common.Kst;
+import com.dearus.couple.CoupleAccess;
 import com.dearus.diary.Diary;
 import com.dearus.diary.DiaryRepository;
 import com.dearus.diary.Emotion;
@@ -36,7 +37,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 /**
  * 대화 세션을 만들고 조회해요. 세션을 만들 때 DB만 읽어서 바로 정할 수 있으면(기록이 없거나 저장된 분석을 재사용) 바로 READY로
  * 첫 인사까지 저장하고, 분석이 필요하면 PREPARING으로 돌려준 뒤 뒤에서 분석해요(ChatPreparationJob).
- * 대화 주고받기(SSE) · 끝내기 · 리포트는 다음 단계예요.
+ * 커플 모드(forCouple)는 페르소나 주인이 연인이에요. 연인의 기록 · 분석으로 그날의 연인을 만들고, 같은 날 끝내지 않은 커플 세션이 있으면 그걸 돌려줘요.
  */
 @Service
 public class ChatService {
@@ -54,18 +55,20 @@ public class ChatService {
 	private final ChatMessageRepository messages;
 	private final DiaryRepository diaries;
 	private final PersonaAnalysisService persona;
+	private final CoupleAccess couples;
 	private final ChatPreparationJob job;
 	private final TransactionTemplate tx;
 	private final Executor executor;
 
 	public ChatService(UserRepository users, ChatSessionRepository sessions, ChatMessageRepository messages, DiaryRepository diaries,
-		PersonaAnalysisService persona, ChatPreparationJob job, TransactionTemplate tx,
+		PersonaAnalysisService persona, CoupleAccess couples, ChatPreparationJob job, TransactionTemplate tx,
 		@Qualifier("chatPrepareExecutor") Executor executor) {
 		this.users = users;
 		this.sessions = sessions;
 		this.messages = messages;
 		this.diaries = diaries;
 		this.persona = persona;
+		this.couples = couples;
 		this.job = job;
 		this.tx = tx;
 		this.executor = executor;
@@ -80,13 +83,24 @@ public class ChatService {
 		if (!user.aiConsentActive()) {
 			throw new ApiException(HttpStatus.FORBIDDEN, "AI_CONSENT_REQUIRED", "AI 분석에 동의해야 쓸 수 있어요.");
 		}
-		if (Boolean.TRUE.equals(request.forCouple())) {
-			// 커플 연결 · 동의를 확인하는 기능은 11월 3주에 만들어요. 그 전에는 커플 비교 세션을 만들 수 없어요.
-			throw new ApiException(HttpStatus.FORBIDDEN, "COUPLE_ACCESS_DENIED", "커플 모드는 아직 쓸 수 없어요.");
+		boolean forCouple = Boolean.TRUE.equals(request.forCouple());
+		UUID ownerId = userId; // 페르소나 주인. 개인 모드는 나, 커플 모드는 연인이에요
+		UUID coupleId = null;
+		if (forCouple) {
+			// 연결됨 + 양측 동의 + 철회 없음 + 연인의 AI 분석 동의가 모두 있어야 해요(아니면 403 COUPLE_ACCESS_DENIED)
+			CoupleAccess.Link link = couples.requirePartnerPersona(userId);
+			ownerId = link.partner().getId();
+			coupleId = link.coupleId();
+			ChatSession unfinished = unfinishedCoupleSession(userId, coupleId, request);
+			if (unfinished != null) {
+				return ChatSessionResponse.from(unfinished, job.stepOf(unfinished.getId()));
+			}
 		}
 
-		Lookup lookup = persona.lookup(userId, request.scope(), request.anchorDate()); // 날짜 범위도 여기서 확인해요
-		ChatSession session = ChatSession.start(userId, request.anchorDate(), request.scope(), request.shortcutKey(), lookup.level());
+		Lookup lookup = persona.lookup(ownerId, request.scope(), request.anchorDate()); // 날짜 범위도 여기서 확인해요
+		ChatSession session = forCouple
+			? ChatSession.startCouple(userId, ownerId, coupleId, request.anchorDate(), request.scope(), request.shortcutKey(), lookup.level())
+			: ChatSession.start(userId, request.anchorDate(), request.scope(), request.shortcutKey(), lookup.level());
 
 		if (lookup.level() == RecordLevel.NONE) {
 			return ChatSessionResponse.from(startReady(session, null, ChatGreetings.pick(null)), null);
@@ -100,8 +114,9 @@ public class ChatService {
 		ChatSession saved = sessions.saveAndFlush(session);
 		UUID sessionId = saved.getId();
 		job.begin(sessionId);
+		UUID analyzeFor = ownerId;
 		try {
-			executor.execute(() -> job.run(sessionId, userId, request.scope(), request.anchorDate()));
+			executor.execute(() -> job.run(sessionId, analyzeFor, request.scope(), request.anchorDate()));
 		} catch (RejectedExecutionException e) {
 			log.error("대화 준비를 시작하지 못했어요 sessionId={}", sessionId, e);
 			saved.fail("INTERNAL_ERROR");
@@ -162,6 +177,23 @@ public class ChatService {
 		sessions.findByIdAndUserId(chatId, userId).orElseThrow(ApiException::notFound);
 		return new MessageListResponse(messages.findBySessionIdAndSeqGreaterThanOrderBySeqAsc(chatId, afterSeq, PageRequest.of(0, limit))
 			.stream().map(ChatMessageResponse::from).toList());
+	}
+
+	/**
+	 * 같은 날의 커플 세션 중 아직 끝내지 않은 것이 있으면 그걸 이어서 써요(두 시점 비교가 날짜로 세션을 찾아서, 같은 날에 끝나지 않은 세션이 여럿 생기지 않게요).
+	 * 준비 중에 오래 멈췄거나 실패한 세션은 이어 쓰지 않고 새로 만들어요.
+	 */
+	private ChatSession unfinishedCoupleSession(UUID userId, UUID coupleId, ChatCreateRequest request) {
+		return tx.execute(status -> {
+			for (ChatSession session : sessions.findByUserIdAndCoupleIdAndAnchorDateAndWindowDaysOrderByStartedAtDesc(
+				userId, coupleId, request.anchorDate(), (short) request.scope().windowDays())) {
+				failIfStale(session);
+				if (!session.isEnded() && session.getStatus() != ChatStatus.FAILED) {
+					return session;
+				}
+			}
+			return null;
+		});
 	}
 
 	/** 분석이 필요 없는 세션을 READY로 저장하고 첫 인사(seq 1)도 같이 저장해요. */

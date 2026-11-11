@@ -96,7 +96,7 @@ class ChatReplyServiceTest {
 			onText.accept("그래?");
 			return new AiResult("어, 그래?", 12, 3);
 		});
-		service = new ChatReplyService(sessions, messages, users, persona, new ChatPromptBuilder(), new RuleSafetyDetector(),
+		service = new ChatReplyService(sessions, messages, users, persona, mock(com.dearus.couple.CoupleAccess.class), new ChatPromptBuilder(), new RuleSafetyDetector(),
 			safetyProperties, ai, new TransactionTemplate(mock(PlatformTransactionManager.class)));
 	}
 
