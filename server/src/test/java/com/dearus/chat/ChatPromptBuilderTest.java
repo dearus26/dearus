@@ -10,7 +10,6 @@ import com.dearus.persona.PersonaContent;
 import com.dearus.persona.PersonaRange;
 import com.dearus.persona.PersonaScope;
 import com.dearus.persona.RecordLevel;
-import com.dearus.upload.SensitiveMasker;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -18,10 +17,10 @@ import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
-/** 대화 프롬프트(시스템 프롬프트 · 이력 자르기 · 마스킹 · 번갈아 보내기)를 AI 호출 없이 확인해요. */
+/** 대화 프롬프트(시스템 프롬프트 · 이력 자르기 · 원문 그대로 보내기 · 번갈아 보내기)를 AI 호출 없이 확인해요. */
 class ChatPromptBuilderTest {
 
-	private final ChatPromptBuilder builder = new ChatPromptBuilder(new SensitiveMasker());
+	private final ChatPromptBuilder builder = new ChatPromptBuilder();
 	private final UUID userId = UUID.randomUUID();
 	private final UUID sessionId = UUID.randomUUID();
 	private final LocalDate anchor = Kst.today().minusDays(60);
@@ -87,7 +86,7 @@ class ChatPromptBuilderTest {
 		String system = builder.system(session(PersonaScope.AROUND), persona, "어 왔어?", false);
 
 		assertThat(system).contains("1~3문장으로 짧게").contains("줄을 나눠 문단을 만들지 말고").contains("마크다운은 쓰지 마")
-			.contains("대괄호 표시는 가려진 정보야").contains("기록에 없는 일은 지어내지 말고")
+			.doesNotContain("가려진").contains("기록에 없는 일은 지어내지 말고")
 			.contains("그 뒤에 일어난 일은 몰라").contains("AI가 아니라 그 무렵의 나").contains("대화 내내 지켜");
 	}
 
@@ -129,14 +128,14 @@ class ChatPromptBuilderTest {
 	}
 
 	@Test
-	void 내가_친_말은_가리고_페르소나의_말은_그대로_보내요() {
+	void 내가_친_말도_페르소나의_말도_가리지_않고_그대로_보내요() {
 		List<ChatMessage> history = List.of(message(2, ChatRole.USER, "내 번호는 010-1234-5678이야"), message(3, ChatRole.PERSONA, "연락처는 괜찮아 ㅋㅋ"));
 
 		List<AiMessage> messages = builder.messages(history, "메일은 a@b.com 이야");
 
-		assertThat(messages.get(0).text()).isEqualTo("내 번호는 [전화번호]이야");
+		assertThat(messages.get(0).text()).isEqualTo("내 번호는 010-1234-5678이야");
 		assertThat(messages.get(1).text()).isEqualTo("연락처는 괜찮아 ㅋㅋ");
-		assertThat(messages.get(2).text()).isEqualTo("메일은 [이메일] 이야");
+		assertThat(messages.get(2).text()).isEqualTo("메일은 a@b.com 이야");
 	}
 
 	@Test

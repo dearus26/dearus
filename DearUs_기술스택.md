@@ -71,7 +71,7 @@ React Native 앱 (Expo) → Spring Boot 서버 (Render) → Supabase (PostgreSQL
 | Anthropic Java SDK | 2.34.0 | `com.anthropic:anthropic-java`. 일반 호출 `complete`, 스트리밍 `createStreaming`. 공식 예제는 3.x라 올릴 때 실제 호출 시험과 함께 해요 |
 | Flyway | Spring Boot 관리 버전 | 테이블을 SQL 파일(마이그레이션)로 만들고 버전 관리 |
 | Actuator | Spring Boot 관리 버전 | 서버 상태 확인(`/actuator/health`), Render 배포 점검 |
-| 이미지 읽기 | 서버가 사진을 받아 AI로 읽음 | 서버가 앱이 보낸 이미지를 받아 AI의 이미지 입력으로 내 말을 읽고, 읽은 직후 사진을 지워요(이미지 올리기 API `POST /uploads/messenger/images`는 새로 만들어야 하고, 지금 서버는 이미지를 415로 거절해요). txt는 앱이 추린 내 말 글자(JSON)를 받아요. 서버는 글자를 가리는 처리(마스킹)를 하지 않아요. 사진을 직접 가공하거나 글자 인식을 하지 않아서 Render 서버의 이미지 처리 메모리는 걱정하지 않아도 돼요 |
+| 이미지 읽기 | 서버가 사진을 받아 AI로 읽음 | 서버가 앱이 보낸 이미지를 받아 AI의 이미지 입력으로 내 말을 읽고, 읽은 직후 사진을 지워요(이미지 올리기 API `POST /uploads/messenger/images`, 2026.11.9에 만들었어요. 사진은 메모리에서만 다루고 AI에 10장씩 나눠 보내요). txt는 앱이 추린 내 말 글자(JSON)를 받아요. 서버는 글자를 가리는 처리(마스킹)를 하지 않아요. 사진을 직접 가공하거나 글자 인식을 하지 않아서 Render 서버의 이미지 처리 메모리는 걱정하지 않아도 돼요 |
 | 빌드 도구 | Gradle | Spring Initializr 기본 래퍼 버전 |
 
 **Spring Initializr 의존성**
@@ -98,7 +98,7 @@ Initializr에는 없지만 직접 더한 의존성은 `com.anthropic:anthropic-j
 com.dearus
 ├── auth       # 소셜 로그인, JWT 발급
 ├── diary      # 일기 CRUD, 감정 태그, 캘린더 조회
-├── upload     # 메신저 내 말 글자 수신 · 원문 1년 보관 · 요약
+├── upload     # 메신저 내 말 글자 · 스크린샷 수신, 스크린샷에서 내 말 읽기, 원문 1년 보관 · 만료 삭제, 요약
 ├── persona    # 선택 구간(전후 2주 또는 그날 하루) 일기 · 메신저 주간 요약 분석, 분석 결과 재사용, 페르소나 생성
 ├── chat       # Time-Slip Chat (LLM 호출)
 ├── report     # 회고 리포트 생성
@@ -113,7 +113,7 @@ com.dearus
 | POST | /auth/{provider} | 소셜 로그인. 카카오는 access token을 카카오 API로, 구글은 ID token을 구글 공개키로 서버가 확인해요(애플은 아직 501). 제공자마다 별개 계정이고 이메일은 받지 않아요 |
 | PUT / DELETE | /me/consent | 서비스 이용 동의 · AI 분석 동의 철회 |
 | GET / POST / PUT / DELETE | /diaries | 일기 조회 · 작성 · 수정 · 삭제 (캘린더용 작성일 · 감정 태그 포함) |
-| POST | /uploads/messenger | 메신저 대화 올리기. txt는 앱이 폰 안에서 추린 내 말 글자(JSON)를 보내고, 이미지는 `POST /uploads/messenger/images`(multipart, 새로 만들어요)로 받아요. 요약은 비동기(202 + 상태 조회) |
+| POST | /uploads/messenger | 메신저 대화 올리기. txt는 앱이 폰 안에서 추린 내 말 글자(JSON)를 보내고, 이미지는 `POST /uploads/messenger/images`(multipart, 대화 순서대로)로 받아요. 요약은 비동기(202 + 상태 조회) |
 | GET | /personas/shortcuts · /personas/preview | 시점 고르기 (바로가기는 전후 2주, 캘린더 날짜는 그날 하루) |
 | GET | /chats | 과거의 나 목록 |
 | POST | /chats | 과거의 나와 대화 세션 생성. 요청에 시점 포함, 최대 1년 전까지. 답변 스트리밍은 `POST /chats/{chatId}/messages` (SSE `token` · `safety` · `done` · `error`, 또는 `Accept: application/json`) |

@@ -50,7 +50,7 @@ EXPO_PUBLIC_API_URL=http://<내 PC의 IP>:8080
 ## 지켜야 할 규칙
 
 - 앱은 Spring Boot 서버만 불러요. AI API나 Supabase를 직접 부르지 않아요.
-- 메신저 업로드는 두 갈래예요. txt는 폰 안에서 읽어 내 말만 추리고, 사용자가 확인한 글자를 그대로 `POST /uploads/messenger`로 보내요(상대 말은 폰에서 버려요). 이미지는 가공하지 않고 `POST /uploads/messenger/images`(multipart, 한 번에 최대 100장, 서버에서 새로 만들어요)로 보내요. 메신저 업로드는 개인정보 이용에 동의해야만 쓸 수 있어요.
+- 메신저 업로드는 두 갈래예요. txt는 폰 안에서 읽어 내 말만 추리고, 사용자가 확인한 글자를 그대로 `POST /uploads/messenger`로 보내요(상대 말은 폰에서 버려요). 이미지는 가공하지 않고 `POST /uploads/messenger/images`(multipart, 한 번에 최대 100장, 대화 순서대로)로 보내요. 메신저 업로드는 개인정보 이용에 동의해야만 쓸 수 있어요.
 - 채팅 답변은 SSE로 와요. React Native 기본 `fetch`는 스트림이 불안정해서 `expo/fetch`로 받아요(`src/api/client.ts`).
 - 명세에 없는 필드나 경로는 앱에서 마음대로 만들지 않고, 필요하면 명세를 먼저 고쳐요.
 - Expo 패키지는 `npx expo install`로 설치해요(SDK에 맞는 버전이 들어가요).

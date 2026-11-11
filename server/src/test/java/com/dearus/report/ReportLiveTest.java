@@ -22,7 +22,7 @@ class ReportLiveTest {
 	private final ReportGenerator generator = new ReportGenerator(
 		new AnthropicAiClient(new AiProperties("anthropic", System.getenv("ANTHROPIC_API_KEY"), "claude-haiku-5-5", 90)));
 	private final PersonaContent persona = new PersonaContent("반말을 쓰고 'ㅋㅋ', 'ㅠㅠ'를 자주 써요.", List.of("진짜", "ㅠㅠ"),
-		"개강 첫 주라 아침 1교시 수업이 힘들어요. 친구 [이름]이랑 점심을 먹으면 기분이 풀려요.", "과제가 많아서 제때 못 끝낼까 봐 불안해요. 진로도 아직 막막해요.",
+		"개강 첫 주라 아침 1교시 수업이 힘들어요. 친구 지수랑 점심을 먹으면 기분이 풀려요.", "과제가 많아서 제때 못 끝낼까 봐 불안해요. 진로도 아직 막막해요.",
 		"피곤하지만 중간고사 일정이 나와서 다짐도 하고 있어요.", List.of("개강했다. 아침 1교시라 진짜 죽을 것 같았음 ㅠㅠ"), List.of("야 뭐해 ㅋㅋ"));
 
 	private ReportGenerator.Prompt prompt(List<ReportGenerator.Turn> turns) {

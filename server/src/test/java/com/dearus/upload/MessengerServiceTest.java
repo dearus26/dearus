@@ -28,14 +28,20 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.http.HttpStatus;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/** DB · 실제 AI 없이 메신저 업로드의 규칙(동의 · 검증 · 주 묶기 · 원문 저장 · 성공 · 실패)을 확인해요. */
+/** DB · 실제 AI 없이 메신저 업로드(txt · 스크린샷)의 규칙(동의 · 검증 · 주 묶기 · 원문 저장 · 성공 · 실패)을 확인해요. */
 class MessengerServiceTest {
 
 	private static final String GOOD = "{\"summary\":\"이번 주 요약\",\"traits\":\"말투 분석\",\"sample\":[\"문장 하나\"]}";
+	/** 스크린샷 읽기의 답이에요. 2026-09-28(월)이 있는 주와 10-05(월)부터의 주에 내 말이 하나씩 있어요. */
+	private static final String READ = "{\"items\":[{\"date\":\"2026-09-28\"},{\"me\":\"스크린샷의 내 말\"},{\"date\":\"2026-10-05\"},{\"me\":\"다음 주 말\"}]}";
+	private static final byte[] PNG_HEADER = {(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A};
+	private String readAnswer = READ;
 
 	private final UserRepository users = mock(UserRepository.class);
 	private final MessengerUploadRepository uploads = mock(MessengerUploadRepository.class);
@@ -66,14 +72,32 @@ class MessengerServiceTest {
 			return call.getArgument(0);
 		});
 		when(ai.complete(any())).thenAnswer(call -> {
-			aiRequests.add(call.getArgument(0));
-			return new AiResult(GOOD, 1, 1);
+			AiRequest request = call.getArgument(0);
+			aiRequests.add(request);
+			// 다른 시험이 when(ai.complete(any()))로 다시 정할 때 null로 한 번 불려서 null을 견뎌요
+			boolean screenshot = request != null && request.messages().stream().anyMatch(message -> !message.images().isEmpty());
+			return new AiResult(screenshot ? readAnswer : GOOD, 1, 1);
 		});
 
 		Executor direct = Runnable::run; // 뒤에서 하는 일을 테스트에서는 바로 실행해요
 		TransactionTemplate tx = new TransactionTemplate(mock(PlatformTransactionManager.class));
 		MessengerSummaryJob job = new MessengerSummaryJob(new WeeklySummarizer(ai), crypto, uploads, summaries, tx, direct);
-		service = new MessengerService(users, uploads, summaries, job, direct);
+		MessengerImageJob imageJob = new MessengerImageJob(new ScreenshotReader(ai), job, direct);
+		service = new MessengerService(users, uploads, summaries, job, imageJob, direct);
+	}
+
+	private static MockMultipartFile png(String name, int bytes) {
+		byte[] data = new byte[bytes];
+		System.arraycopy(PNG_HEADER, 0, data, 0, PNG_HEADER.length);
+		return new MockMultipartFile("images", name, "image/png", data);
+	}
+
+	private static List<MultipartFile> pngs(int count, int bytes) {
+		List<MultipartFile> files = new ArrayList<>();
+		for (int i = 0; i < count; i++) {
+			files.add(png("shot" + i + ".png", bytes));
+		}
+		return files;
 	}
 
 	private MessengerUploadRequest request(MessengerMessage... messages) {
@@ -289,5 +313,105 @@ class MessengerServiceTest {
 		assertThat(MessengerService.weekStart(LocalDate.of(2026, 9, 28))).isEqualTo(LocalDate.of(2026, 9, 28)); // 월
 		assertThat(MessengerService.weekStart(LocalDate.of(2026, 10, 4))).isEqualTo(LocalDate.of(2026, 9, 28)); // 일
 		assertThat(MessengerService.weekStart(LocalDate.of(2026, 10, 5))).isEqualTo(LocalDate.of(2026, 10, 5)); // 월
+	}
+
+	// ---- 스크린샷 업로드 (POST /uploads/messenger/images) ----
+
+	@Test
+	void 스크린샷을_받아_내_말을_읽고_주_단위로_요약해_원문과_함께_저장해요() {
+		MessengerUploadResponse response = service.acceptImages(userId, MessengerSource.KAKAOTALK, true, pngs(2, 64));
+
+		assertThat(response.format()).isEqualTo(MessengerFormat.IMAGE);
+		assertThat(response.photoCount()).isEqualTo(2);
+		assertThat(saved.getStatus()).isEqualTo(MessengerStatus.DONE);
+		assertThat(saved.getPeriodStart()).isEqualTo(LocalDate.of(2026, 9, 28));
+		assertThat(saved.getPeriodEnd()).isEqualTo(LocalDate.of(2026, 10, 5));
+
+		// 첫 AI 호출은 스크린샷 2장을 올린 순서대로 읽는 것이고, 그 뒤로 주마다 요약해요
+		assertThat(aiRequests.get(0).messages().get(0).images()).hasSize(2);
+		assertThat(aiRequests).hasSize(3);
+		assertThat(savedSummaries).hasSize(2);
+
+		ArgumentCaptor<byte[]> original = ArgumentCaptor.forClass(byte[].class);
+		verify(uploads).storeOriginal(org.mockito.ArgumentMatchers.eq(uploadId), original.capture());
+		assertThat(MessengerOriginal.fromJson(crypto.decrypt(original.getValue()))).extracting(WeeklySummarizer.DatedText::text)
+			.containsExactly("스크린샷의 내 말", "다음 주 말");
+	}
+
+	@Test
+	void 앱이_보낸_Content_Type이_아니라_파일_앞부분으로_형식을_알아내요() {
+		byte[] realPng = new byte[64];
+		System.arraycopy(PNG_HEADER, 0, realPng, 0, PNG_HEADER.length);
+		MockMultipartFile disguised = new MockMultipartFile("images", "shot.png", "application/octet-stream", realPng);
+		MockMultipartFile fake = new MockMultipartFile("images", "shot.png", "image/png", "이미지가 아니에요".getBytes());
+
+		assertThat(service.acceptImages(userId, MessengerSource.KAKAOTALK, true, List.of(disguised)).photoCount()).isEqualTo(1);
+		ApiException e = apiError(() -> service.acceptImages(userId, MessengerSource.KAKAOTALK, true, List.of(fake)));
+		assertThat(e.getStatus()).isEqualTo(HttpStatus.UNSUPPORTED_MEDIA_TYPE);
+		assertThat(e.getCode()).isEqualTo("UNSUPPORTED_IMAGE_TYPE");
+	}
+
+	@Test
+	void 스크린샷도_올릴_때마다_동의가_있어야_하고_AI_동의가_없으면_403이에요() {
+		assertThat(apiError(() -> service.acceptImages(userId, MessengerSource.KAKAOTALK, null, pngs(1, 64))).getCode())
+			.isEqualTo("CONSENT_REQUIRED");
+		assertThat(apiError(() -> service.acceptImages(userId, MessengerSource.KAKAOTALK, false, pngs(1, 64))).getCode())
+			.isEqualTo("CONSENT_REQUIRED");
+
+		User revoked = User.create("dev", "x", "x");
+		revoked.agree(false);
+		revoked.revokeAiConsent();
+		when(users.findById(userId)).thenReturn(Optional.of(revoked));
+		assertThat(apiError(() -> service.acceptImages(userId, MessengerSource.KAKAOTALK, true, pngs(1, 64))).getCode())
+			.isEqualTo("AI_CONSENT_REQUIRED");
+
+		verify(uploads, never()).saveAndFlush(any());
+		verify(ai, never()).complete(any());
+	}
+
+	@Test
+	void 스크린샷은_1장에서_100장까지이고_source가_꼭_있어야_해요() {
+		assertThat(apiError(() -> service.acceptImages(userId, MessengerSource.KAKAOTALK, true, List.of())).getCode()).isEqualTo("VALIDATION_FAILED");
+		assertThat(apiError(() -> service.acceptImages(userId, MessengerSource.KAKAOTALK, true, null)).getCode()).isEqualTo("VALIDATION_FAILED");
+		assertThat(apiError(() -> service.acceptImages(userId, MessengerSource.KAKAOTALK, true, pngs(101, 16))).getCode())
+			.isEqualTo("VALIDATION_FAILED");
+		assertThat(apiError(() -> service.acceptImages(userId, null, true, pngs(1, 64))).getCode()).isEqualTo("VALIDATION_FAILED");
+		assertThat(apiError(() -> service.acceptImages(userId, MessengerSource.DISCORD, true, pngs(1, 64))).getCode())
+			.isEqualTo("VALIDATION_FAILED");
+		verify(uploads, never()).saveAndFlush(any());
+	}
+
+	@Test
+	void 한_장이_5MB를_넘거나_전체가_50MB를_넘으면_413이에요() {
+		List<MultipartFile> oneTooBig = List.of(png("big.png", (int) MessengerService.MAX_IMAGE_BYTES + 1));
+		List<MultipartFile> tooMany = pngs(11, (int) MessengerService.MAX_IMAGE_BYTES); // 한 장은 괜찮지만 합치면 55MB
+
+		assertThat(apiError(() -> service.acceptImages(userId, MessengerSource.KAKAOTALK, true, oneTooBig)).getStatus())
+			.isEqualTo(HttpStatus.CONTENT_TOO_LARGE);
+		assertThat(apiError(() -> service.acceptImages(userId, MessengerSource.KAKAOTALK, true, tooMany)).getStatus())
+			.isEqualTo(HttpStatus.CONTENT_TOO_LARGE);
+		verify(uploads, never()).saveAndFlush(any());
+	}
+
+	@Test
+	void 스크린샷도_앞서_올린_것을_분석하는_중이면_409예요() {
+		when(uploads.existsByUserIdAndStatusAndUploadedAtAfter(any(), any(), any())).thenReturn(true);
+
+		ApiException e = apiError(() -> service.acceptImages(userId, MessengerSource.KAKAOTALK, true, pngs(1, 64)));
+
+		assertThat(e.getCode()).isEqualTo("UPLOAD_IN_PROGRESS");
+		verify(uploads, never()).saveAndFlush(any());
+	}
+
+	@Test
+	void 스크린샷에서_날짜를_못_읽으면_DATE_NOT_FOUND로_FAILED이고_원문을_남기지_않아요() {
+		readAnswer = "{\"items\":[{\"me\":\"날짜 줄 없이 찍은 말\"}]}";
+
+		service.acceptImages(userId, MessengerSource.KAKAOTALK, true, pngs(1, 64));
+
+		assertThat(saved.getStatus()).isEqualTo(MessengerStatus.FAILED);
+		assertThat(saved.getFailureCode()).isEqualTo("DATE_NOT_FOUND");
+		verify(uploads, never()).storeOriginal(any(), any());
+		assertThat(savedSummaries).isEmpty();
 	}
 }

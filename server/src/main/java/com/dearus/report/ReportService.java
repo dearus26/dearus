@@ -15,7 +15,6 @@ import com.dearus.common.Kst;
 import com.dearus.common.ai.AiException;
 import com.dearus.persona.PersonaAnalysisService;
 import com.dearus.persona.PersonaContent;
-import com.dearus.upload.SensitiveMasker;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -43,7 +42,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  * - 내 말이 {@link #MIN_USER_MESSAGES}개 미만이면 끝낼 수는 있지만 리포트는 만들지 않아요(NONE).
  * - 이미 끝난 대화에 다시 불러도 같은 결과예요. 리포트가 FAILED이면 다시 만들어요(재시도).
  * - 끝내는 동안에는 같은 세션의 답변 잠금을 잡아서, 마지막 답변이 저장되기 전에 끝나거나 끝나는 중에 새 말이 들어오지 않아요.
- * - AI를 부르는 동안에는 DB 연결을 잡지 않아요. 내 말은 대화와 같이 가려서 보내요(저장은 원문 그대로).
+ * - AI를 부르는 동안에는 DB 연결을 잡지 않아요. 내 말은 대화와 같이 가리지 않은 원문 그대로 보내요.
  * - GENERATING이 {@link #STALE_AFTER}를 넘으면 실패로 봐요(서버가 다시 켜져서 작업이 사라진 경우).
  * 서버 한 대를 가정한 잠금이에요. 서버가 여러 대가 돼도 reports.session_id의 유일 키가 중복 생성을 막아요.
  * 로그에는 글자 없이 세션 ID와 이유만 남겨요.
@@ -70,13 +69,12 @@ public class ReportService {
 	private final ReportRepository reports;
 	private final PersonaAnalysisService personas;
 	private final ReportGenerator generator;
-	private final SensitiveMasker masker;
 	private final ChatReplyService replies;
 	private final TransactionTemplate tx;
 	private final Executor executor;
 
 	public ReportService(ChatSessionRepository sessions, ChatMessageRepository messages, UserRepository users, ReportRepository reports,
-		PersonaAnalysisService personas, ReportGenerator generator, SensitiveMasker masker, ChatReplyService replies, TransactionTemplate tx,
+		PersonaAnalysisService personas, ReportGenerator generator, ChatReplyService replies, TransactionTemplate tx,
 		@Qualifier("reportExecutor") Executor executor) {
 		this.sessions = sessions;
 		this.messages = messages;
@@ -84,7 +82,6 @@ public class ReportService {
 		this.reports = reports;
 		this.personas = personas;
 		this.generator = generator;
-		this.masker = masker;
 		this.replies = replies;
 		this.tx = tx;
 		this.executor = executor;
@@ -187,7 +184,7 @@ public class ReportService {
 		}
 	}
 
-	/** AI로 보낼 내용을 모아요. 내 말은 가린 글자로 바꾸고, 과거의 나의 말은 그대로 둬요(AI가 만든 글이에요). */
+	/** AI로 보낼 내용을 모아요. 내 말과 과거의 나의 말(AI가 만든 글) 모두 저장된 원문 그대로예요. */
 	private ReportGenerator.Prompt loadPrompt(UUID chatId) {
 		ChatSession session = sessions.findById(chatId).orElse(null);
 		if (session == null) {
@@ -197,9 +194,7 @@ public class ReportService {
 		Collections.reverse(recent); // seq 오름차순
 		PersonaContent persona = session.getAnalysisId() == null ? null : personas.contentOf(session.getAnalysisId()).orElse(null);
 		List<ReportGenerator.Turn> turns = recent.stream()
-			.map(message -> message.getRole() == ChatRole.USER
-				? new ReportGenerator.Turn(true, masker.mask(message.getContent()).text())
-				: new ReportGenerator.Turn(false, message.getContent()))
+			.map(message -> new ReportGenerator.Turn(message.getRole() == ChatRole.USER, message.getContent()))
 			.toList();
 		return new ReportGenerator.Prompt(session.scope(), session.getAnchorDate(), persona, turns);
 	}

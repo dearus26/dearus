@@ -55,13 +55,13 @@ class ChatReplyDbTest {
 			ChatSessionResponse session = chats.create(userId, new ChatCreateRequest(Kst.today().minusDays(50), PersonaScope.DAY, null, false));
 			assertThat(session.status()).isEqualTo(ChatStatus.READY);
 
-			// 1) 한 턴: 내 말(원문) seq 2, 답변 seq 3. AI에는 가린 글자가 가요
+			// 1) 한 턴: 내 말(원문) seq 2, 답변 seq 3. AI에도 가리지 않은 원문이 가요(가짜 AI가 내 말을 따라 말해요)
 			Recorder recorder = new Recorder();
 			ChatReplyResponse first = replies.run(replies.prepare(userId, session.id(), "내 번호는 010-1234-5678이야"), recorder);
 			assertThat(first.userMessage().seq()).isEqualTo(2);
 			assertThat(first.userMessage().content()).isEqualTo("내 번호는 010-1234-5678이야");
 			assertThat(first.personaMessage().seq()).isEqualTo(3);
-			assertThat(first.personaMessage().content()).contains("[전화번호]").doesNotContain("010-1234-5678");
+			assertThat(first.personaMessage().content()).contains("010-1234-5678");
 			assertThat(recorder.events).contains("token");
 			assertThat(recorder.events).doesNotContain("safety");
 

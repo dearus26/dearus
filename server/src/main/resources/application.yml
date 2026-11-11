@@ -18,6 +18,13 @@ spring:
       ddl-auto: validate
   flyway:
     enabled: true
+  servlet:
+    multipart:
+      # 메신저 스크린샷 올리기(POST /uploads/messenger/images)의 한도예요(API 명세: 한 장 5MB, 요청 전체 50MB).
+      # 사진을 디스크의 임시 파일로 쓰지 않고 메모리에서만 다루려고 file-size-threshold를 한 장 한도보다 크게 둬요(읽은 직후 버려요).
+      max-file-size: 5MB
+      max-request-size: 50MB
+      file-size-threshold: 6MB
 
 app:
   jwt:
@@ -43,7 +50,7 @@ app:
     timeout-seconds: 90
   safety:
     # 대화에서 위기 신호를 감지했을 때 내려주는 상담전화예요. 번호는 설정이라 앱 배포 없이 바꿀 수 있어요.
-    # 보도 · 서울시 안내로 확인했고(모두 24시간), 발표 전에 보건복지부 공식 안내로 한 번 더 확인해요.
+    # 두 번호 모두 24시간이고, 공식 안내로 확인했어요(2026.11.8).
     hotlines:
       - name: 자살예방 상담전화
         phone: "109"
