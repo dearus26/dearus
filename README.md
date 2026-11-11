@@ -55,7 +55,7 @@
 | 서버 | Java 21 · Spring Boot 4.1 · Gradle · Flyway |
 | DB | Supabase (PostgreSQL). DB 용도로만 쓰고 인증 · 로직은 서버가 맡아요 |
 | AI | Anthropic Claude Haiku 5.5. 서버에서만 호출해요 |
-| 배포 | Render (서버) · Expo EAS Build (앱) |
+| 배포 | Render (서버, 싱가포르) · Expo EAS Build (앱). DB(Supabase)는 서울이고 백업은 두지 않아요(무료 요금제) |
 
 버전과 선택 이유는 [DearUs_기술스택.md](DearUs_기술스택.md)에 있어요.
 
