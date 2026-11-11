@@ -1,7 +1,14 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 
-import { getMe, giveConsent as giveConsentApi, login, type User } from '@/api/auth';
+import {
+  deleteMe,
+  getMe,
+  giveConsent as giveConsentApi,
+  login,
+  revokeAiConsent as revokeAiConsentApi,
+  type User,
+} from '@/api/auth';
 import { setAccessToken, setUnauthorizedHandler } from '@/api/client';
 import { ApiError } from '@/api/errors';
 import { getSocialCredential, type SocialProvider } from '@/session/socialLogin';
@@ -15,8 +22,15 @@ type SessionValue = {
   /** signedIn일 때만 있어요 */
   user: User | null;
   signIn: (provider: SocialProvider) => Promise<void>;
-  /** 서비스 이용 동의(필수 3개) + 알림 선택. 성공하면 needsConsent가 false가 돼요. */
+  /**
+   * 서비스 이용 동의(필수 3개) + 알림 선택. 성공하면 needsConsent가 false가 돼요.
+   * 이미 유효한 동의에 다시 부르면 알림 설정만 바뀌고, 철회한 뒤에 부르면 AI 분석에 다시 동의한 것이 돼요.
+   */
   giveConsent: (notifications: boolean) => Promise<void>;
+  /** 설정의 AI 분석 동의 철회. AI 기능은 바로 막히고, 분석 데이터 · 대화 기록은 30일 뒤 지워져요(user.aiDataDeleteAt). */
+  revokeAiConsent: () => Promise<void>;
+  /** 회원 탈퇴. 서버가 모든 데이터를 바로 지우고, 이 폰의 로그인도 끝내요. */
+  deleteAccount: () => Promise<void>;
   signOut: () => Promise<void>;
 };
 
@@ -87,8 +101,18 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setUser(updated);
   }
 
+  async function revokeAiConsent() {
+    setUser(await revokeAiConsentApi());
+  }
+
+  async function deleteAccount() {
+    await deleteMe();
+    await endSession();
+  }
+
   return (
-    <SessionContext.Provider value={{ status, user, signIn, giveConsent, signOut: endSession }}>
+    <SessionContext.Provider
+      value={{ status, user, signIn, giveConsent, revokeAiConsent, deleteAccount, signOut: endSession }}>
       {children}
     </SessionContext.Provider>
   );

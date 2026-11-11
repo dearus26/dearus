@@ -2,15 +2,16 @@ import type { ReactNode } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet } from 'react-native';
 
 import { AppText } from '@/components/AppText';
-import { colors } from '@/theme/colors';
+import { colors, emotionColors } from '@/theme/colors';
 
-export type ButtonVariant = 'gold' | 'brown' | 'line' | 'kakao' | 'google' | 'apple';
+export type ButtonVariant = 'gold' | 'brown' | 'line' | 'danger' | 'kakao' | 'google' | 'apple';
 
-/** 스토리보드의 .btn 변형들이에요. */
+/** 스토리보드의 .btn 변형들이에요. danger는 되돌릴 수 없는 일(탈퇴 · 철회)을 확인하는 버튼이에요. */
 const variants: Record<ButtonVariant, { background: string; foreground: string; border?: string }> = {
   gold: { background: colors.gold, foreground: colors.ink },
   brown: { background: colors.brown, foreground: colors.cream },
   line: { background: 'transparent', foreground: colors.brown, border: colors.beige },
+  danger: { background: emotionColors.ANGRY, foreground: colors.white },
   kakao: { background: colors.kakao, foreground: colors.kakaoText },
   google: { background: colors.white, foreground: colors.googleText, border: colors.beige },
   apple: { background: colors.black, foreground: colors.white },
