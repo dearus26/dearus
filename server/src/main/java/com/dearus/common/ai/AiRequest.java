@@ -24,12 +24,4 @@ public record AiRequest(String system, List<AiMessage> messages, int maxTokens, 
 	public static AiRequest single(String system, String userText, int maxTokens, AiEffort effort) {
 		return new AiRequest(system, List.of(new AiMessage(AiMessage.Role.USER, userText)), maxTokens, effort);
 	}
-
-	/** 이미지 여러 장(보내는 순서대로)과 글자 하나로 된 사용자 메시지 하나의 요청이에요(스크린샷 읽기). */
-	public static AiRequest withImages(String system, List<AiImage> images, String userText, int maxTokens, AiEffort effort) {
-		if (images == null || images.isEmpty()) {
-			throw new IllegalArgumentException("이미지가 한 장 이상 있어야 해요");
-		}
-		return new AiRequest(system, List.of(new AiMessage(AiMessage.Role.USER, userText, images)), maxTokens, effort);
-	}
 }

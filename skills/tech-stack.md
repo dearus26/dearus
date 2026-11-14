@@ -71,7 +71,7 @@ React Native 앱 (Expo) → Spring Boot 서버 (Render) → Supabase (PostgreSQL
 | Anthropic Java SDK | 2.34.0 | `com.anthropic:anthropic-java`. 일반 호출 `complete`, 스트리밍 `createStreaming`. 공식 예제는 3.x라 올릴 때 실제 호출 시험과 함께 해요 |
 | Flyway | Spring Boot 관리 버전 | 테이블을 SQL 파일(마이그레이션)로 만들고 버전 관리 |
 | Actuator | Spring Boot 관리 버전 | 서버 상태 확인(`/actuator/health`), Render 배포 점검 |
-| 메신저 글자 수신 | 서버가 앱이 추린 내 말 글자(JSON)를 받음 | 앱이 txt에서 추린 내 말 글자(JSON)를 받아요. 서버는 글자를 가리는 처리(마스킹)를 하지 않아요. 이미지 올리기와 이미지 읽기는 하지 않기로 했어요(2026.11.11, 서버에 남은 `POST /uploads/messenger/images`와 `ScreenshotReader` 등은 백엔드 담당이 지워요) |
+| 메신저 글자 수신 | 서버가 앱이 추린 내 말 글자(JSON)를 받음 | 앱이 txt에서 추린 내 말 글자(JSON)를 받아요. 서버는 글자를 가리는 처리(마스킹)를 하지 않아요. 이미지 올리기와 이미지 읽기는 하지 않기로 했어요(2026.11.11 결정, 서버의 `POST /uploads/messenger/images`와 `ScreenshotReader` 등도 2026.11.14에 지웠어요) |
 | 빌드 도구 | Gradle | Spring Initializr 기본 래퍼 버전 |
 
 **Spring Initializr 의존성**

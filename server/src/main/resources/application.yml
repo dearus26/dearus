@@ -18,13 +18,6 @@ spring:
       ddl-auto: validate
   flyway:
     enabled: true
-  servlet:
-    multipart:
-      # 메신저 스크린샷 올리기(POST /uploads/messenger/images)의 한도예요(API 명세: 한 장 5MB, 요청 전체 50MB).
-      # 사진을 디스크의 임시 파일로 쓰지 않고 메모리에서만 다루려고 file-size-threshold를 한 장 한도보다 크게 둬요(읽은 직후 버려요).
-      max-file-size: 5MB
-      max-request-size: 50MB
-      file-size-threshold: 6MB
 
 app:
   jwt:

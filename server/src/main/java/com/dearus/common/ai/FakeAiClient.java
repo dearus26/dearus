@@ -1,12 +1,11 @@
 package com.dearus.common.ai;
 
-import com.dearus.common.Kst;
 import java.util.function.Consumer;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /**
- * 키 없이 개발할 때 쓰는 가짜 AI(AI_PROVIDER=fake). 글자만 오면 항상 같은 가짜 JSON을, 이미지가 오면 가짜 스크린샷 읽기 결과를 돌려줘요.
+ * 키 없이 개발할 때 쓰는 가짜 AI(AI_PROVIDER=fake). 항상 같은 가짜 JSON을 돌려줘요.
  * 앱 화면 흐름과 서버의 저장 · 상태 전환을 확인하는 용도이고, 배포 서버에서는 켜지 않아요.
  */
 @Component
@@ -16,15 +15,10 @@ public class FakeAiClient implements AiClient {
 	/**
 	 * 메신저 주간 요약(summary · traits · sample), 시점 분석(voice 등), 회고 리포트(pastConcern 등), 커플 리포트(memorySummary) · 간극(gapSummary)의
 	 * 필드를 한 JSON에 모두 담아요.
-	 * 각 파서는 자기 필드만 읽어서 어느 호출에 써도 돼요. 이미지가 있으면(스크린샷 읽기) 어제 날짜의 가짜 내 말 두 줄을 돌려줘요.
+	 * 각 파서는 자기 필드만 읽어서 어느 호출에 써도 돼요.
 	 */
 	@Override
 	public AiResult complete(AiRequest request) {
-		if (request.messages().stream().anyMatch(message -> !message.images().isEmpty())) {
-			String yesterday = Kst.today().minusDays(1).toString();
-			return new AiResult("""
-				{"items": [{"date": "%s"}, {"me": "(가짜 읽기) 오늘 뭐 했어?"}, {"me": "(가짜 읽기) ㅋㅋ 그러게"}]}""".formatted(yesterday), 0, 0);
-		}
 		String json = """
 			{"summary": "(가짜 요약) 이번 주에는 평범한 일상을 보냈어요.", \
 			"traits": "(가짜 분석) 짧은 반말을 쓰고 웃음 표현을 자주 써요.", \

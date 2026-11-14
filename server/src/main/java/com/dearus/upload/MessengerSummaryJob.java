@@ -46,7 +46,6 @@ public class MessengerSummaryJob {
 		this.aiCalls = aiCalls;
 	}
 
-	/** txt 업로드는 MessengerService가, 스크린샷 업로드는 읽기가 끝난 뒤 MessengerImageJob이 불러요. */
 	public void run(UUID uploadId, List<WeekMessages> weeks, LocalDate periodStart, LocalDate periodEnd) {
 		try {
 			List<SummaryParts> results = summarizeAll(weeks);
@@ -109,8 +108,7 @@ public class MessengerSummaryJob {
 		log.info("메신저 요약 완료 uploadId={} weeks={}", uploadId, weeks.size());
 	}
 
-	/** 아직 PROCESSING이면 FAILED로 바꿔요. 스크린샷 읽기(MessengerImageJob)가 실패했을 때도 써요. */
-	void fail(UUID uploadId, String failureCode) {
+	private void fail(UUID uploadId, String failureCode) {
 		try {
 			tx.executeWithoutResult(status -> uploads.findById(uploadId).ifPresent(upload -> {
 				if (upload.isProcessing()) {
