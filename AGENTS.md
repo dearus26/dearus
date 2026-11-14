@@ -74,7 +74,7 @@
 - 테이블과 컬럼은 `DearUs_ERD.html`을 따라요. 컬럼 이름은 snake_case예요.
 - Supabase는 DB 용도로만 쓰고, 인증과 비즈니스 로직은 Spring Boot가 맡아요.
 - AI API 키(`ANTHROPIC_API_KEY`), DB 비밀번호, JWT 키, 암호화 키(`ENCRYPTION_KEY`) 같은 비밀 값은 환경변수로 관리해요. `application-local.*`처럼 비밀 값이 든 설정 파일은 git에 올리지 않아요.
-- 글자를 가리는 처리(마스킹)는 하지 않아요. 일기 · 대화 · 리포트도 원문 그대로 AI로 보내요. 메신저 업로드는 앱이 txt에서 추린 내 말만 `POST /uploads/messenger`로 받아요(스크린샷 올리기는 2026.11.11에 하지 않기로 했어요. 서버에 남은 `POST /uploads/messenger/images`와 이미지 읽기 코드는 백엔드 담당이 지워요). txt로 받은 내 말 원문은 `messenger_uploads.original_enc`에 암호화해 1년 보관하고, 만료되면 매일 새벽 4시에 도는 `MessengerExpiryJob`이 지워요. 요약은 암호화해서 저장해요. 메신저 업로드는 개인정보 이용 · AI 전송 동의가 있어야만 받아요.
+- 글자를 가리는 처리(마스킹)는 하지 않아요. 일기 · 대화 · 리포트도 원문 그대로 AI로 보내요. 메신저 업로드는 앱이 txt에서 추린 내 말만 `POST /uploads/messenger`로 받아요(스크린샷 올리기는 2026.11.11에 하지 않기로 했고, 서버의 `POST /uploads/messenger/images`와 이미지 읽기 코드도 2026.11.14에 지웠어요. 사진이나 multipart를 보내면 415예요). txt로 받은 내 말 원문은 `messenger_uploads.original_enc`에 암호화해 1년 보관하고, 만료되면 매일 새벽 4시에 도는 `MessengerExpiryJob`이 지워요. 요약은 암호화해서 저장해요. 메신저 업로드는 개인정보 이용 · AI 전송 동의가 있어야만 받아요.
 - AI를 부르는 API(메신저 업로드 · 대화 · 리포트)는 먼저 AI 분석 동의가 유효한지(`users`의 `aiConsentActive`) 확인하고, 아니면 403 `AI_CONSENT_REQUIRED`를 돌려줘요. 동의를 철회하면 AI를 부르는 API는 바로 막고, 저장된 분석 데이터와 대화 기록은 30일 보관한 뒤 지워요(`ConsentPurgeJob`, 그 안에 다시 동의하면 이어서 써요). 일기는 지우지 않아요.
 - AI 프롬프트는 `chat/ChatPromptBuilder`(대화), `persona/PersonaAnalyzer`(시점 분석), `upload/WeeklySummarizer`(메신저 주간 요약), `report/ReportGenerator`(회고 리포트)에 있어요. 시점 분석 프롬프트를 고치면 `PersonaAnalyzer.PROMPT_VERSION`을 올려야 저장된 분석이 새 프롬프트로 다시 만들어져요.
 - AI나 소셜 제공자(카카오 · 구글)처럼 느린 외부를 부르는 동안에는 DB 연결(트랜잭션)을 잡고 있지 않아요. 연결 풀이 5개뿐이라 외부 호출이 느리면 서버 전체가 멈춰요. 소셜 토큰과 제공자 응답은 로그에 남기지 않아요.

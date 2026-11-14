@@ -49,7 +49,7 @@ public class MessengerUpload {
 	@Column(name = "failure_code", length = 40)
 	private String failureCode;
 
-	/** 이미지 장수예요. txt로 올리면 0이에요. */
+	/** 스크린샷으로 올렸을 때의 이미지 장수였어요. 2026.11.11부터 txt만 받아서 늘 0이에요(API · DB를 그대로 두려고 남겼어요). */
 	@Column(name = "photo_count", nullable = false, updatable = false)
 	private int photoCount;
 
@@ -62,7 +62,7 @@ public class MessengerUpload {
 	@Column(name = "expires_at", nullable = false, updatable = false)
 	private OffsetDateTime expiresAt;
 
-	/** 받은 직후의 업로드예요. photoCount는 이미지 장수이고 txt는 0이에요. 업로드 1년 뒤에 원문과 요약이 지워져요. */
+	/** 받은 직후의 업로드예요. txt만 받아서 photoCount는 0이에요. 업로드 1년 뒤에 원문과 요약이 지워져요. */
 	public static MessengerUpload receive(UUID userId, MessengerSource source, int photoCount) {
 		MessengerUpload upload = new MessengerUpload();
 		upload.userId = userId;
@@ -86,7 +86,7 @@ public class MessengerUpload {
 		this.failureCode = failureCode;
 	}
 
-	/** 이미지로 올렸는지 txt로 올렸는지 (API의 format). 이미지는 1장 이상이라 0이면 txt예요. */
+	/** API의 format이에요. 지금은 늘 TXT이고, IMAGE는 2026.11.11 전에 스크린샷으로 올린 업로드에만 있어요. */
 	public MessengerFormat format() {
 		return photoCount > 0 ? MessengerFormat.IMAGE : MessengerFormat.TXT;
 	}

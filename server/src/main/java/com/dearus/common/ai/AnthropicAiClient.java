@@ -5,18 +5,11 @@ import com.anthropic.client.okhttp.AnthropicOkHttpClient;
 import com.anthropic.core.http.StreamResponse;
 import com.anthropic.errors.AnthropicException;
 import com.anthropic.errors.AnthropicServiceException;
-import com.anthropic.models.messages.Base64ImageSource;
-import com.anthropic.models.messages.ContentBlockParam;
-import com.anthropic.models.messages.ImageBlockParam;
 import com.anthropic.models.messages.Message;
 import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.OutputConfig;
 import com.anthropic.models.messages.RawMessageStreamEvent;
-import com.anthropic.models.messages.TextBlockParam;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.List;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -108,38 +101,13 @@ public class AnthropicAiClient implements AiClient {
 			params.system(request.system());
 		}
 		for (AiMessage message : request.messages()) {
-			if (message.role() == AiMessage.Role.ASSISTANT) {
-				params.addAssistantMessage(message.text());
-			} else if (message.images().isEmpty()) {
+			if (message.role() == AiMessage.Role.USER) {
 				params.addUserMessage(message.text());
 			} else {
-				params.addUserMessageOfBlockParams(blocks(message));
+				params.addAssistantMessage(message.text());
 			}
 		}
 		return params.build();
-	}
-
-	/** 이미지(보내는 순서대로, base64)를 먼저 놓고 글자를 마지막에 놓아요. 이미지를 앞에 둘 때 모델이 더 잘 읽어요. */
-	static List<ContentBlockParam> blocks(AiMessage message) {
-		List<ContentBlockParam> blocks = new ArrayList<>(message.images().size() + 1);
-		for (AiImage image : message.images()) {
-			blocks.add(ContentBlockParam.ofImage(ImageBlockParam.builder()
-				.source(Base64ImageSource.builder()
-					.data(Base64.getEncoder().encodeToString(image.data()))
-					.mediaType(toMediaType(image.mediaType()))
-					.build())
-				.build()));
-		}
-		blocks.add(ContentBlockParam.ofText(TextBlockParam.builder().text(message.text()).build()));
-		return blocks;
-	}
-
-	private static Base64ImageSource.MediaType toMediaType(AiImage.MediaType type) {
-		return switch (type) {
-			case JPEG -> Base64ImageSource.MediaType.IMAGE_JPEG;
-			case PNG -> Base64ImageSource.MediaType.IMAGE_PNG;
-			case WEBP -> Base64ImageSource.MediaType.IMAGE_WEBP;
-		};
 	}
 
 	private static AiException unavailable(AnthropicException e) {

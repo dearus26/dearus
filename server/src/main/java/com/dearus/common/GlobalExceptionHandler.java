@@ -17,8 +17,6 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
-import org.springframework.web.multipart.MaxUploadSizeExceededException;
-import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /** 모든 오류를 API 명세의 { code, message, details } 형태로 바꿔요. */
@@ -26,7 +24,6 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 public class GlobalExceptionHandler {
 
 	private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
-	private static final String IMAGES_PATH = "/uploads/messenger/images";
 
 	@ExceptionHandler(ApiException.class)
 	ResponseEntity<ErrorResponse> handleApi(ApiException e) {
@@ -66,33 +63,14 @@ public class GlobalExceptionHandler {
 		return json(HttpStatus.METHOD_NOT_ALLOWED, new ErrorResponse("METHOD_NOT_ALLOWED", "지원하지 않는 요청이에요.", null));
 	}
 
-	/**
-	 * 본문 형식이 그 API와 맞지 않아요. 스크린샷 API에 multipart가 아닌 본문을 보내면 UNSUPPORTED_IMAGE_TYPE,
-	 * txt API에 사진(multipart 등)을 보내면 IMAGES_NOT_ACCEPTED로 알려줘요.
-	 */
+	/** JSON이 아닌 본문(사진 · multipart 등)이에요. 메신저 업로드는 txt에서 추린 글자만 받는다고 알려줘요(2026.11.11부터 txt만). */
 	@ExceptionHandler(HttpMediaTypeNotSupportedException.class)
 	ResponseEntity<ErrorResponse> handleMediaType(HttpMediaTypeNotSupportedException e, HttpServletRequest request) {
-		if (IMAGES_PATH.equals(request.getRequestURI())) {
-			return json(HttpStatus.UNSUPPORTED_MEDIA_TYPE, new ErrorResponse("UNSUPPORTED_IMAGE_TYPE",
-				"스크린샷은 multipart/form-data로 보내 주세요.", null));
-		}
 		if (request.getRequestURI().startsWith("/uploads/messenger")) {
 			return json(HttpStatus.UNSUPPORTED_MEDIA_TYPE, new ErrorResponse("IMAGES_NOT_ACCEPTED",
-				"이 API는 txt에서 추린 글자(JSON)만 받아요. 스크린샷은 POST /uploads/messenger/images로 보내 주세요.", null));
+				"사진은 받지 않아요. 카카오톡 대화 내보내기 txt에서 추린 글자(JSON)로 보내 주세요.", null));
 		}
 		return json(HttpStatus.UNSUPPORTED_MEDIA_TYPE, new ErrorResponse("UNSUPPORTED_MEDIA_TYPE", "JSON으로 보내 주세요.", null));
-	}
-
-	/** 멀티파트가 한 장 5MB나 요청 전체 50MB(application.yml)를 넘었어요. 본문을 끝까지 읽기 전에 멈춰요. */
-	@ExceptionHandler(MaxUploadSizeExceededException.class)
-	ResponseEntity<ErrorResponse> handleUploadSize(MaxUploadSizeExceededException e) {
-		return json(HttpStatus.CONTENT_TOO_LARGE, new ErrorResponse("PAYLOAD_TOO_LARGE", "한 번에 올릴 수 있는 크기를 넘었어요. 나눠서 올려 주세요.", null));
-	}
-
-	/** 멀티파트 본문을 읽지 못했어요(형식이 깨졌거나 중간에 끊겼어요). */
-	@ExceptionHandler(MultipartException.class)
-	ResponseEntity<ErrorResponse> handleMultipart(MultipartException e) {
-		return validationFailed(Map.of("fields", List.of(Map.of("field", "body", "reason", "요청 형식이 올바르지 않아요"))));
 	}
 
 	/** 유일 제약 충돌처럼 동시에 같은 값을 넣었을 때예요. */
