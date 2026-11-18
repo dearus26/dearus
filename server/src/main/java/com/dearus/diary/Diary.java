@@ -1,8 +1,10 @@
 package com.dearus.diary;
 
+import com.dearus.common.EncryptedTextConverter;
 import com.dearus.common.Kst;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -21,7 +23,10 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-/** diaries + diary_emotions 테이블 (ERD). 일기는 하루 한 건이에요. */
+/**
+ * diaries + diary_emotions 테이블 (ERD). 일기는 하루 한 건이에요.
+ * 본문은 DB에 암호화해 저장해요(content_enc, V9). 엔티티와 서비스에서는 평문으로 다뤄요.
+ */
 @Entity
 @Table(name = "diaries")
 @Getter
@@ -38,7 +43,8 @@ public class Diary {
 	@Column(name = "diary_date", nullable = false, updatable = false)
 	private LocalDate diaryDate;
 
-	@Column(nullable = false, columnDefinition = "text")
+	@Convert(converter = EncryptedTextConverter.class)
+	@Column(name = "content_enc", nullable = false)
 	private String content;
 
 	@ElementCollection

@@ -105,8 +105,10 @@
 <text class="cname mono" x="66" y="374.2">diary_date</text>
 <text class="ctype" x="255" y="374">date</text>
 <line class="sep" x1="38" y1="380" x2="257" y2="380"/>
-<text class="cname mono" x="66" y="394.2">content</text>
-<text class="ctype" x="255" y="394">text</text>
+<rect class="bdg bdg-ENC" x="38" y="384" width="28" height="12" rx="3"/>
+<text class="btxt btxt-ENC" x="52" y="393.2">ENC</text>
+<text class="cname mono" x="72" y="394.2">content_enc</text>
+<text class="ctype" x="255" y="394">bytea</text>
 <line class="sep" x1="38" y1="400" x2="257" y2="400"/>
 <text class="cname mono" x="66" y="414.2">created_at</text>
 <text class="ctype" x="255" y="414">timestamptz</text>
@@ -537,7 +539,7 @@
           <li>회원 탈퇴 시 <code>users</code> 행을 지우면 모든 테이블이 <code>ON DELETE CASCADE</code>로 즉시 지워집니다.</li>
           <li>AI 분석 동의를 철회하면 바로 지우지 않고, 철회 시각(<code>users.ai_revoked_at</code>)부터 30일 뒤에 그 사용자의 대화 세션(메시지 포함) · 시점 분석 · 메신저 업로드(주간 요약 포함)를 서버가 지웁니다. 그 안에 다시 동의하면 철회 시각이 비워져 그대로 이어서 씁니다. 일기는 지우지 않습니다.</li>
           <li>예외로 <code>chat_sessions.analysis_id</code>는 <code>ON DELETE SET NULL</code>입니다. 분석 행이 재분석으로 바뀌어도 대화 기록은 남기 위해서입니다.</li>
-          <li>암호화는 애플리케이션 레벨(AES-GCM 가정)이고, 키는 Render 환경변수에 둡니다. <code>*_enc</code> 컬럼만 해당합니다.</li>
+          <li>암호화는 애플리케이션 레벨(AES-GCM 가정)이고, 키는 Render 환경변수에 둡니다. <code>*_enc</code> 컬럼만 해당합니다. 일기 본문도 2026.11.18부터 <code>diaries.content_enc</code>에 암호화해 둡니다(V9). 키를 잃으면 암호화한 값은 되살릴 수 없습니다(백업도 없습니다).</li>
           <li>컬럼 이름과 테이블 이름은 snake_case이고 코드 식별자 규칙(<code>dearus</code>)을 따릅니다.</li>
         </ul>
       </div>
@@ -559,7 +561,7 @@
     <ul class="notes">
       <li><b>일기는 하루 한 건</b> — <code>diaries</code>에 <code>(user_id, diary_date)</code> 유일 제약을 두었습니다. 하루에 여러 번 쓸 수 있다면 제약을 빼야 하고, 캘린더 작성 표시는 그대로 날짜 기준입니다.</li>
       <li><b>감정 태그는 여러 개</b> — 한 일기에 여러 태그를 붙일 수 있게 <code>diary_emotions</code>를 따로 뒀습니다. 태그는 마스터 테이블 없이 코드의 enum(<code>JOY, SAD, TIRED</code> 등)으로 관리합니다. 하나만 고르는 방식이면 <code>diaries.emotion</code> 컬럼으로 줄일 수 있습니다.</li>
-      <li><b>일기 본문과 대화 내용의 암호화</b> — 기획서 7장은 요약 · 말투 특징만 암호화한다고 적었습니다. <code>diaries.content</code>와 <code>chat_messages.content</code>는 평문으로 두었습니다. 암호화하려면 컬럼을 <code>*_enc</code>로 바꿔야 합니다.</li>
+      <li><b>대화 내용 · 리포트는 평문</b> — 일기 본문은 2026.11.18에 암호화하기로 해서 <code>diaries.content</code>를 <code>content_enc</code>(V9)로 바꿨습니다. <code>chat_messages.content</code>와 <code>reports</code>는 평문으로 두었습니다. 암호화하려면 컬럼을 <code>*_enc</code>로 바꾸고 엔티티 필드에 <code>EncryptedTextConverter</code>를 붙이면 됩니다.</li>
       <li><b>커플 철회 시 본인 분석은 유지</b> — 철회하면 그 커플의 대화 · 리포트(기억 요약 · 간극)를 지우지만, 내 <code>persona_analyses</code> 행은 개인 모드에서도 쓰므로 남겨 둡니다. “관련 분석 데이터 파기”(기획서 6.3)를 더 넓게 해석한다면 규칙이 달라집니다.</li>
       <li><b>커플 모드는 상대 페르소나와 대화 + 같은 날 비교</b> — 2026.11.7에 확정했습니다. 함께 볼 날을 고르고 각자 그날의 연인(상대의 과거 페르소나)과 대화한 뒤 두 대화를 비교합니다. 그래서 커플 세션은 <code>persona_owner_id</code>가 연인이고, 비교용 새 테이블 없이 <code>reports</code>에 <code>memory_summary</code>(그날의 연인과 나눈 대화 요약)와 <code>gap_summary</code>(두 사람의 간극)를 두었으며, 이 경우 <code>past_concern</code> · <code>present_change</code>는 비워 둡니다.</li>
       <li><b>하루 단위 대화</b> — 캘린더에서 날짜를 탭하면 그날 하루의 기록으로 페르소나를 만들기 때문에 <code>window_days = 0</code> 행이 생깁니다. 메신저 요약은 주 단위라 하루로 자를 수 없어서, 그날이 속한 주의 요약 중 말투 분석(<code>traits_enc</code>)만 함께 씁니다(그 주의 일이나 대표 문장은 쓰지 않습니다). 그래서 이 행의 <code>messenger_weeks</code>는 0 또는 1입니다.</li>
