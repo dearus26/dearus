@@ -196,9 +196,12 @@ paths:
       description: |
         로그인 직후 "서비스 이용 동의" 화면의 "동의하고 시작하기"예요. 로그인 응답의 `user.needsConsent`가 `true`인 사용자에게만 보여주고, 이미 동의한 계정은 이 화면을 건너뛰어요.
 
-        - 필수 3개(`terms` 이용약관, `privacy` 개인정보 수집 · 이용, `aiAnalysis` 일기 · 대화 내용 AI 분석)가 모두 `true`여야 해요. 하나라도 아니면 400(`VALIDATION_FAILED`, `details.fields`)이에요.
+        - 필수 4개(`terms` 이용약관, `privacy` 개인정보 수집 · 이용, `aiAnalysis` 일기 · 대화 내용 AI 분석, `sensitiveInfo` 민감정보 처리)가 모두 `true`여야 해요. 하나라도 아니면 400(`VALIDATION_FAILED`, `details.fields`)이에요. 민감정보 동의는 다른 동의와 따로 받는 필수 동의예요(2026.11.18 결정). 화면에서도 체크 칸을 따로 둬요.
+        - `birthDate`(생년월일)는 처음 한 번만 받아요(2026.11.18 결정, 나이 확인용). 아직 저장된 생년월일이 없으면(`User.birthDate`가 `null`) 꼭 보내야 하고, 없으면 400이에요. 이미 저장돼 있으면 보내지 않아도 되고, 보내도 바뀌지 않아요. 오늘보다 뒤이거나 1900년보다 앞이면 400이에요.
+        - 만 14세 미만이면 403 `GUARDIAN_CONSENT_REQUIRED`예요. 법정대리인 동의 방법을 아직 정하지 않아서 지금은 가입을 마칠 수 없어요. 이때는 생년월일도 동의도 저장하지 않아요.
         - `notifications`(일기 작성 알림 받기, 선택)는 안 보내면 지금 설정을 그대로 둬요.
-        - 동의 시각은 한 번만 기록해요(`users.ai_consent_at`). 이미 유효한 동의에 다시 불러도 시각은 그대로고 알림 설정만 바뀌어요. 철회한 뒤 다시 동의하면 시각을 새로 기록하고 철회를 지워요.
+        - 동의 시각은 한 번만 기록해요(`users.ai_consent_at`, 민감정보는 `users.sensitive_consent_at`). 이미 유효한 동의에 다시 불러도 시각은 그대로고 알림 설정만 바뀌어요. 철회한 뒤 다시 동의하면 시각을 새로 기록하고 철회를 지워요.
+        - 2026.11.18 전에 동의한 계정은 민감정보 동의와 생년월일이 없어서 `needsConsent`가 `true`가 되고, AI를 부르는 API는 403 `AI_CONSENT_REQUIRED`예요. 동의 화면을 다시 거치면 이어서 써요.
       x-schedule: 10월 3~4주
       x-screen: 약관 · 동의
       requestBody:
@@ -218,6 +221,8 @@ paths:
           $ref: '#/components/responses/ValidationFailed'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/GuardianConsentRequired'
     delete:
       tags: [me]
       operationId: revokeAiConsent
@@ -1163,7 +1168,7 @@ components:
             message: 지금은 답하기 어려워요. 잠시 뒤에 다시 해 주세요.
 
     AiConsentRequired:
-      description: AI 분석 동의가 없거나 철회했어요 (`AI_CONSENT_REQUIRED`). `PUT /me/consent`로 다시 동의해야 해요
+      description: AI 분석 동의가 없거나 철회했어요 (`AI_CONSENT_REQUIRED`). 민감정보 동의가 없어도 같아요. `PUT /me/consent`로 다시 동의해야 해요
       content:
         application/json:
           schema:
@@ -1171,6 +1176,15 @@ components:
           example:
             code: AI_CONSENT_REQUIRED
             message: AI 분석 동의가 필요해요.
+    GuardianConsentRequired:
+      description: 만 14세 미만이라 법정대리인 동의가 필요해요 (`GUARDIAN_CONSENT_REQUIRED`). 법정대리인 동의 방법은 아직 만들지 않아서, 지금은 "만 14세 미만은 보호자 동의가 필요해요" 같은 안내만 보여줘요
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: GUARDIAN_CONSENT_REQUIRED
+            message: 만 14세 미만은 보호자(법정대리인)의 동의가 필요해요.
 
   schemas:
     Error:
@@ -1241,7 +1255,7 @@ components:
           type: string
           format: date-time
           nullable: true
-          description: 서비스 이용 동의(필수 3개)를 받은 시각. 아직 동의하지 않았으면 `null`. 철회 뒤 다시 동의하면 새로 기록해요
+          description: 서비스 이용 동의(필수 동의)를 받은 시각. 아직 동의하지 않았으면 `null`. 철회 뒤 다시 동의하면 새로 기록해요
         aiRevokedAt:
           type: string
           format: date-time
@@ -1252,12 +1266,23 @@ components:
           format: date-time
           nullable: true
           description: 철회한 상태일 때, 보관 중인 분석 데이터와 대화 기록이 지워지는 시각(철회 시각 + 30일). 설정 화면에 "○월 ○일에 모두 지워져요"로 보여줘요. 다시 동의하면 `null`이 돼요
+        sensitiveConsentedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: 민감정보 처리 동의를 받은 시각(2026.11.18 추가). 아직 동의하지 않았으면 `null`이에요
+        birthDate:
+          type: string
+          format: date
+          nullable: true
+          example: '2003-05-14'
+          description: 생년월일(나이 확인용, 처음 동의할 때 한 번만 받아요). `null`이면 동의 화면에서 생년월일을 받아요. 한 번 저장하면 바꿀 수 없어요
         aiConsentActive:
           type: boolean
-          description: AI 분석 동의가 유효한지. 카톡 업로드 · 대화 · 리포트처럼 AI를 부르는 기능은 `true`일 때만 쓸 수 있어요 (아니면 403 `AI_CONSENT_REQUIRED`)
+          description: AI 분석 동의와 민감정보 동의가 모두 유효한지. 카톡 업로드 · 대화 · 리포트처럼 AI를 부르는 기능은 `true`일 때만 쓸 수 있어요 (아니면 403 `AI_CONSENT_REQUIRED`)
         needsConsent:
           type: boolean
-          description: 서비스 이용 동의 화면을 아직 거치지 않았어요. `true`면 로그인 직후 동의 화면을 보여줘요. 한 번 동의했다가 철회한 사람은 `false`예요
+          description: 서비스 이용 동의 화면을 거쳐야 해요. 동의한 적이 없거나, 민감정보 동의나 생년월일이 아직 없으면 `true`예요. `true`면 로그인 직후 동의 화면을 보여줘요. 필요한 것을 모두 받은 뒤 AI 분석 동의만 철회한 사람은 `false`예요
         notificationsOptIn:
           type: boolean
           description: 일기 작성 알림을 받겠다고 했는지 (동의 화면의 선택 항목)
@@ -1266,7 +1291,7 @@ components:
           format: date-time
     UserConsentRequest:
       type: object
-      required: [terms, privacy, aiAnalysis]
+      required: [terms, privacy, aiAnalysis, sensitiveInfo]
       properties:
         terms:
           type: boolean
@@ -1280,6 +1305,15 @@ components:
           type: boolean
           enum: [true]
           description: 일기 · 대화 내용 AI 분석 (필수). 일기 · 내 말 글자가 AI로 가고 학습에는 쓰이지 않아요(글자는 가리지 않아요. 화면 문구는 기획서의 동의 문구 항목을 따라요)
+        sensitiveInfo:
+          type: boolean
+          enum: [true]
+          description: 민감정보 처리 (필수, 다른 동의와 따로 받아요). 일기 · 대화에 쓴 건강 · 정신 상태 같은 내용을 처리하고 AI로 보내는 것에 대한 동의예요(2026.11.18 추가)
+        birthDate:
+          type: string
+          format: date
+          example: '2003-05-14'
+          description: 생년월일. 저장된 생년월일이 없으면 꼭 보내요(처음 한 번). 이미 있으면 보내지 않아도 되고 보내도 바뀌지 않아요. 만 14세 미만이면 403 `GUARDIAN_CONSENT_REQUIRED`예요
         notifications:
           type: boolean
           description: 일기 작성 알림 받기 (선택). 안 보내면 지금 설정 그대로예요

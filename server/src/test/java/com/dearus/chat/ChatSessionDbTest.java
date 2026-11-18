@@ -106,7 +106,7 @@ class ChatSessionDbTest {
 			assertThat(purge.purgeIfExpired(userId, Kst.now())).isFalse(); // 보관 기간 안이에요
 
 			// 6) 그 안에 다시 동의하면 보관하던 분석으로 바로 대화를 시작해요
-			consent.agree(userId, new ConsentRequest(true, true, true, null));
+			consent.agree(userId, new ConsentRequest(true, true, true, true, java.time.LocalDate.of(2000, 1, 1), null));
 			ChatSessionResponse restored = chats.create(userId, new ChatCreateRequest(anchor, PersonaScope.AROUND, ShortcutKey.ONE_MONTH, false));
 			assertThat(restored.status()).isEqualTo(ChatStatus.READY);
 			assertThat(sessions.findById(restored.id()).orElseThrow().getAnalysisId()).isEqualTo(analysisId);
