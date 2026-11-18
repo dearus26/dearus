@@ -1,6 +1,7 @@
 package com.dearus.auth;
 
 import com.dearus.common.Kst;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
@@ -12,6 +13,8 @@ public record UserResponse(
 	OffsetDateTime aiConsentedAt,
 	OffsetDateTime aiRevokedAt,
 	OffsetDateTime aiDataDeleteAt,
+	OffsetDateTime sensitiveConsentedAt,
+	LocalDate birthDate,
 	boolean aiConsentActive,
 	boolean needsConsent,
 	boolean notificationsOptIn,
@@ -25,6 +28,8 @@ public record UserResponse(
 			Kst.toKst(user.getAiConsentAt()),
 			Kst.toKst(user.getAiRevokedAt()),
 			aiDataDeleteAt(user),
+			Kst.toKst(user.getSensitiveConsentAt()),
+			user.getBirthDate(),
 			user.aiConsentActive(),
 			user.needsConsent(),
 			user.isNotificationsOptIn(),
@@ -33,7 +38,7 @@ public record UserResponse(
 
 	/** 철회한 상태일 때만, 보관 중인 분석 데이터와 대화 기록이 지워지는 시각(철회 시각 + 30일)이에요. */
 	static OffsetDateTime aiDataDeleteAt(User user) {
-		if (user.aiConsentActive() || user.getAiRevokedAt() == null) {
+		if (user.getAiRevokedAt() == null) {
 			return null;
 		}
 		return Kst.toKst(user.getAiRevokedAt().plus(ConsentRetention.AFTER_REVOKE));

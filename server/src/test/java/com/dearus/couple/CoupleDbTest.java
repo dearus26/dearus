@@ -215,7 +215,7 @@ class CoupleDbTest {
 			assertThat(code(blocked)).isEqualTo("COUPLE_ACCESS_DENIED");
 			assertThat(blocked.getMessage()).contains("AI 분석 동의를 철회");
 			assertThat(comparisons.compare(seoyeon, day, PersonaScope.DAY).status()).isEqualTo("READY");
-			consent.agree(doyun, new ConsentRequest(true, true, true, null));
+			consent.agree(doyun, new ConsentRequest(true, true, true, true, java.time.LocalDate.of(2000, 1, 1), null));
 
 			// 10) 서연이 커플을 철회하면 이 커플의 대화와 리포트를 두 사람 것 모두 지우고, 둘 다 NONE이에요. 일기는 남아요
 			assertThat(couples.revoke(seoyeon).status()).isEqualTo("NONE");

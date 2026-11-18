@@ -2,14 +2,18 @@ package com.dearus.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 /** 동의 · 철회 규칙을 DB 없이 확인해요. */
 class UserConsentTest {
 
 	private User newUser() {
-		return User.create("dev", "tester", "테스터");
+		User user = User.create("dev", "tester", "테스터");
+		user.recordBirthDate(LocalDate.of(2000, 1, 1));
+		return user;
 	}
 
 	@Test
@@ -100,5 +104,53 @@ class UserConsentTest {
 		assertThat(user.aiConsentActive()).isTrue();
 		assertThat(user.getAiRevokedAt()).isNull();
 		assertThat(user.getAiConsentAt()).isAfterOrEqualTo(first);
+	}
+
+	@Test
+	void 동의하면_민감정보_동의_시각도_한_번만_기록해요() {
+		User user = newUser();
+		user.agree(null);
+		OffsetDateTime first = user.getSensitiveConsentAt();
+		user.revokeAiConsent();
+
+		user.agree(null);
+
+		assertThat(first).isNotNull();
+		assertThat(user.getSensitiveConsentAt()).isEqualTo(first);
+	}
+
+	@Test
+	void 민감정보_동의_전에_동의한_계정은_동의_화면을_다시_보고_AI를_쓸_수_없어요() {
+		User user = newUser();
+		ReflectionTestUtils.setField(user, "aiConsentAt", OffsetDateTime.now());
+
+		assertThat(user.needsConsent()).isTrue();
+		assertThat(user.aiConsentActive()).isFalse();
+
+		user.agree(null);
+
+		assertThat(user.needsConsent()).isFalse();
+		assertThat(user.aiConsentActive()).isTrue();
+	}
+
+	@Test
+	void 생년월일이_없으면_동의_화면을_다시_봐요() {
+		User user = User.create("dev", "old", "예전 계정");
+		user.agree(null);
+
+		assertThat(user.needsConsent()).isTrue();
+		assertThat(user.aiConsentActive()).isTrue(); // 나이 확인은 동의 화면에서 받아요. AI 동의 자체는 유효해요
+
+		user.recordBirthDate(LocalDate.of(1999, 3, 1));
+		assertThat(user.needsConsent()).isFalse();
+	}
+
+	@Test
+	void 생년월일은_처음_한_번만_기록하고_바꾸지_않아요() {
+		User user = newUser();
+
+		user.recordBirthDate(LocalDate.of(2010, 5, 5));
+
+		assertThat(user.getBirthDate()).isEqualTo(LocalDate.of(2000, 1, 1));
 	}
 }

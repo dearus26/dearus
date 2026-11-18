@@ -1,7 +1,11 @@
 package com.dearus.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.dearus.common.ApiException;
+import com.dearus.common.Kst;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -28,6 +32,31 @@ class AuthDbTest {
 
 	@Autowired AuthService auth;
 	@Autowired UserRepository users;
+	@Autowired ConsentService consent;
+
+	@Test
+	void 동의하면_생년월일과_민감정보_동의가_DB에_남고_14세_미만은_남지_않아요() {
+		UUID adult = users.saveAndFlush(User.create("dev", "dbtest-" + UUID.randomUUID(), "어른")).getId();
+		UUID child = users.saveAndFlush(User.create("dev", "dbtest-" + UUID.randomUUID(), "어린이")).getId();
+		try {
+			consent.agree(adult, new ConsentRequest(true, true, true, true, LocalDate.of(2001, 7, 7), false));
+			User saved = users.findById(adult).orElseThrow();
+			assertThat(saved.getBirthDate()).isEqualTo(LocalDate.of(2001, 7, 7));
+			assertThat(saved.getSensitiveConsentAt()).isNotNull();
+			assertThat(saved.needsConsent()).isFalse();
+			assertThat(saved.aiConsentActive()).isTrue();
+
+			assertThatThrownBy(() -> consent.agree(child, new ConsentRequest(true, true, true, true, Kst.today().minusYears(10), false)))
+				.isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.getCode()).isEqualTo("GUARDIAN_CONSENT_REQUIRED"));
+			User untouched = users.findById(child).orElseThrow();
+			assertThat(untouched.getBirthDate()).isNull();
+			assertThat(untouched.getAiConsentAt()).isNull();
+			assertThat(untouched.getSensitiveConsentAt()).isNull();
+		} finally {
+			users.deleteById(adult);
+			users.deleteById(child);
+		}
+	}
 
 	@Test
 	void 같은_계정이_동시에_처음_로그인해도_한_명만_만들어져요() throws Exception {

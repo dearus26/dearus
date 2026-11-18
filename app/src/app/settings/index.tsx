@@ -202,7 +202,7 @@ export default function SettingsScreen() {
         </AppText>
         <View style={styles.sheetList}>
           <SheetLine>일기 · 대화 · 리포트 · 올린 메신저 대화와 분석까지 모든 정보가 바로 지워지고, 되돌릴 수 없어요</SheetLine>
-          <SheetLine>이미 AI 회사(Anthropic)로 보낸 글자는 그곳 정책에 따라 30일 안에 지워져요</SheetLine>
+          <SheetLine>이미 AI 회사로 보낸 글자는 그곳 정책에 따라 30일 안에 지워져요</SheetLine>
         </View>
         <View style={styles.sheetButtons}>
           <Button variant="danger" label="탈퇴하기" loading={busy} onPress={() => void withdraw()} />

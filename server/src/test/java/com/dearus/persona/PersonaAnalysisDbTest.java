@@ -140,7 +140,7 @@ class PersonaAnalysisDbTest {
 			assertThat(purge.purgeIfExpired(userId, Kst.now())).isFalse(); // 보관 기간 안이에요
 
 			// 그 안에 다시 동의하면 보관하던 분석을 그대로 이어서 써요
-			consent.agree(userId, new ConsentRequest(true, true, true, null));
+			consent.agree(userId, new ConsentRequest(true, true, true, true, java.time.LocalDate.of(2000, 1, 1), null));
 			Result restored = service.getOrCreate(userId, PersonaScope.AROUND, anchor, step -> { }).orElseThrow();
 			assertThat(restored.reused()).isTrue();
 			assertThat(restored.analysisId()).isEqualTo(first.analysisId());
