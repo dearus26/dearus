@@ -779,6 +779,46 @@ paths:
         '503':
           $ref: '#/components/responses/AiUnavailable'
 
+  /chats/{chatId}/messages/{seq}/report:
+    parameters:
+      - $ref: '#/components/parameters/ChatId'
+      - name: seq
+        in: path
+        required: true
+        description: 신고할 메시지의 순서(`Message.seq`)
+        schema:
+          type: integer
+          minimum: 1
+    post:
+      tags: [chats]
+      operationId: reportMessage
+      summary: 부적절한 답변 신고
+      description: |
+        채팅에서 과거의 나(또는 커플 모드의 그날의 연인)가 한 답변을 눌러 신고해요(2026.11.11 결정, 2026.11.18 처리 방식 확정). 위기 신호 감지(서버가 자동으로 찾는 `safety` 이벤트)와는 다른 기능이에요.
+        - 신고할 수 있는 건 AI의 답변(`role: PERSONA`)뿐이에요. 내 말(`USER`)을 신고하면 400(`VALIDATION_FAILED`, 필드 `seq`)이에요. 첫 인사(`seq` 1)도 신고할 수 있어요.
+        - `reason`은 하나를 골라요. `OTHER`(기타)는 `detail`이 꼭 있어야 해요. `detail`은 최대 500자예요.
+        - 같은 답변을 다시 신고하면 처음 신고를 그대로 두고 204예요(여러 번 눌러도 같은 결과).
+        - AI를 부르지 않아서 AI 분석 동의를 철회한 뒤에도 지난 대화의 답변을 신고할 수 있어요.
+        - Dear Us 관리자가 신고를 확인하고, AI가 바르게 답하도록 프롬프트를 고쳐요. 신고한 사람에게 따로 답하지 않아서 앱은 "신고가 접수됐어요"만 보여줘요.
+        - 신고 기록은 그 대화와 함께 지워져요(탈퇴는 바로, AI 분석 동의 철회는 30일 뒤, 커플 해제 때 커플 대화와 함께).
+      x-schedule: 11월 3~4주
+      x-screen: Time-Slip Chat (말풍선 길게 누르기 → 신고하기)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MessageReportRequest'
+      responses:
+        '204':
+          description: 신고가 접수됐어요(이미 신고한 답변이어도 같아요)
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /chats/{chatId}/end:
     parameters:
       - $ref: '#/components/parameters/ChatId'
@@ -1317,6 +1357,25 @@ components:
         notifications:
           type: boolean
           description: 일기 작성 알림 받기 (선택). 안 보내면 지금 설정 그대로예요
+    MessageReportRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          enum: [HURTFUL, INACCURATE, HARMFUL, PRIVACY, OTHER]
+          description: |
+            신고 사유(2026.11.18 확정)
+            - `HURTFUL`: 상처 주는 말
+            - `INACCURATE`: 내 기록과 다른 내용
+            - `HARMFUL`: 위험하거나 해로운 내용
+            - `PRIVACY`: 개인정보가 드러남
+            - `OTHER`: 기타(`detail` 필수)
+        detail:
+          type: string
+          maxLength: 500
+          description: 직접 적은 내용(선택, `OTHER`면 필수)
+          example: 그때 나는 이런 말투를 쓰지 않았어요
     Usage:
       type: object
       required: [date, chatMinutes, recommendedMinutes]

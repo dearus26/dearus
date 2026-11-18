@@ -17,6 +17,9 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
 
 	int countBySessionId(UUID sessionId);
 
+	/** 세션 안의 메시지 하나예요(답변 신고에서 써요). */
+	Optional<ChatMessage> findBySessionIdAndSeq(UUID sessionId, int seq);
+
 	/** 가장 최근 메시지부터 pageable의 크기만큼이에요(대화 이력을 만들 때 뒤집어서 써요). */
 	List<ChatMessage> findBySessionIdOrderBySeqDesc(UUID sessionId, Pageable pageable);
 

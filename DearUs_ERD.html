@@ -66,14 +66,14 @@
 </head>
 <body>
 <main>
-  <h1>Dear Us ERD<small>PostgreSQL 17 · 테이블 11개 · 기획서와 <a href="DearUs_기능블록도.html" style="color:#6F5139">기능 블록도</a> 기준 초안</small></h1>
+  <h1>Dear Us ERD<small>PostgreSQL 17 · 테이블 12개 · 기획서와 <a href="DearUs_기능블록도.html" style="color:#6F5139">기능 블록도</a> 기준 초안</small></h1>
   <p class="lede">일기, 메신저 요약, 페르소나 분석(재사용 저장), 대화, 커플 접근 제어가 어떻게 연결되는지 한 장에 모았습니다. 사진을 담는 테이블이 없다는 점이 이 설계의 핵심입니다(메신저는 카카오톡 txt에서 추린 내 말만 받고, 남는 것은 암호화한 내 말 원문과 요약입니다). 2026.10.14 스토리보드와 2026.11.11 결정(메신저는 txt만, 글자 가림 없음) 기준입니다.</p>
 
   <section>
     <h2><span>1</span>관계도</h2>
     <figure>
       <div class="scroll">
-<svg viewBox="0 0 1110 960" role="img" aria-label="열한 개 테이블의 관계도. users를 중심으로 일기, 메신저 업로드(개수와 요약만), 페르소나 분석, 대화, 커플 테이블이 연결되고, 사진을 담는 테이블은 없다">
+<svg viewBox="0 0 1110 960" role="img" aria-label="열두 개 테이블의 관계도. users를 중심으로 일기, 메신저 업로드(개수와 요약만), 페르소나 분석, 대화, 커플 테이블이 연결되고, 사진을 담는 테이블은 없다">
 <g>
 <rect class="tbl" x="30" y="40" width="235" height="76" rx="10"/>
 <path class="th th-rec" d="M30,70 V50 Q30,40 40,40 H255 Q265,40 265,50 V70 Z"/>
@@ -447,6 +447,37 @@
 <text class="cname mono" x="876" y="870.2">created_at</text>
 <text class="ctype" x="1065" y="870">timestamptz</text>
 </g>
+<g>
+<rect class="tbl" x="570" y="740" width="235" height="176" rx="10"/>
+<path class="th th-rec" d="M570,770 V750 Q570,740 580,740 H795 Q805,740 805,750 V770 Z"/>
+<text class="tname tname-rec mono" x="582" y="760">message_reports</text>
+<rect class="bdg bdg-PK" x="578" y="774" width="22" height="12" rx="3"/>
+<text class="btxt btxt-PK" x="589" y="783.2">PK</text>
+<text class="cname mono" x="606" y="784.2">id</text>
+<text class="ctype" x="795" y="784">uuid</text>
+<line class="sep" x1="578" y1="790" x2="797" y2="790"/>
+<rect class="bdg bdg-FK" x="578" y="794" width="22" height="12" rx="3"/>
+<text class="btxt btxt-FK" x="589" y="803.2">FK</text>
+<text class="cname mono" x="606" y="804.2">message_id</text>
+<text class="ctype" x="795" y="804">bigint</text>
+<line class="sep" x1="578" y1="810" x2="797" y2="810"/>
+<rect class="bdg bdg-FK" x="578" y="814" width="22" height="12" rx="3"/>
+<text class="btxt btxt-FK" x="589" y="823.2">FK</text>
+<text class="cname mono" x="606" y="824.2">user_id</text>
+<text class="ctype" x="795" y="824">uuid</text>
+<line class="sep" x1="578" y1="830" x2="797" y2="830"/>
+<text class="cname mono" x="606" y="844.2">reason</text>
+<text class="ctype" x="795" y="844">varchar</text>
+<line class="sep" x1="578" y1="850" x2="797" y2="850"/>
+<text class="cname mono" x="606" y="864.2">detail</text>
+<text class="ctype" x="795" y="864">text?</text>
+<line class="sep" x1="578" y1="870" x2="797" y2="870"/>
+<text class="cname mono" x="606" y="884.2">created_at</text>
+<text class="ctype" x="795" y="884">timestamptz</text>
+<line class="sep" x1="578" y1="890" x2="797" y2="890"/>
+<text class="cname mono" x="606" y="904.2">reviewed_at</text>
+<text class="ctype" x="795" y="904">timestamptz?</text>
+</g>
 
 <path class="edge" d="M130,116 V290"/>
 <text class="card" x="136" y="130" text-anchor="start">N</text>
@@ -454,8 +485,8 @@
 <path class="edge" d="M300,340 H265"/>
 <text class="card" x="294" y="334" text-anchor="end">1</text>
 <text class="card" x="271" y="334" text-anchor="start">N</text>
-<path class="edge" d="M360,486 V650"/>
-<text class="card" x="366" y="502" text-anchor="start">1</text>
+<path class="edge" d="M360,526 V650"/>
+<text class="card" x="366" y="542" text-anchor="start">1</text>
 <text class="card" x="366" y="644" text-anchor="start">N</text>
 <path class="edge" d="M300,710 H265"/>
 <text class="card" x="294" y="704" text-anchor="end">1</text>
@@ -481,11 +512,14 @@
 <path class="edge" d="M1000,662 V726"/>
 <text class="card" x="1006" y="678" text-anchor="start">1</text>
 <text class="card" x="1006" y="720" text-anchor="start">N</text>
-<path class="edge" d="M510,486 V682 H900 V663"/>
-<text class="card" x="516" y="502" text-anchor="start">1</text>
+<path class="edge" d="M840,800 H805"/>
+<text class="card" x="811" y="794" text-anchor="start">N</text>
+<text class="card" x="834" y="794" text-anchor="end">1</text>
+<path class="edge" d="M510,526 V682 H900 V663"/>
+<text class="card" x="516" y="542" text-anchor="start">1</text>
 <text class="card" x="906" y="676" text-anchor="start">N</text>
-<path class="edge" d="M470,486 V698 H940 V663"/>
-<text class="card" x="476" y="502" text-anchor="start">1</text>
+<path class="edge" d="M470,526 V698 H940 V663"/>
+<text class="card" x="476" y="542" text-anchor="start">1</text>
 <text class="card" x="946" y="676" text-anchor="start">N</text>
 
 <text class="lane" x="560" y="677">chat_sessions.user_id — 대화하는 사람</text>
@@ -542,6 +576,7 @@
       <div class="card-box">
         <h3>삭제와 보관</h3>
         <ul>
+          <li>답변 신고(<code>message_reports</code>, V11)는 신고한 메시지가 지워지면 <code>ON DELETE CASCADE</code>로 함께 지워집니다. 그래서 탈퇴하면 바로, 동의를 철회하면 30일 뒤, 커플을 해제하면 그 커플 대화와 함께 사라집니다. 관리자가 확인하면 <code>reviewed_at</code>을 채웁니다.</li>
           <li>회원 탈퇴 시 <code>users</code> 행을 지우면 모든 테이블이 <code>ON DELETE CASCADE</code>로 즉시 지워집니다.</li>
           <li>AI 분석 동의를 철회하면 바로 지우지 않고, 철회 시각(<code>users.ai_revoked_at</code>)부터 30일 뒤에 그 사용자의 대화 세션(메시지 포함) · 시점 분석 · 메신저 업로드(주간 요약 포함)를 서버가 지웁니다. 그 안에 다시 동의하면 철회 시각이 비워져 그대로 이어서 씁니다. 일기는 지우지 않습니다.</li>
           <li>예외로 <code>chat_sessions.analysis_id</code>는 <code>ON DELETE SET NULL</code>입니다. 분석 행이 재분석으로 바뀌어도 대화 기록은 남기 위해서입니다.</li>

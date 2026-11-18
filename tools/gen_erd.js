@@ -54,6 +54,10 @@ const T = [
   { id: 'chat_messages', x: 840, y: 726, kind: 'rec', cols: [
     ['id', 'bigint', 'PK'], ['session_id', 'uuid', 'FK'], ['seq', 'int', ''],
     ['role', 'varchar', ''], ['content', 'text', ''], ['created_at', 'timestamptz', ''] ] },
+  { id: 'message_reports', x: 570, y: 740, kind: 'rec', cols: [
+    ['id', 'uuid', 'PK'], ['message_id', 'bigint', 'FK'], ['user_id', 'uuid', 'FK'],
+    ['reason', 'varchar', ''], ['detail', 'text?', ''], ['created_at', 'timestamptz', ''],
+    ['reviewed_at', 'timestamptz?', ''] ] },
 ];
 
 const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -86,7 +90,7 @@ function tableSvg(t) {
 const E = [
   { d: 'M130,116 V290', l: [['N', 136, 130, 's'], ['1', 136, 284, 's']] },
   { d: 'M300,340 H265', l: [['1', 294, 334, 'e'], ['N', 271, 334, 's']] },
-  { d: 'M360,486 V650', l: [['1', 366, 502, 's'], ['N', 366, 644, 's']] },
+  { d: 'M360,526 V650', l: [['1', 366, 542, 's'], ['N', 366, 644, 's']] },
   { d: 'M300,710 H265', l: [['1', 294, 704, 'e'], ['N', 271, 704, 's']] },
   { d: 'M420,290 V196', l: [['1', 426, 284, 's'], ['N', 426, 212, 's']] },
   { d: 'M535,80 H570', l: [['N', 541, 74, 's'], ['1', 564, 74, 'e']] },
@@ -95,8 +99,9 @@ const E = [
   { d: 'M805,100 H822 V446 H840', dash: true, l: [['1', 811, 94, 's'], ['N', 834, 440, 'e']] },
   { d: 'M960,316 V366', dash: true, l: [['0..1', 966, 334, 's'], ['1', 966, 360, 's']] },
   { d: 'M1000,662 V726', l: [['1', 1006, 678, 's'], ['N', 1006, 720, 's']] },
-  { d: 'M510,486 V682 H900 V663', l: [['1', 516, 502, 's'], ['N', 906, 676, 's']] },
-  { d: 'M470,486 V698 H940 V663', l: [['1', 476, 502, 's'], ['N', 946, 676, 's']] },
+  { d: 'M840,800 H805', l: [['N', 811, 794, 's'], ['1', 834, 794, 'e']] },
+  { d: 'M510,526 V682 H900 V663', l: [['1', 516, 542, 's'], ['N', 906, 676, 's']] },
+  { d: 'M470,526 V698 H940 V663', l: [['1', 476, 542, 's'], ['N', 946, 676, 's']] },
 ];
 
 function edgeSvg(e) {
@@ -107,7 +112,7 @@ function edgeSvg(e) {
   return s;
 }
 
-const svg = `<svg viewBox="0 0 1110 960" role="img" aria-label="열한 개 테이블의 관계도. users를 중심으로 일기, 메신저 업로드(개수와 요약만), 페르소나 분석, 대화, 커플 테이블이 연결되고, 사진을 담는 테이블은 없다">
+const svg = `<svg viewBox="0 0 1110 960" role="img" aria-label="열두 개 테이블의 관계도. users를 중심으로 일기, 메신저 업로드(개수와 요약만), 페르소나 분석, 대화, 커플 테이블이 연결되고, 사진을 담는 테이블은 없다">
 ${T.map(tableSvg).join('')}
 ${E.map(edgeSvg).join('')}
 <text class="lane" x="560" y="677">chat_sessions.user_id — 대화하는 사람</text>
@@ -182,7 +187,7 @@ const html = `<!doctype html>
 </head>
 <body>
 <main>
-  <h1>Dear Us ERD<small>PostgreSQL 17 · 테이블 11개 · 기획서와 <a href="DearUs_기능블록도.html" style="color:#6F5139">기능 블록도</a> 기준 초안</small></h1>
+  <h1>Dear Us ERD<small>PostgreSQL 17 · 테이블 12개 · 기획서와 <a href="DearUs_기능블록도.html" style="color:#6F5139">기능 블록도</a> 기준 초안</small></h1>
   <p class="lede">일기, 메신저 요약, 페르소나 분석(재사용 저장), 대화, 커플 접근 제어가 어떻게 연결되는지 한 장에 모았습니다. 사진을 담는 테이블이 없다는 점이 이 설계의 핵심입니다(메신저는 카카오톡 txt에서 추린 내 말만 받고, 남는 것은 암호화한 내 말 원문과 요약입니다). 2026.10.14 스토리보드와 2026.11.11 결정(메신저는 txt만, 글자 가림 없음) 기준입니다.</p>
 
   <section>
@@ -241,6 +246,7 @@ ${svg}
       <div class="card-box">
         <h3>삭제와 보관</h3>
         <ul>
+          <li>답변 신고(<code>message_reports</code>, V11)는 신고한 메시지가 지워지면 <code>ON DELETE CASCADE</code>로 함께 지워집니다. 그래서 탈퇴하면 바로, 동의를 철회하면 30일 뒤, 커플을 해제하면 그 커플 대화와 함께 사라집니다. 관리자가 확인하면 <code>reviewed_at</code>을 채웁니다.</li>
           <li>회원 탈퇴 시 <code>users</code> 행을 지우면 모든 테이블이 <code>ON DELETE CASCADE</code>로 즉시 지워집니다.</li>
           <li>AI 분석 동의를 철회하면 바로 지우지 않고, 철회 시각(<code>users.ai_revoked_at</code>)부터 30일 뒤에 그 사용자의 대화 세션(메시지 포함) · 시점 분석 · 메신저 업로드(주간 요약 포함)를 서버가 지웁니다. 그 안에 다시 동의하면 철회 시각이 비워져 그대로 이어서 씁니다. 일기는 지우지 않습니다.</li>
           <li>예외로 <code>chat_sessions.analysis_id</code>는 <code>ON DELETE SET NULL</code>입니다. 분석 행이 재분석으로 바뀌어도 대화 기록은 남기 위해서입니다.</li>
