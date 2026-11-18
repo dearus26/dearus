@@ -1,0 +1,51 @@
+# Render Blueprint: Dear Us 서버 (2026.11.18)
+# Render 대시보드 → New → Blueprint → 이 저장소를 고르면 아래대로 서비스가 만들어져요.
+# 자세한 순서는 skills/deploy.md에 있어요.
+# - 지역은 싱가포르예요(Render에는 서울이 없고 서울 DB와 가장 가까워요. 만든 뒤에는 바꿀 수 없어요).
+# - 요금제는 무료로 시작해요. 15분 동안 요청이 없으면 잠들고, 깨어날 때 시간이 걸려요.
+# - sync: false인 값은 비밀이라 여기에 적지 않아요. 처음 만들 때 Render 화면에서 직접 넣어요.
+
+services:
+  - type: web
+    name: dearus-server
+    runtime: docker
+    region: singapore
+    plan: free
+    dockerContext: ./server
+    dockerfilePath: ./server/Dockerfile
+    healthCheckPath: /actuator/health
+    # main에 서버 코드가 바뀌어 합쳐질 때만 다시 배포해요(앱 · 문서만 바뀌면 그대로)
+    autoDeploy: true
+    buildFilter:
+      paths:
+        - server/**
+    envVars:
+      # 공용 Supabase DB의 Session pooler 값이에요(server/.env와 같아요)
+      - key: DB_URL
+        sync: false
+      - key: DB_USERNAME
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      # 로그인 토큰 서명 키예요. 배포 서버용으로 새로 만들어요(각자 PC의 값과 달라도 돼요)
+      - key: JWT_SECRET
+        generateValue: true
+      # 공용 DB에 이미 암호화된 일기 · 메신저 원문 · 분석이 있어서 server/.env와 같은 값이어야 해요
+      - key: ENCRYPTION_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: AI_PROVIDER
+        value: anthropic
+      # 소셜 로그인 설정. 비워 두면 그 방식은 501이에요. 개발 빌드가 나오면 채워요
+      - key: KAKAO_APP_ID
+        sync: false
+      - key: GOOGLE_CLIENT_IDS
+        sync: false
+      # 가짜 로그인(POST /auth/dev). 소셜 로그인을 붙이기 전까지만 켜 둬요(2026.11.18 결정).
+      # 실제 사용자를 받기 전에 false로 바꿔요. 주소를 팀 밖에 알리지 않아요
+      - key: DEV_LOGIN_ENABLED
+        value: "true"
+      # 서버가 켜질 때 밀린 새벽 삭제 작업을 돌려요(무료 요금제는 잠들어서 새벽 4시를 건너뛸 수 있어요)
+      - key: JOBS_RUN_ON_STARTUP
+        value: "true"

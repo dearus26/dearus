@@ -52,6 +52,10 @@ app:
         phone: 1577-0199
         hours: 24시간
 
+  jobs:
+    # 서버가 켜질 때 새벽 삭제 작업을 한 번 더 돌려요(StartupJobs). Render 무료 요금제는 잠들어서 새벽 작업을 건너뛸 수 있어서 배포 서버만 true예요.
+    run-on-startup: ${JOBS_RUN_ON_STARTUP:false}
+
   usage:
     # 화면 상단 "하루 30분 정도를 권장해요"의 권장 시간(분). 스토리보드 문구를 그대로 가정한 값이에요.
     recommended-minutes: 30
