@@ -168,7 +168,7 @@ com.dearus
 
 | 기술 | 버전 | 비고 |
 |---|---|---|
-| Render | 무료 (발표 기간 Starter 권장) | Docker로 Spring Boot 배포. 지역은 싱가포르예요(서울 지역이 없어서 서울 DB와 가장 가까운 곳, 2026.11.11). 서비스를 만든 뒤에는 지역을 바꿀 수 없어요 |
+| Render | 무료 (발표 기간 Starter 권장) | Docker로 Spring Boot 배포. 지역은 싱가포르예요(서울 지역이 없어서 서울 DB와 가장 가까운 곳, 2026.11.11). 서비스를 만든 뒤에는 지역을 바꿀 수 없어요. 설정은 `render.yaml` · `server/Dockerfile`, 순서는 `skills/deploy.md`(2026.11.18) |
 | Docker 베이스 이미지 | eclipse-temurin:21-jre | Java 21 실행 환경 |
 | Expo EAS Build | 최신 CLI | 테스트용 앱 빌드 (소셜 로그인 때문에 개발 빌드가 필요해요) |
 | Android Studio / Xcode | 최신 안정 버전 | 개발 빌드 실행 |

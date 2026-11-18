@@ -1,0 +1,9 @@
+# 이미지에 넣지 않는 것들. 특히 .env(비밀 값)는 절대 들어가면 안 돼요.
+.env
+.env.*
+.gradle
+build
+bin
+out
+.idea
+*.iml
