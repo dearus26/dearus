@@ -35,6 +35,7 @@
 | `skills/schedule.md` | 10월~12월 주 단위 개발 진행 계획 (개발 일정표를 풀어 쓴 것) |
 | `skills/backlog.md` | 일부러 미룬 일, 아직 만들지 않은 기능, 정해야 할 것, 코드에서 일부러 단순하게 둔 부분을 한곳에 모은 목록. 미루는 일이 생기면 여기에 먼저 적어요 |
 | `skills/deploy.md` | 서버 배포(Render) 순서와 운영 메모. 설정 파일은 레포 맨 위 `render.yaml`과 `server/Dockerfile`이에요 |
+| `skills/social-login.md` | 카카오 · 구글 로그인 콘솔 설정과 Android 개발 빌드(EAS) 순서 |
 | `skills/test-runs.md` | 끝난 큰 시험(진짜 서버 · DB · Claude로 앱 순서대로 불러 본 것)의 결과 |
 | `skills/privacy/policy-draft.md` | 실제 개인정보처리방침 초안(아직 공개 전). 맨 위 "공개 전에 할 일" 표와 `[ ]` 칸을 채운 뒤 공개해요. 앱 화면용은 `app/src/legal/documents.ts`예요 |
 | `skills/privacy/background.md` | 비슷한 서비스(boba · What Brandon Thinks) 방침 조사와 2026.11.11 개인정보 결정 |
