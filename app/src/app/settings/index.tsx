@@ -69,7 +69,7 @@ export default function SettingsScreen() {
       message: '보관 중인 분석 데이터와 대화 기록을 이어서 쓸 수 있어요.',
       confirmLabel: '다시 동의',
     });
-    if (ok) await run(() => giveConsent(user?.notificationsOptIn ?? false), '다시 동의하지 못했어요');
+    if (ok) await run(() => giveConsent({ notifications: user?.notificationsOptIn ?? false }), '다시 동의하지 못했어요');
   }
 
   async function withdraw() {
@@ -140,7 +140,7 @@ export default function SettingsScreen() {
               accessibilityLabel="일기 작성 알림 받기"
               value={user.notificationsOptIn}
               disabled={busy || !active}
-              onValueChange={(next) => void run(() => giveConsent(next), '알림 설정을 바꾸지 못했어요')}
+              onValueChange={(next) => void run(() => giveConsent({ notifications: next }), '알림 설정을 바꾸지 못했어요')}
               trackColor={{ false: colors.beige, true: colors.gold }}
               thumbColor={colors.white}
             />

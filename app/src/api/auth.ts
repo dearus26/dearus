@@ -16,7 +16,7 @@ export function getMe() {
   return request<User>('GET', '/me');
 }
 
-/** PUT /me/consent — 서비스 이용 동의(필수 3개 + 알림 선택) */
+/** PUT /me/consent — 서비스 이용 동의(필수 4개 + 처음 한 번 생년월일 + 알림 선택) */
 export function giveConsent(input: ConsentInput) {
   return request<User>('PUT', '/me/consent', { body: input });
 }

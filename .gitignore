@@ -67,3 +67,6 @@ out/
 .claude/settings.local.json
 .DS_Store
 Thumbs.db
+
+# 압축 파일은 git과 EAS 빌드 업로드에 넣지 않아요
+*.zip
