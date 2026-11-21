@@ -23,10 +23,11 @@ type SessionValue = {
   user: User | null;
   signIn: (provider: SocialProvider) => Promise<void>;
   /**
-   * 서비스 이용 동의(필수 3개) + 알림 선택. 성공하면 needsConsent가 false가 돼요.
+   * 서비스 이용 동의(필수 4개) + 알림 선택. 성공하면 needsConsent가 false가 돼요.
+   * birthDate는 아직 저장된 생년월일이 없을 때만 보내요(동의 화면). 만 14세 미만이면 403 GUARDIAN_CONSENT_REQUIRED예요.
    * 이미 유효한 동의에 다시 부르면 알림 설정만 바뀌고, 철회한 뒤에 부르면 AI 분석에 다시 동의한 것이 돼요.
    */
-  giveConsent: (notifications: boolean) => Promise<void>;
+  giveConsent: (input: { notifications: boolean; birthDate?: string }) => Promise<void>;
   /** 설정의 AI 분석 동의 철회. AI 기능은 바로 막히고, 분석 데이터 · 대화 기록은 30일 뒤 지워져요(user.aiDataDeleteAt). */
   revokeAiConsent: () => Promise<void>;
   /** 회원 탈퇴. 서버가 모든 데이터를 바로 지우고, 이 폰의 로그인도 끝내요. */
@@ -96,8 +97,15 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setStatus('signedIn');
   }
 
-  async function giveConsent(notifications: boolean) {
-    const updated = await giveConsentApi({ terms: true, privacy: true, aiAnalysis: true, notifications });
+  async function giveConsent({ notifications, birthDate }: { notifications: boolean; birthDate?: string }) {
+    const updated = await giveConsentApi({
+      terms: true,
+      privacy: true,
+      aiAnalysis: true,
+      sensitiveInfo: true,
+      notifications,
+      ...(birthDate ? { birthDate } : {}),
+    });
     setUser(updated);
   }
 

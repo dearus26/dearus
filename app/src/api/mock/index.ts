@@ -4,7 +4,15 @@ import { NOT_HANDLED, notFound, sortedEmotions, validationFailed, wait } from '@
 import { handleUploadRoute, resetUploadMock } from '@/api/mock/uploads';
 import type { components } from '@/api/schema';
 import type { SseEvent } from '@/api/sse';
-import { addDays, daysBetween, isValidDateString, todayString } from '@/lib/date';
+import {
+  addDays,
+  daysBetween,
+  isValidBirthDate,
+  isValidDateString,
+  parseDateString,
+  toDateString,
+  todayString,
+} from '@/lib/date';
 
 type User = components['schemas']['User'];
 type AuthResponse = components['schemas']['AuthResponse'];
@@ -36,6 +44,8 @@ function newUser(provider: User['provider']): User {
     aiConsentedAt: null,
     aiRevokedAt: null,
     aiDataDeleteAt: null,
+    sensitiveConsentedAt: null,
+    birthDate: null,
     aiConsentActive: false,
     needsConsent: true,
     notificationsOptIn: false,
@@ -138,10 +148,20 @@ export async function mockRequest<T>(
   // PUT /me/consent — 서비스 이용 동의
   if (method === 'PUT' && path === '/me/consent') {
     const input = (body ?? {}) as Partial<components['schemas']['UserConsentRequest']>;
-    const missing = (['terms', 'privacy', 'aiAnalysis'] as const)
+    const missing = (['terms', 'privacy', 'aiAnalysis', 'sensitiveInfo'] as const)
       .filter((key) => input[key] !== true)
       .map((field) => ({ field, reason: '꼭 동의해야 해요' }));
     if (missing.length > 0) throw validationFailed(missing);
+
+    // 생년월일은 처음 한 번만 받고, 만 14세 미만이면 아무것도 저장하지 않아요(서버와 같은 규칙)
+    const birthDate = current.birthDate ?? input.birthDate;
+    if (!birthDate || !isValidBirthDate(birthDate)) {
+      throw validationFailed([{ field: 'birthDate', reason: '생년월일을 다시 확인해 주세요' }]);
+    }
+    const { year, month, day } = parseDateString(birthDate);
+    if (toDateString(year + 14, month, day) > todayString()) {
+      throw new ApiError(403, 'GUARDIAN_CONSENT_REQUIRED', '만 14세 미만은 보호자(법정대리인)의 동의가 필요해요.');
+    }
 
     // 이미 유효한 동의에 다시 불러도 시각은 그대로 두고 알림 설정만 바꿔요
     let next = current;
@@ -150,6 +170,8 @@ export async function mockRequest<T>(
     }
     user = {
       ...next,
+      birthDate,
+      sensitiveConsentedAt: next.sensitiveConsentedAt ?? new Date().toISOString(),
       aiConsentActive: true,
       needsConsent: false,
       notificationsOptIn: input.notifications ?? next.notificationsOptIn,

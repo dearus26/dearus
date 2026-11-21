@@ -110,7 +110,7 @@ com.dearus
 
 | 메서드 | 경로 | 기능 |
 |---|---|---|
-| POST | /auth/{provider} | 소셜 로그인. 카카오는 access token을 카카오 API로, 구글은 ID token을 구글 공개키로 서버가 확인해요(애플은 아직 501). 제공자마다 별개 계정이고 이메일은 받지 않아요 |
+| POST | /auth/{provider} | 소셜 로그인. 카카오는 access token을 카카오 API로, 구글은 ID token을 구글 공개키로 서버가 확인해요(애플은 아직 501). 제공자마다 별개 계정이고 이메일은 저장하지 않아요 |
 | PUT / DELETE | /me/consent | 서비스 이용 동의 · AI 분석 동의 철회 |
 | GET / POST / PUT / DELETE | /diaries | 일기 조회 · 작성 · 수정 · 삭제 (캘린더용 작성일 · 감정 태그 포함) |
 | POST | /uploads/messenger | 메신저 대화 올리기. 앱이 폰 안에서 txt에서 추린 내 말 글자(JSON)를 보내요. 요약은 비동기(202 + 상태 조회) |
