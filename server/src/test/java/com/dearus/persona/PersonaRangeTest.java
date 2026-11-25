@@ -110,10 +110,12 @@ class PersonaRangeTest {
 	}
 
 	@Test
-	void 하루_단위의_기록_수준은_그날의_일기만_봐요() {
+	void 하루_단위의_기록_수준은_그날의_일기가_있으면_충분하고_메신저만_있으면_부족해요() {
 		assertThat(RecordLevel.of(PersonaScope.DAY, 1, 0)).isEqualTo(RecordLevel.ENOUGH);
 		assertThat(RecordLevel.of(PersonaScope.DAY, 1, 1)).isEqualTo(RecordLevel.ENOUGH);
-		// 메신저 말투 분석이 있어도 그날의 일기가 없으면 NONE이에요
-		assertThat(RecordLevel.of(PersonaScope.DAY, 0, 1)).isEqualTo(RecordLevel.NONE);
+		// 그날의 일기가 없어도 메신저 말투 분석이 있으면 기록이 있는 날이에요(말투는 알지만 그날의 일은 잘 몰라서 LOW)
+		assertThat(RecordLevel.of(PersonaScope.DAY, 0, 1)).isEqualTo(RecordLevel.LOW);
+		// 둘 다 없을 때만 NONE이에요
+		assertThat(RecordLevel.of(PersonaScope.DAY, 0, 0)).isEqualTo(RecordLevel.NONE);
 	}
 }

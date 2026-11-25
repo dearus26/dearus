@@ -84,8 +84,12 @@ export function windowText({ windowStart, windowEnd }: Pick<PersonaWindow, 'wind
 /** 시점 고르기 카드의 기록량 안내(명세 RecordLevel 표의 "시점 고르기 문구"를 풀어 쓴 것) */
 export function levelNote({ scope, level }: Pick<PersonaWindow, 'scope' | 'level'>): string {
   if (scope === 'DAY') {
-    return level === 'NONE'
-      ? '이 날은 쓴 일기가 없어요. 기본 말투로 만나고, 정확도가 낮을 수 있어요'
+    // 일기 없이 메신저만 올린 날(LOW)은 올린 메신저 말투로 만나요. 말투는 알아도 그날의 일은 잘 몰라서 정확도가 낮아요.
+    if (level === 'NONE') {
+      return '이 날은 쓴 일기도, 올린 메신저 대화도 없어요. 기본 말투로 만나고, 정확도가 낮을 수 있어요';
+    }
+    return level === 'LOW'
+      ? '이 날은 쓴 일기가 없지만 올린 메신저 말투로 만나요. 그날의 일은 잘 몰라서 정확도가 낮을 수 있어요'
       : '그날 하루의 기록만으로 그때의 나를 만나요. 전후 기록이 적어 정확도는 보통일 수 있어요';
   }
   switch (level) {

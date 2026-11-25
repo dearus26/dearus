@@ -60,7 +60,7 @@ export function DayPanel({ date, diary, loading, failed, deleting, onRetry, onWr
               이 날은 쓴 일기가 없어요.
             </AppText>
             <AppText size={12} lineHeight={18} color={colors.brown} style={styles.emptyHint}>
-              일기가 있는 날만 그날의 나와 대화할 수 있어요
+              일기나 올린 메신저 대화가 있는 날은 그날의 나와 대화할 수 있어요
             </AppText>
           </>
         )}

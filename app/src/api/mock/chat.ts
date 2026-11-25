@@ -108,7 +108,8 @@ function shortcutAnchor(key: ShortcutKey, today: string): string {
 
 /** 기록 수준 초안 기준(명세 RecordLevel 표)대로예요. */
 function recordLevel(scope: PersonaScope, diaryCount: number, messengerWeeks: number): RecordLevel {
-  if (scope === 'DAY') return diaryCount > 0 ? 'ENOUGH' : 'NONE';
+  // 그날 일기가 있으면 충분, 일기 없이 그 주 메신저만 있으면 부족(서버 2026.11.25와 같아요), 둘 다 없으면 없음
+  if (scope === 'DAY') return diaryCount > 0 ? 'ENOUGH' : messengerWeeks > 0 ? 'LOW' : 'NONE';
   if (diaryCount >= 10) return 'RICH';
   if (diaryCount >= 5 || messengerWeeks >= 1) return 'ENOUGH';
   return diaryCount >= 1 ? 'LOW' : 'NONE';

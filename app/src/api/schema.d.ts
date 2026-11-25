@@ -622,10 +622,109 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/api/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 관리자 로그인
+         * @description 관리자 페이지(`/admin`, 서버가 직접 보여주는 웹 페이지)에서 불러요. 앱은 부르지 않아요.
+         *     비밀번호는 서버 환경변수 `ADMIN_PASSWORD`(16자 이상) 하나를 관리자가 함께 써요. 비어 있으면 관리자 페이지가 꺼져서 404 `ADMIN_DISABLED`예요.
+         *     관리자 토큰은 8시간 유지되고, 앱 사용자 토큰과 서명 키 · 발급자가 달라서 서로 바꿔 쓸 수 없어요(관리자 토큰으로 앱 API는 401, 앱 토큰으로 관리자 API는 401). 비밀번호를 바꾸면 이미 받은 관리자 토큰도 못 써요.
+         *     로그인과 같이 IP당 1분 10번까지예요(넘치면 429 `RATE_LIMITED`).
+         */
+        post: operations["adminLogin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/api/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 답변 신고 목록
+         * @description 신고된 AI 답변과 그 답을 끌어낸 사용자의 바로 앞 말 하나만 보여줘요(2026.11.25 결정, 관리자가 보는 대화를 가장 적게).
+         *     누가 신고했는지(사용자 ID · 닉네임)는 주지 않아요. 한 번에 50개이고, `OPEN`은 오래된 것부터, `REVIEWED` · `ALL`은 최근 것부터예요.
+         */
+        get: operations["adminListReports"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/api/reports/{reportId}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 신고를 확인함으로 표시 · 되돌리기
+         * @description `reviewed: true`면 `message_reports.reviewed_at`을 지금으로, `false`면 비워요. 신고가 대화와 함께 지워졌으면 404예요.
+         */
+        post: operations["adminReviewReport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AdminReportPage: {
+            /** @description 아직 확인하지 않은 신고 수(전체) */
+            openCount: number;
+            offset: number;
+            hasMore: boolean;
+            items: components["schemas"]["AdminReport"][];
+        };
+        AdminReport: {
+            /** Format: uuid */
+            id: string;
+            /** Format: date-time */
+            reportedAt: string;
+            /**
+             * @description 신고 사유(MessageReportRequest의 reason과 같아요)
+             * @enum {string}
+             */
+            reason: "HURTFUL" | "INACCURATE" | "HARMFUL" | "PRIVACY" | "OTHER";
+            detail?: string | null;
+            /** Format: date-time */
+            reviewedAt?: string | null;
+            /** Format: uuid */
+            chatId: string;
+            /** @description 신고된 답변의 메시지 번호 */
+            seq: number;
+            /** @enum {string} */
+            mode: "PERSONAL" | "COUPLE";
+            /** @enum {string} */
+            scope: "DAY" | "AROUND";
+            /** Format: date */
+            anchorDate: string;
+            /** @description 신고된 AI 답변 */
+            reply: string;
+            /** @description 그 답을 끌어낸 사용자의 바로 앞 말. 첫 인사를 신고했으면 없어요 */
+            previousUserMessage?: string | null;
+        };
         Error: {
             /**
              * @description 앱이 분기에 쓰는 값이에요. 공통: `UNAUTHORIZED`, `VALIDATION_FAILED`, `NOT_FOUND`, `AI_UNAVAILABLE`.
@@ -909,12 +1008,12 @@ export interface components {
          *
          *     | 값 | 초안 기준 (`AROUND`, 전후 2주) | 초안 기준 (`DAY`, 그날 하루) | 시점 고르기 문구 | 대화 상단 정확도 |
          *     |---|---|---|---|---|
-         *     | `NONE` | 일기 0건, 메신저 0주 | 일기 0건 | 기록이 없어요 | 낮음 |
-         *     | `LOW` | 일기 1~4건이고 메신저 0주 | (쓰지 않음) | 부족해요 | 낮음 |
+         *     | `NONE` | 일기 0건, 메신저 0주 | 일기 0건이고 그 주 메신저 0주 | 기록이 없어요 | 낮음 |
+         *     | `LOW` | 일기 1~4건이고 메신저 0주 | 일기 0건이고 그 주 메신저 1주 (일기 없이 메신저만 올린 날) | 부족해요 (`DAY`는 "일기는 없지만 올린 메신저 말투로 만나요") | 낮음 |
          *     | `ENOUGH` | 일기 5~9건 또는 메신저 1주 이상 | 일기 1건 | 충분해요 (`DAY`는 "전후 기록이 적어 정확도는 보통일 수 있어요") | 보통 |
          *     | `RICH` | 일기 10건 이상 | (쓰지 않음) | 풍부해요 | 높음 |
          *
-         *     `DAY`는 그날의 일기 건수만 보고(`DAY`에 더하는 메신저 말투 분석은 기준에 넣지 않아요), 같은 주의 메신저 요약은 여러 번 올려도 한 주로 세요.
+         *     `DAY`는 그날의 일기가 있으면 `ENOUGH`이고, 일기가 없어도 그날이 속한 주의 메신저 말투 분석이 있으면 `LOW`예요(2026.11.25: 일기 대신 카카오톡 txt를 올린 날도 기록이 있는 날로 봐요. 말투는 알지만 그날의 일은 잘 몰라서 `LOW`예요). 같은 주의 메신저 요약은 여러 번 올려도 한 주로 세요.
          *     `NONE`이나 `LOW`여도 대화는 할 수 있고, 앱이 "기록이 부족해 정확도가 낮을 수 있어요"를 보여줘요.
          * @enum {string}
          */
@@ -2521,6 +2620,108 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+        };
+    };
+    adminLogin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    password: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 관리자 토큰 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description 관리자 API의 Authorization: Bearer 값 */
+                        value: string;
+                        /** Format: date-time */
+                        expiresAt: string;
+                    };
+                };
+            };
+            /** @description 비밀번호가 맞지 않아요(`ADMIN_LOGIN_FAILED`) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description 관리자 페이지가 꺼져 있어요(`ADMIN_DISABLED`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    adminListReports: {
+        parameters: {
+            query?: {
+                status?: "OPEN" | "REVIEWED" | "ALL";
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 신고 목록 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminReportPage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    adminReviewReport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                reportId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    reviewed: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description 바꿨어요 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
         };
     };
 }

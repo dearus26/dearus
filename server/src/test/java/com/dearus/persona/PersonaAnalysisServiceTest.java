@@ -118,11 +118,14 @@ class PersonaAnalysisServiceTest {
 	}
 
 	@Test
-	void 하루_단위는_메신저_말투_분석만_있고_그날_일기가_없으면_분석하지_않아요() {
+	void 하루_단위는_그날_일기가_없어도_메신저_말투_분석이_있으면_그_말투로_분석해요() {
 		current = input(PersonaScope.DAY, List.of(), List.of(week("요약", "말투", "[\"문장\"]")));
 
-		assertThat(run(PersonaScope.DAY, new ArrayList<>())).isEmpty();
-		verify(ai, never()).complete(any());
+		assertThat(run(PersonaScope.DAY, new ArrayList<>())).isPresent();
+		verify(ai).complete(any());
+		String prompt = aiRequests.get(0).messages().get(0).text();
+		// 하루 단위는 말투 분석만 보내고(요약 · 대표 문장은 보내지 않아요), 일기가 없으니 <diary>도 없어요
+		assertThat(prompt).contains("<messenger_voice").contains("말투").doesNotContain("<diary").doesNotContain("요약: ");
 	}
 
 	private OriginalEntry original(LocalDate weekStart, DatedText... lines) {

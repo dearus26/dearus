@@ -49,7 +49,7 @@ class PersonaWindowServiceTest {
 	}
 
 	@Test
-	void 하루_단위에_메신저_말투_분석이_있으면_messengerWeeks가_1이고_수준은_그대로예요() {
+	void 하루_단위에_일기_없이_메신저_말투_분석만_있으면_messengerWeeks가_1이고_수준은_LOW예요() {
 		LocalDate day = Kst.today().minusDays(24);
 		when(collector.collect(eq(userId), any())).thenAnswer(call -> new PersonaInput(call.getArgument(1),
 			List.of(), List.of(week(LocalDate.of(2026, 10, 5)))));
@@ -57,7 +57,7 @@ class PersonaWindowServiceTest {
 		PersonaWindowResponse response = service.window(userId, PersonaScope.DAY, day);
 
 		assertThat(response.messengerWeeks()).isEqualTo(1);
-		assertThat(response.level()).isEqualTo(RecordLevel.NONE);
+		assertThat(response.level()).isEqualTo(RecordLevel.LOW); // 일기 없이 메신저만 올린 날도 기록이 있는 날이에요
 	}
 
 	@Test
