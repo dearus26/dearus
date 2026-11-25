@@ -76,7 +76,6 @@ export default function MessengerReviewScreen() {
         <View style={styles.speakers} accessibilityRole="radiogroup">
           {parsed.speakers.map((speaker) => {
             const selected = me === speaker.name;
-            const sample = parsed.messages.find((message) => message.speaker === speaker.name)?.text ?? '';
             return (
               <Pressable
                 key={speaker.name}
@@ -91,9 +90,6 @@ export default function MessengerReviewScreen() {
                 <View style={styles.speakerText}>
                   <AppText weight="bold" size={15} lineHeight={22} numberOfLines={1}>
                     {speaker.name}
-                  </AppText>
-                  <AppText size={12.5} lineHeight={19} color={colors.brown} numberOfLines={1}>
-                    {sample.replace(/\s+/g, ' ')}
                   </AppText>
                 </View>
                 <AppText size={12.5} lineHeight={19} color={colors.brown}>
