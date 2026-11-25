@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Dear Us 관리자</title>
+  <link rel="stylesheet" href="/admin/admin.css">
+  <script src="/admin/admin.js" defer></script>
+</head>
+<body>
+  <header class="top">
+    <h1>Dear Us 관리자</h1>
+    <button id="logout" class="link" type="button" hidden>로그아웃</button>
+  </header>
+
+  <main>
+    <section id="login" class="card login" hidden>
+      <h2>관리자 로그인</h2>
+      <form id="login-form" autocomplete="off">
+        <label for="password">관리자 비밀번호</label>
+        <input id="password" type="password" autocomplete="current-password" required>
+        <button type="submit" class="primary">들어가기</button>
+        <p id="login-error" class="error" role="alert"></p>
+      </form>
+    </section>
+
+    <section id="reports" hidden>
+      <div class="heading">
+        <h2>답변 신고</h2>
+        <p class="muted">신고된 AI 답변과 그 답을 끌어낸 사용자의 바로 앞 말만 보여요. 프롬프트를 고칠지 정한 뒤 "확인함"을 눌러요.</p>
+      </div>
+      <nav class="tabs" role="tablist">
+        <button type="button" role="tab" data-status="OPEN">확인 전 <span id="open-count" class="badge">0</span></button>
+        <button type="button" role="tab" data-status="REVIEWED">확인함</button>
+        <button type="button" role="tab" data-status="ALL">모두</button>
+      </nav>
+      <p id="list-error" class="error" role="alert"></p>
+      <ol id="list" class="list"></ol>
+      <p id="empty" class="muted center" hidden>신고가 없어요.</p>
+      <div class="center"><button id="more" type="button" class="line" hidden>더 보기</button></div>
+    </section>
+  </main>
+
+  <template id="report-template">
+    <li class="card report">
+      <div class="meta">
+        <span class="reason"></span>
+        <span class="when muted"></span>
+      </div>
+      <p class="context muted"></p>
+      <div class="bubble user"><span class="who">사용자</span><p class="text previous"></p></div>
+      <div class="bubble persona"><span class="who">AI 답변 (신고됨)</span><p class="text reply"></p></div>
+      <div class="detail-box"><span class="who">신고 내용</span><p class="text detail"></p></div>
+      <div class="actions">
+        <span class="reviewed muted"></span>
+        <button type="button" class="review primary"></button>
+      </div>
+    </li>
+  </template>
+</body>
+</html>

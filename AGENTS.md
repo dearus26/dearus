@@ -72,7 +72,7 @@
 ## 서버 작업 규칙
 
 - API는 `server/openapi.yaml`대로 구현해요. 경로나 응답 형태를 바꿔야 하면 명세를 먼저 고치고 프론트엔드 담당과 합의해요.
-- 패키지는 `com.dearus` 아래 `auth`, `diary`, `upload`, `persona`, `chat`, `report`, `couple`, `common`으로 나눠요 (`skills/tech-stack.md`의 패키지 구조).
+- 패키지는 `com.dearus` 아래 `auth`, `diary`, `upload`, `persona`, `chat`, `report`, `couple`, `admin`, `common`으로 나눠요 (`skills/tech-stack.md`의 패키지 구조). `admin`은 서버가 직접 보여주는 관리자 페이지(`/admin`, 파일은 `server/src/main/resources/static/admin/`)와 그 API(`/admin/api/**`)예요. 앱은 관리자 API를 부르지 않아요.
 - 테이블과 컬럼은 `DearUs_ERD.html`을 따라요. 컬럼 이름은 snake_case예요.
 - Supabase는 DB 용도로만 쓰고, 인증과 비즈니스 로직은 Spring Boot가 맡아요.
 - AI API 키(`ANTHROPIC_API_KEY`), DB 비밀번호, JWT 키, 암호화 키(`ENCRYPTION_KEY`) 같은 비밀 값은 환경변수로 관리해요. `application-local.*`처럼 비밀 값이 든 설정 파일은 git에 올리지 않아요.

@@ -60,6 +60,15 @@ class RateLimitInterceptorTest {
 	}
 
 	@Test
+	void 관리자_로그인도_IP마다_같이_세요() {
+		// 관리자 로그인은 토큰 없이 오니 IP로 세요. 앱 로그인과 같은 칸이라 둘을 섞어 넣어 보기를 피하지 못해요
+		assertThat(pass(request("/admin/api/login", "10.0.0.5", "203.0.113.8"))).isTrue();
+		assertThat(pass(request("/auth/kakao", "10.0.0.5", "203.0.113.8"))).isTrue();
+		assertThatThrownBy(() -> pass(request("/admin/api/login", "10.0.0.5", "203.0.113.8")))
+			.isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.getCode()).isEqualTo("RATE_LIMITED"));
+	}
+
+	@Test
 	void 로그인한_사람은_사람마다_세요() {
 		signIn("user-a");
 		for (int i = 0; i < 3; i++) {

@@ -2,9 +2,10 @@ package com.dearus.common;
 
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
+import org.springframework.web.servlet.config.annotation.ViewControllerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
-/** 요청 횟수 제한(RateLimitInterceptor)을 모든 API에 걸어요. 서버 상태 확인(/actuator)은 빼요. */
+/** 요청 횟수 제한(RateLimitInterceptor)을 모든 API에 걸어요. 서버 상태 확인(/actuator)은 빼요. /admin은 관리자 페이지 파일로 보내요. */
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
 
@@ -18,5 +19,11 @@ public class WebConfig implements WebMvcConfigurer {
 	@Override
 	public void addInterceptors(InterceptorRegistry registry) {
 		registry.addInterceptor(new RateLimitInterceptor(limiter, limits)).excludePathPatterns("/actuator/**");
+	}
+
+	@Override
+	public void addViewControllers(ViewControllerRegistry registry) {
+		registry.addViewController("/admin").setViewName("forward:/admin/index.html");
+		registry.addViewController("/admin/").setViewName("forward:/admin/index.html");
 	}
 }

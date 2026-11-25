@@ -32,6 +32,11 @@ app:
     google:
       # 구글 ID token의 대상(aud)으로 받아들일 클라이언트 ID 목록이에요(쉼표로 구분). 비워 두면 구글 로그인은 501이에요.
       client-ids: ${GOOGLE_CLIENT_IDS:}
+  admin:
+    # 관리자 페이지(/admin) 비밀번호예요(2026.11.25). 16자 이상, 비워 두면 관리자 페이지가 꺼져요(404 ADMIN_DISABLED).
+    password: ${ADMIN_PASSWORD:}
+    # 관리자 토큰이 유지되는 시간
+    token-hours: 8
   crypto:
     # 메신저 요약처럼 암호화해서 저장하는 값의 키예요(AES-256-GCM). base64로 인코딩한 32바이트이고, 서버가 바뀌어도 같은 값을 써야 저장된 값을 읽어요.
     key: ${ENCRYPTION_KEY}

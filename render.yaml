@@ -42,6 +42,9 @@ services:
         sync: false
       - key: GOOGLE_CLIENT_IDS
         sync: false
+      # 관리자 페이지(/admin) 비밀번호예요(16자 이상). 비워 두면 관리자 페이지가 꺼져요(2026.11.25)
+      - key: ADMIN_PASSWORD
+        sync: false
       # 가짜 로그인(POST /auth/dev)은 배포 서버에서 꺼요(2026.11.21). 이 레포가 공개라 주소와 앱의 고정 토큰이 드러나 있어요
       - key: DEV_LOGIN_ENABLED
         value: "false"

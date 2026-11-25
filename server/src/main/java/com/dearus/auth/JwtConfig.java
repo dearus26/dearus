@@ -10,6 +10,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
+import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 
@@ -33,6 +34,9 @@ public class JwtConfig {
 
 	@Bean
 	JwtDecoder jwtDecoder(JwtProperties props) {
-		return NimbusJwtDecoder.withSecretKey(secretKey(props)).macAlgorithm(MacAlgorithm.HS256).build();
+		NimbusJwtDecoder decoder = NimbusJwtDecoder.withSecretKey(secretKey(props)).macAlgorithm(MacAlgorithm.HS256).build();
+		// 우리가 만든 사용자 토큰(발급자 dearus)만 받아요. 관리자 토큰(dearus-admin)은 키도 달라서 여기서 못 써요
+		decoder.setJwtValidator(JwtValidators.createDefaultWithIssuer("dearus"));
+		return decoder;
 	}
 }

@@ -13,7 +13,7 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import org.springframework.web.servlet.HandlerInterceptor;
 
 /**
- * 짧은 시간에 몰리는 요청을 막아요(2026.11.25). 로그인(POST /auth/*)은 IP별로, 나머지는 로그인한 사람별로 1분 단위로 세요.
+ * 짧은 시간에 몰리는 요청을 막아요(2026.11.25). 로그인(POST /auth/*)과 관리자 로그인(POST /admin/api/login)은 IP별로, 나머지는 로그인한 사람별로 1분 단위로 세요.
  * 넘치면 429 RATE_LIMITED이고 Retry-After 헤더로 기다릴 초를 알려줘요.
  * Spring Security 뒤에서 돌아서, 로그인이 필요한 API는 토큰 확인이 끝난 뒤에 세요(토큰이 없으면 여기까지 오지 않고 401이에요).
  */
@@ -34,7 +34,7 @@ public class RateLimitInterceptor implements HandlerInterceptor {
 	public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
 		String key;
 		int limit;
-		if (request.getRequestURI().startsWith("/auth/")) {
+		if (request.getRequestURI().startsWith("/auth/") || request.getRequestURI().equals("/admin/api/login")) {
 			key = "ip:" + clientIp(request.getHeader("CF-Connecting-IP"), request.getHeader("X-Forwarded-For"), request.getRemoteAddr());
 			limit = limits.loginPerMinute();
 		} else {

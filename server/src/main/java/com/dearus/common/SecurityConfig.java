@@ -16,7 +16,7 @@ import org.springframework.security.web.access.AccessDeniedHandler;
 
 /**
  * 보안 설정. 서버 상태 확인(/actuator/health)과 로그인(POST /auth/*)만 열어 두고,
- * 나머지는 Authorization: Bearer JWT가 있어야 해요.
+ * 나머지는 Authorization: Bearer JWT가 있어야 해요. 관리자 페이지(/admin/**)는 AdminSecurityConfig가 먼저 맡아요.
  * 로그인 실패 · 권한 없음도 API 명세의 { code, message } 형태로 내려줘요.
  */
 @Configuration
@@ -44,8 +44,8 @@ public class SecurityConfig {
 		return http.build();
 	}
 
-	/** 메시지에 따옴표가 없는 고정 문구라서 JSON을 직접 만들어도 안전해요. */
-	private static void writeJson(HttpServletResponse response, int status, String code, String message)
+	/** 메시지에 따옴표가 없는 고정 문구라서 JSON을 직접 만들어도 안전해요. 관리자 보안 설정(AdminSecurityConfig)도 같이 써요. */
+	public static void writeJson(HttpServletResponse response, int status, String code, String message)
 		throws java.io.IOException {
 		response.setStatus(status);
 		response.setContentType(MediaType.APPLICATION_JSON_VALUE);

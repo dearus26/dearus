@@ -81,6 +81,8 @@ tags:
     description: Time-Slip Chat · 회고 리포트
   - name: couples
     description: 커플 모드
+  - name: admin
+    description: 관리자 페이지(/admin) 전용이에요. 앱은 부르지 않아요(2026.11.25)
 
 security:
   - bearerAuth: []
@@ -1153,12 +1155,134 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  /admin/api/login:
+    post:
+      tags: [admin]
+      operationId: adminLogin
+      summary: 관리자 로그인
+      description: |
+        관리자 페이지(`/admin`, 서버가 직접 보여주는 웹 페이지)에서 불러요. 앱은 부르지 않아요.
+        비밀번호는 서버 환경변수 `ADMIN_PASSWORD`(16자 이상) 하나를 관리자가 함께 써요. 비어 있으면 관리자 페이지가 꺼져서 404 `ADMIN_DISABLED`예요.
+        관리자 토큰은 8시간 유지되고, 앱 사용자 토큰과 서명 키 · 발급자가 달라서 서로 바꿔 쓸 수 없어요(관리자 토큰으로 앱 API는 401, 앱 토큰으로 관리자 API는 401). 비밀번호를 바꾸면 이미 받은 관리자 토큰도 못 써요.
+        로그인과 같이 IP당 1분 10번까지예요(넘치면 429 `RATE_LIMITED`).
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                password:
+                  type: string
+      responses:
+        '200':
+          description: 관리자 토큰
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [value, expiresAt]
+                properties:
+                  value:
+                    type: string
+                    description: '관리자 API의 Authorization: Bearer 값'
+                  expiresAt:
+                    type: string
+                    format: date-time
+        '401':
+          description: 비밀번호가 맞지 않아요(`ADMIN_LOGIN_FAILED`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: 관리자 페이지가 꺼져 있어요(`ADMIN_DISABLED`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /admin/api/reports:
+    get:
+      tags: [admin]
+      operationId: adminListReports
+      summary: 답변 신고 목록
+      description: |
+        신고된 AI 답변과 그 답을 끌어낸 사용자의 바로 앞 말 하나만 보여줘요(2026.11.25 결정, 관리자가 보는 대화를 가장 적게).
+        누가 신고했는지(사용자 ID · 닉네임)는 주지 않아요. 한 번에 50개이고, `OPEN`은 오래된 것부터, `REVIEWED` · `ALL`은 최근 것부터예요.
+      security:
+        - adminAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [OPEN, REVIEWED, ALL]
+            default: OPEN
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: 신고 목록
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminReportPage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /admin/api/reports/{reportId}/review:
+    post:
+      tags: [admin]
+      operationId: adminReviewReport
+      summary: 신고를 확인함으로 표시 · 되돌리기
+      description: '`reviewed: true`면 `message_reports.reviewed_at`을 지금으로, `false`면 비워요. 신고가 대화와 함께 지워졌으면 404예요.'
+      security:
+        - adminAuth: []
+      parameters:
+        - name: reportId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reviewed]
+              properties:
+                reviewed:
+                  type: boolean
+      responses:
+        '204':
+          description: 바꿨어요
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
+    adminAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: 관리자 토큰(`POST /admin/api/login`). 앱 사용자 토큰과 다른 키로 서명해요
 
   parameters:
     ChatId:
@@ -1268,6 +1392,64 @@ components:
             message: 만 14세 미만은 보호자(법정대리인)의 동의가 필요해요.
 
   schemas:
+    AdminReportPage:
+      type: object
+      required: [openCount, offset, hasMore, items]
+      properties:
+        openCount:
+          type: integer
+          description: 아직 확인하지 않은 신고 수(전체)
+        offset:
+          type: integer
+        hasMore:
+          type: boolean
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminReport'
+    AdminReport:
+      type: object
+      required: [id, reportedAt, reason, chatId, seq, mode, scope, anchorDate, reply]
+      properties:
+        id:
+          type: string
+          format: uuid
+        reportedAt:
+          type: string
+          format: date-time
+        reason:
+          type: string
+          enum: [HURTFUL, INACCURATE, HARMFUL, PRIVACY, OTHER]
+          description: 신고 사유(MessageReportRequest의 reason과 같아요)
+        detail:
+          type: string
+          nullable: true
+        reviewedAt:
+          type: string
+          format: date-time
+          nullable: true
+        chatId:
+          type: string
+          format: uuid
+        seq:
+          type: integer
+          description: 신고된 답변의 메시지 번호
+        mode:
+          type: string
+          enum: [PERSONAL, COUPLE]
+        scope:
+          type: string
+          enum: [DAY, AROUND]
+        anchorDate:
+          type: string
+          format: date
+        reply:
+          type: string
+          description: 신고된 AI 답변
+        previousUserMessage:
+          type: string
+          nullable: true
+          description: 그 답을 끌어낸 사용자의 바로 앞 말. 첫 인사를 신고했으면 없어요
     Error:
       type: object
       required: [code, message]
