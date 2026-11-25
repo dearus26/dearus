@@ -73,7 +73,7 @@ class MessengerServiceTest {
 		Executor direct = Runnable::run; // 뒤에서 하는 일을 테스트에서는 바로 실행해요
 		TransactionTemplate tx = new TransactionTemplate(mock(PlatformTransactionManager.class));
 		MessengerSummaryJob job = new MessengerSummaryJob(new WeeklySummarizer(ai), crypto, uploads, summaries, tx, direct);
-		service = new MessengerService(users, uploads, summaries, job, direct);
+		service = new MessengerService(users, uploads, summaries, job, direct, new com.dearus.common.LimitProperties(200, 100, 5, 20, 10, 120));
 	}
 
 	private MessengerUploadRequest request(MessengerMessage... messages) {
@@ -91,6 +91,18 @@ class MessengerServiceTest {
 			return e;
 		}
 		throw new AssertionError("ApiException이 나야 하는데 나지 않았어요");
+	}
+
+	@Test
+	void 오늘_올린_업로드가_상한이면_429_AI_DAILY_LIMIT이고_저장하지_않아요() {
+		when(uploads.countByUserIdAndUploadedAtGreaterThanEqual(any(), any())).thenReturn(5L);
+
+		ApiException e = apiError(() -> service.accept(userId, request(msg("2026-09-28", "안녕"))));
+
+		assertThat(e.getStatus()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+		assertThat(e.getCode()).isEqualTo("AI_DAILY_LIMIT");
+		verify(uploads, never()).saveAndFlush(any());
+		verify(ai, never()).complete(any());
 	}
 
 	@Test

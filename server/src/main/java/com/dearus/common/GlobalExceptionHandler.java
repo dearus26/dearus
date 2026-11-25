@@ -27,7 +27,14 @@ public class GlobalExceptionHandler {
 
 	@ExceptionHandler(ApiException.class)
 	ResponseEntity<ErrorResponse> handleApi(ApiException e) {
-		return json(e.getStatus(), new ErrorResponse(e.getCode(), e.getMessage(), e.getDetails()));
+		ResponseEntity<ErrorResponse> response = json(e.getStatus(), new ErrorResponse(e.getCode(), e.getMessage(), e.getDetails()));
+		// 요청 횟수 제한(429 RATE_LIMITED)은 기다릴 초를 표준 헤더로도 알려줘요
+		Object retryAfter = e.getDetails() == null ? null : e.getDetails().get("retryAfterSeconds");
+		if (retryAfter != null) {
+			return ResponseEntity.status(response.getStatusCode()).headers(response.getHeaders())
+				.header("Retry-After", String.valueOf(retryAfter)).body(response.getBody());
+		}
+		return response;
 	}
 
 	@ExceptionHandler(MethodArgumentNotValidException.class)

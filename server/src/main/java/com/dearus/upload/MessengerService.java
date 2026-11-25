@@ -3,7 +3,9 @@ package com.dearus.upload;
 import com.dearus.auth.User;
 import com.dearus.auth.UserRepository;
 import com.dearus.common.ApiException;
+import com.dearus.common.DailyLimit;
 import com.dearus.common.Kst;
+import com.dearus.common.LimitProperties;
 import com.dearus.common.Weeks;
 import com.dearus.upload.WeeklySummarizer.DatedText;
 import com.dearus.upload.WeeklySummarizer.WeekMessages;
@@ -50,14 +52,16 @@ public class MessengerService {
 	private final MessengerWeeklySummaryRepository summaries;
 	private final MessengerSummaryJob job;
 	private final Executor executor;
+	private final LimitProperties limits;
 
 	public MessengerService(UserRepository users, MessengerUploadRepository uploads, MessengerWeeklySummaryRepository summaries,
-		MessengerSummaryJob job, @Qualifier("messengerExecutor") Executor executor) {
+		MessengerSummaryJob job, @Qualifier("messengerExecutor") Executor executor, LimitProperties limits) {
 		this.users = users;
 		this.uploads = uploads;
 		this.summaries = summaries;
 		this.job = job;
 		this.executor = executor;
+		this.limits = limits;
 	}
 
 	/** POST /uploads/messenger — txt에서 추린 내 말을 받아서 202로 바로 돌려주고 요약은 뒤에서 해요. */
@@ -82,6 +86,8 @@ public class MessengerService {
 			throw ApiException.validation("messages", "한 번에 " + MAX_WEEKS + "주(약 1년)까지만 올릴 수 있어요");
 		}
 		checkNotInProgress(userId);
+		DailyLimit.check(uploads.countByUserIdAndUploadedAtGreaterThanEqual(userId, DailyLimit.startOfToday()),
+			limits.dailyMessengerUploads(), "오늘은 메신저 대화를 더 올릴 수 없어요. 내일 다시 올려 주세요.");
 
 		MessengerUpload upload = uploads.saveAndFlush(MessengerUpload.receive(userId, request.source(), 0));
 		UUID uploadId = upload.getId();

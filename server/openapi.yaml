@@ -15,6 +15,7 @@ info:
     | ID | 일기 · 세션 · 커플 등은 UUID 문자열, 채팅 메시지는 정수 `seq`로 순서를 매겨요 |
     | 인증 | `Authorization: Bearer <JWT>`. 로그인 API만 헤더가 없어요. 갱신 토큰은 없고(ERD에 저장 테이블이 없어요), 만료되면 401을 받고 다시 로그인해요 |
     | 오류 | 모든 오류는 `{ code, message, details? }` 형태예요. `code`로 분기하고 `message`는 그대로 화면에 보여줘도 되는 해요체 문장이에요 |
+    | 사용 상한 | 2026.11.25부터 AI 비용 · 남용을 막으려고 상한을 둬요. 한 사람이 하루(한국 시간 자정 기준)에 대화 메시지 200개 · 메신저 업로드 5번 · 리포트 20개까지 쓰고, 넘치면 429 `AI_DAILY_LIMIT`예요. 대화 하나에서 내 말은 100개까지이고 넘치면 429 `CHAT_MESSAGE_LIMIT`예요(대화를 끝내고 새로 시작해요). 짧은 시간의 요청은 로그인이 IP당 1분에 10번, 나머지가 사람당 1분에 120번까지이고 넘치면 429 `RATE_LIMITED`(`Retry-After` 헤더)예요. 숫자는 서버 설정(`app.limits`)이에요 |
     | 기준 | `x-schedule`은 일정표(10월~12월)에서 서버가 만들 시기, `x-screen`은 이 API를 쓰는 스토리보드 화면이에요 |
 
     ## 흐름 요약
@@ -152,6 +153,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
         '503':
           description: 제공자(카카오 서버, 구글 공개키)에 서버가 닿지 못했어요 (`AUTH_PROVIDER_UNAVAILABLE`). 토큰 문제가 아니라서 잠시 뒤에 같은 토큰으로 다시 시도해도 돼요
           content:
@@ -430,6 +433,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/AiDailyLimit'
         '413':
           description: 요청이 너무 커요 (`PAYLOAD_TOO_LARGE`)
           content:
@@ -776,6 +781,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '429':
+          description: 오늘 대화 상한(`AI_DAILY_LIMIT`), 이 대화의 내 말 상한(`CHAT_MESSAGE_LIMIT`), 또는 요청이 너무 잦아요(`RATE_LIMITED`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '503':
           $ref: '#/components/responses/AiUnavailable'
 
@@ -860,6 +871,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/AiDailyLimit'
         '503':
           description: 리포트를 만드는 요청이 너무 많아요 (`SERVER_BUSY`). 대화는 이미 끝났고, 잠시 뒤 이 API를 다시 부르면 리포트를 다시 만들어요
           content:
@@ -1207,6 +1220,34 @@ components:
             code: AI_UNAVAILABLE
             message: 지금은 답하기 어려워요. 잠시 뒤에 다시 해 주세요.
 
+    AiDailyLimit:
+      description: 오늘 쓸 수 있는 AI 사용량을 다 썼어요 (`AI_DAILY_LIMIT`). 한국 시간 자정에 다시 쓸 수 있어요. `details.limit`은 하루 상한, `details.resetAt`은 다시 쓸 수 있는 시각이에요
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: AI_DAILY_LIMIT
+            message: 오늘 나눌 수 있는 대화를 모두 썼어요. 내일 다시 이야기해요.
+            details:
+              limit: 200
+              resetAt: '2026-11-26T00:00:00+09:00'
+    RateLimited:
+      description: 짧은 시간에 요청이 너무 많아요 (`RATE_LIMITED`). `Retry-After` 헤더(초)만큼 기다렸다가 다시 보내요
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+          description: 다시 보내도 되는 때까지 남은 초
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: RATE_LIMITED
+            message: 요청이 너무 많아요. 잠시 뒤에 다시 해 주세요.
+            details:
+              retryAfterSeconds: 42
     AiConsentRequired:
       description: AI 분석 동의가 없거나 철회했어요 (`AI_CONSENT_REQUIRED`). 민감정보 동의가 없어도 같아요. `PUT /me/consent`로 다시 동의해야 해요
       content:

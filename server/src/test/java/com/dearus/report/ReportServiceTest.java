@@ -3,6 +3,7 @@ package com.dearus.report;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -114,7 +115,7 @@ class ReportServiceTest {
 		};
 		service = new ReportService(sessions, messages, users, reports, personas, new ReportGenerator(ai), replies,
 			mock(com.dearus.couple.CoupleAccess.class), mock(com.dearus.couple.CoupleComparisonService.class),
-			new TransactionTemplate(mock(PlatformTransactionManager.class)), executor);
+			new TransactionTemplate(mock(PlatformTransactionManager.class)), executor, new com.dearus.common.LimitProperties(200, 100, 5, 20, 10, 120));
 	}
 
 	/** 첫 인사 + 내 말 n개와 그 답변(1분 간격). 대화 시간은 2n분이에요. */
@@ -138,6 +139,29 @@ class ReportServiceTest {
 	}
 
 	// ───────── 끝내기: 검증 ─────────
+
+	@Test
+	void 오늘_만든_리포트가_상한이면_429이고_대화를_끝내지_않아요() {
+		conversation(2);
+		when(messages.countBySessionIdAndRole(chatId, ChatRole.USER)).thenReturn(2L);
+		when(reports.countGeneratedSince(eq(userId), any())).thenReturn(20L);
+
+		assertApi(() -> service.end(userId, chatId), HttpStatus.TOO_MANY_REQUESTS, "AI_DAILY_LIMIT");
+		assertThat(session.isEnded()).isFalse();
+		assertThat(queued).isEmpty();
+	}
+
+	@Test
+	void 리포트를_만들지_않는_짧은_대화는_상한이어도_끝낼_수_있어요() {
+		conversation(1);
+		when(messages.countBySessionIdAndRole(chatId, ChatRole.USER)).thenReturn(1L);
+		when(reports.countGeneratedSince(eq(userId), any())).thenReturn(20L);
+
+		service.end(userId, chatId);
+
+		assertThat(session.isEnded()).isTrue();
+		assertThat(queued).isEmpty();
+	}
 
 	@Test
 	void 없는_대화이거나_남의_대화는_404예요() {

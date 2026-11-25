@@ -11,7 +11,9 @@ import com.dearus.chat.ChatSession;
 import com.dearus.chat.ChatSessionRepository;
 import com.dearus.chat.ChatStatus;
 import com.dearus.common.ApiException;
+import com.dearus.common.DailyLimit;
 import com.dearus.common.Kst;
+import com.dearus.common.LimitProperties;
 import com.dearus.common.ai.AiException;
 import com.dearus.couple.CoupleAccess;
 import com.dearus.couple.CoupleComparisonService;
@@ -82,11 +84,12 @@ public class ReportService {
 	private final CoupleComparisonService comparisons;
 	private final TransactionTemplate tx;
 	private final Executor executor;
+	private final LimitProperties limits;
 
 	public ReportService(ChatSessionRepository sessions, ChatMessageRepository messages, UserRepository users, ReportRepository reports,
 		PersonaAnalysisService personas, ReportGenerator generator, ChatReplyService replies, CoupleAccess couples,
 		CoupleComparisonService comparisons, TransactionTemplate tx,
-		@Qualifier("reportExecutor") Executor executor) {
+		@Qualifier("reportExecutor") Executor executor, LimitProperties limits) {
 		this.sessions = sessions;
 		this.messages = messages;
 		this.users = users;
@@ -98,6 +101,7 @@ public class ReportService {
 		this.comparisons = comparisons;
 		this.tx = tx;
 		this.executor = executor;
+		this.limits = limits;
 	}
 
 	/** POST /chats/{chatId}/end */
@@ -111,6 +115,7 @@ public class ReportService {
 		if (session.getStatus() != ChatStatus.READY) {
 			throw new ApiException(HttpStatus.CONFLICT, "CHAT_NOT_READY", "아직 끝낼 수 없는 대화예요.");
 		}
+		checkDailyReports(userId, chatId);
 		if (!replies.tryLock(chatId)) {
 			throw new ApiException(HttpStatus.CONFLICT, "CHAT_BUSY", "답변이 아직 끝나지 않았어요. 잠시 뒤에 다시 눌러 주세요.");
 		}
@@ -129,6 +134,19 @@ public class ReportService {
 			dispatch(chatId);
 		}
 		return ended.result();
+	}
+
+	/**
+	 * 하루 리포트 상한(app.limits, 2026.11.25). 이번 끝내기로 새 리포트를 만들게 될 때만 세요(내 말이 2개 미만이거나 이미 리포트가 있으면 세지 않아요).
+	 * 넘치면 대화를 끝내지 않은 채로 두어서 내일 다시 끝내기를 누를 수 있어요.
+	 */
+	private void checkDailyReports(UUID userId, UUID chatId) {
+		boolean newReport = reports.findBySessionId(chatId).isEmpty()
+			&& messages.countBySessionIdAndRole(chatId, ChatRole.USER) >= MIN_USER_MESSAGES;
+		if (newReport) {
+			DailyLimit.check(reports.countGeneratedSince(userId, DailyLimit.startOfToday()), limits.dailyReports(),
+				"오늘은 리포트를 더 만들 수 없어요. 내일 다시 끝내기를 눌러 주세요.");
+		}
 	}
 
 	/** 한 트랜잭션에서 끝낸 시각을 기록하고 reports 행을 만들거나(없을 때) 실패한 것을 다시 만들기로 바꿔요. */

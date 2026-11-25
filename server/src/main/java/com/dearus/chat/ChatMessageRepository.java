@@ -17,6 +17,17 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
 
 	int countBySessionId(UUID sessionId);
 
+	/** 세션에서 한 역할이 보낸 메시지 수예요(대화 하나의 내 말 상한). */
+	long countBySessionIdAndRole(UUID sessionId, ChatRole role);
+
+	/** 한 사람이 from 이후에 보낸 내 말 수예요(하루 대화 상한). 커플 세션에서 내가 보낸 말도 들어가요. */
+	@Query(value = """
+		select count(*) from chat_messages m
+		join chat_sessions s on s.id = m.session_id
+		where s.user_id = :userId and m.role = 'USER' and m.created_at >= :from
+		""", nativeQuery = true)
+	long countUserMessagesSince(@Param("userId") UUID userId, @Param("from") OffsetDateTime from);
+
 	/** 세션 안의 메시지 하나예요(답변 신고에서 써요). */
 	Optional<ChatMessage> findBySessionIdAndSeq(UUID sessionId, int seq);
 

@@ -43,4 +43,7 @@ public interface MessengerUploadRepository extends JpaRepository<MessengerUpload
 	@Modifying(flushAutomatically = true)
 	@Query("delete from MessengerUpload u where u.expiresAt <= :now")
 	int deleteExpired(@Param("now") OffsetDateTime now);
+
+	/** 한 사람이 from 이후에 올린 업로드 수예요(하루 업로드 상한). 실패한 업로드도 AI를 불렀을 수 있어서 함께 세요. */
+	long countByUserIdAndUploadedAtGreaterThanEqual(UUID userId, OffsetDateTime from);
 }

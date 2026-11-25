@@ -56,6 +56,16 @@ app:
     # 서버가 켜질 때 새벽 삭제 작업을 한 번 더 돌려요(StartupJobs). Render 무료 요금제는 잠들어서 새벽 작업을 건너뛸 수 있어서 배포 서버만 true예요.
     run-on-startup: ${JOBS_RUN_ON_STARTUP:false}
 
+  limits:
+    # AI 비용 · 남용을 막는 상한(2026.11.25 결정). 하루는 한국 시간 자정 기준이고, 넘치면 429예요.
+    daily-chat-messages: 200
+    chat-messages-per-session: 100
+    daily-messenger-uploads: 5
+    daily-reports: 20
+    # 1분 단위 요청 수. 로그인은 IP별, 나머지는 로그인한 사람별이에요(서버 메모리에서 세요)
+    login-per-minute: 10
+    requests-per-minute: 120
+
   usage:
     # 화면 상단 "하루 30분 정도를 권장해요"의 권장 시간(분). 스토리보드 문구를 그대로 가정한 값이에요.
     recommended-minutes: 30

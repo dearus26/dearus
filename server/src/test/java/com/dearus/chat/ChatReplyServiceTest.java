@@ -3,6 +3,7 @@ package com.dearus.chat;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
@@ -97,7 +98,7 @@ class ChatReplyServiceTest {
 			return new AiResult("어, 그래?", 12, 3);
 		});
 		service = new ChatReplyService(sessions, messages, users, persona, mock(com.dearus.couple.CoupleAccess.class), new ChatPromptBuilder(), new RuleSafetyDetector(),
-			safetyProperties, ai, new TransactionTemplate(mock(PlatformTransactionManager.class)));
+			safetyProperties, ai, new TransactionTemplate(mock(PlatformTransactionManager.class)), new com.dearus.common.LimitProperties(200, 100, 5, 20, 10, 120));
 	}
 
 	private void addMessage(int seq, ChatRole role, String text) {
@@ -132,6 +133,40 @@ class ChatReplyServiceTest {
 	}
 
 	// ───────── 준비(검증) ─────────
+
+	@Test
+	void 대화_하나의_내_말이_상한이면_429_CHAT_MESSAGE_LIMIT이고_AI를_부르지_않아요() {
+		when(messages.countBySessionIdAndRole(chatId, ChatRole.USER)).thenReturn(100L);
+
+		ApiException e = apiError(() -> service.prepare(userId, chatId, "안녕"));
+
+		assertThat(e.getStatus()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+		assertThat(e.getCode()).isEqualTo("CHAT_MESSAGE_LIMIT");
+		assertThat(e.getDetails()).containsEntry("limit", 100);
+		verify(ai, never()).stream(any(), any());
+	}
+
+	@Test
+	void 오늘_보낸_내_말이_상한이면_429_AI_DAILY_LIMIT이고_내일_자정을_알려줘요() {
+		when(messages.countUserMessagesSince(eq(userId), any())).thenReturn(200L);
+
+		ApiException e = apiError(() -> service.prepare(userId, chatId, "안녕"));
+
+		assertThat(e.getStatus()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+		assertThat(e.getCode()).isEqualTo("AI_DAILY_LIMIT");
+		assertThat(e.getDetails()).containsEntry("limit", 200)
+			.containsEntry("resetAt", Kst.today().plusDays(1).atStartOfDay(Kst.ZONE).toOffsetDateTime().toString());
+	}
+
+	@Test
+	void 상한_바로_아래면_보낼_수_있어요() {
+		when(messages.countBySessionIdAndRole(chatId, ChatRole.USER)).thenReturn(99L);
+		when(messages.countUserMessagesSince(eq(userId), any())).thenReturn(199L);
+
+		ChatReplyService.Prepared prepared = service.prepare(userId, chatId, "안녕");
+
+		assertThat(prepared).isNotNull();
+	}
 
 	@Test
 	void 남의_세션이나_없는_세션은_404예요() {

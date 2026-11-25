@@ -3,7 +3,9 @@ package com.dearus.chat;
 import com.dearus.auth.User;
 import com.dearus.auth.UserRepository;
 import com.dearus.common.ApiException;
+import com.dearus.common.DailyLimit;
 import com.dearus.common.Kst;
+import com.dearus.common.LimitProperties;
 import com.dearus.common.ai.AiClient;
 import com.dearus.common.ai.AiException;
 import com.dearus.common.ai.AiRequest;
@@ -15,6 +17,7 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -76,11 +79,12 @@ public class ChatReplyService {
 	private final SafetyProperties safetyProperties;
 	private final AiClient ai;
 	private final TransactionTemplate tx;
+	private final LimitProperties limits;
 	private final Set<UUID> inFlight = ConcurrentHashMap.newKeySet();
 
 	public ChatReplyService(ChatSessionRepository sessions, ChatMessageRepository messages, UserRepository users,
 		PersonaAnalysisService persona, CoupleAccess couples, ChatPromptBuilder prompts, SafetyDetector detector, SafetyProperties safetyProperties,
-		AiClient ai, TransactionTemplate tx) {
+		AiClient ai, TransactionTemplate tx, LimitProperties limits) {
 		this.sessions = sessions;
 		this.messages = messages;
 		this.users = users;
@@ -91,6 +95,7 @@ public class ChatReplyService {
 		this.safetyProperties = safetyProperties;
 		this.ai = ai;
 		this.tx = tx;
+		this.limits = limits;
 	}
 
 	/** 오류는 일반 HTTP 오류로 나가요(스트림을 열기 전이라서요). 성공하면 같은 세션의 잠금을 잡은 채로 돌려줘요. */
@@ -101,6 +106,7 @@ public class ChatReplyService {
 		if (!user.aiConsentActive()) {
 			throw new ApiException(HttpStatus.FORBIDDEN, "AI_CONSENT_REQUIRED", "AI 분석에 동의해야 쓸 수 있어요.");
 		}
+		checkLimits(userId, chatId);
 		ChatPromptBuilder.CoupleNames names = couples.requireForSession(session) // 커플 세션이면 접근을 다시 확인해요(아니면 403)
 			.map(link -> new ChatPromptBuilder.CoupleNames(link.partner().getNickname(), link.me().getNickname())).orElse(null);
 		if (session.getEndedAt() != null) {
@@ -127,6 +133,19 @@ public class ChatReplyService {
 			inFlight.remove(chatId);
 			throw e;
 		}
+	}
+
+	/**
+	 * 대화 하나의 내 말 상한과 하루 대화 상한(app.limits)을 확인해요(2026.11.25). 답변이 끝나야 내 말이 저장되어서
+	 * 여러 대화에 동시에 보내면 상한을 조금 넘을 수 있어요(한 대화 안에서는 CHAT_BUSY가 막아요).
+	 */
+	private void checkLimits(UUID userId, UUID chatId) {
+		if (messages.countBySessionIdAndRole(chatId, ChatRole.USER) >= limits.chatMessagesPerSession()) {
+			throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "CHAT_MESSAGE_LIMIT",
+				"이 대화는 충분히 길어졌어요. 대화를 끝내고 새 대화를 시작해 주세요.", Map.of("limit", limits.chatMessagesPerSession()));
+		}
+		DailyLimit.check(messages.countUserMessagesSince(userId, DailyLimit.startOfToday()), limits.dailyChatMessages(),
+			"오늘 나눌 수 있는 대화를 모두 썼어요. 내일 다시 이야기해요.");
 	}
 
 	/**
