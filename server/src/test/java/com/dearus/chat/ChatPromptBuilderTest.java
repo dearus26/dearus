@@ -85,17 +85,31 @@ class ChatPromptBuilderTest {
 	void 규칙은_짧게_모르는_건_지어내지_않기_AI라고_말하지_않기를_담아요() {
 		String system = builder.system(session(PersonaScope.AROUND), persona, "어 왔어?", false);
 
-		assertThat(system).contains("1~3문장으로 짧게").contains("줄을 나눠 문단을 만들지 말고").contains("마크다운은 쓰지 마")
-			.doesNotContain("가려진").contains("기록에 없는 일은 지어내지 말고")
-			.contains("그 뒤에 일어난 일은 몰라").contains("AI가 아니라 그 무렵의 나").contains("대화 내내 지켜");
+		assertThat(system).contains("말풍선 하나에 1~3문장만").contains("3문장을 넘기지 마").contains("빈 줄이나 줄바꿈 없이")
+			.contains("마크다운은 쓰지 마").doesNotContain("가려진").contains("위에 없는 일은 지어내지 말고")
+			.contains("그 뒤에 일어난 일은 몰라").contains("AI가 아니라 그 무렵의 나").contains("대화 내내 지켜")
+			.contains("\"기록\", \"일기\", \"메신저\", \"분석\" 같은 말을 꺼내지 말고");
+		// 답의 모양 규칙은 맨 끝에 둬서 가장 나중에 읽혀요
+		assertThat(system.strip()).endsWith("짧게 되물어서 대화를 이어 가.");
+	}
+
+	@Test
+	void 분석이_근거가_없다고_한_칸은_넣지_않고_말투는_반말로_채워요() {
+		PersonaContent thin = new PersonaContent("기록이 적어서 알 수 없어요", List.of(), "기록이 적어서 알 수 없어요",
+			"답장이 늦어서 서운했어요.", "기록이 적어서 알 수 없어요", List.of("오늘은 그냥 좀 우울했다."), List.of("왔어?"));
+
+		String system = builder.system(session(PersonaScope.DAY), thin, "왔어?", false);
+
+		assertThat(system).doesNotContain("기록이 적어서").contains("네 말투: 담백한 반말로 자연스럽게 말해.")
+			.contains("이 무렵의 고민: 답장이 늦어서 서운했어요.").doesNotContain("이 무렵의 생활").doesNotContain("이 무렵의 감정");
 	}
 
 	@Test
 	void 분석이_없으면_기본_말투예요() {
 		String system = builder.system(session(PersonaScope.DAY), null, "어, 왔어? 오랜만이네.", false);
 
-		assertThat(system).contains("남은 기록이 없어서 네 말투를 잘 몰라").contains("담백한 반말");
-		assertThat(system).doesNotContain("네 말투:").doesNotContain("이 무렵의 생활");
+		assertThat(system).contains("네 말투: 담백한 반말로 자연스럽게 말해.").doesNotContain("기록이 적어서");
+		assertThat(system).doesNotContain("이 무렵의 생활").doesNotContain("자주 쓰는 표현");
 	}
 
 	@Test
@@ -193,7 +207,7 @@ class ChatPromptBuilderTest {
 		String system = builder.system(session(PersonaScope.DAY), persona, "어 왔어?", false, new ChatPromptBuilder.CoupleNames("도윤", "서연"));
 
 		assertThat(system).startsWith("너는 도윤의 과거 모습이야.").contains("말을 거는 사람은 너의 연인 서연야")
-			.contains("그 무렵의 도윤야").contains("기록을 출처로 말하지 말고").contains("누가 잘못했는지 따지지는 마")
+			.contains("그 무렵의 도윤야").contains("같은 말을 꺼내지 말고").contains("누가 잘못했는지 따지지는 마")
 			.contains("네 말투: 짧은 반말을 쓰고 ㅋㅋ를 자주 써요.");
 		assertThat(system).doesNotContain("미래의 너 자신");
 	}

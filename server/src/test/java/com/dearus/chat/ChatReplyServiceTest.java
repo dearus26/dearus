@@ -273,7 +273,7 @@ class ChatReplyServiceTest {
 
 		AiRequest request = service.prepare(userId, chatId, "안녕").request();
 
-		assertThat(request.system()).contains("남은 기록이 없어서");
+		assertThat(request.system()).contains("네 말투: 담백한 반말로 자연스럽게 말해.");
 		verify(persona, never()).contentOf(any());
 	}
 

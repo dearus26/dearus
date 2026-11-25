@@ -28,8 +28,9 @@ public class PersonaAnalyzer {
 	/**
 	 * 2: 메신저 내 말 원문(<messenger_raw>)을 더했어요(2026.11.9).
 	 * 3: 일기를 가리지 않고 보내게 되어 가려진 표시([이름] 등) 안내를 뺐어요(2026.11.9).
+	 * 4: 말투(voice)를 비워 두지 않고, 첫 인사가 원문 문장을 따라 하지 않게 했어요(2026.11.25).
 	 */
-	public static final int PROMPT_VERSION = 3;
+	public static final int PROMPT_VERSION = 4;
 
 	/** AI로 보내는 일기 한 편. content는 가리지 않은 일기 원문이에요. */
 	public record DiaryView(LocalDate date, List<Emotion> emotions, String content) {
@@ -58,7 +59,8 @@ public class PersonaAnalyzer {
 		- <messenger_voice>는 말투를 참고하는 용도로만 써요. 거기에 적힌 일은 이 무렵의 상황으로 쓰지 않아요.
 		- <messenger_raw>는 이 사람이 실제로 쓴 말이라 voice · vocabulary · samples의 가장 중요한 근거예요. 이 기간의 일이라 situation · concerns · emotion에도 써요. \
 		상대가 한 말은 들어 있지 않아서, 앞뒤 맥락은 짐작하지 말고 이 사람의 말에 드러난 것만 써요.
-		- 근거가 부족한 항목은 "기록이 적어서 알 수 없어요"라고만 써요.
+		- situation · concerns · emotion에서 근거가 부족한 항목은 "기록이 적어서 알 수 없어요"라고만 써요.
+		- voice는 비워 두지 않아요. 글이 적어도 보이는 만큼 써요. 일기에 "~했다"처럼 글말만 있고 대화 말투를 알 수 없으면 "담백한 반말을 써요"처럼 반말로 적어요.
 		- 이 결과는 나중에 이 사람처럼 대화하는 데 그대로 쓰여요. "일기에 따르면", "메신저 분석에 따르면", "감정 표시는"처럼 어디서 알았는지 출처를 말하지 말고, 그 사람에 대해 직접 서술해요.
 		- 아래 JSON 한 개만 출력해요. 설명, 마크다운, 코드 블록은 쓰지 않아요.
 
@@ -70,7 +72,9 @@ public class PersonaAnalyzer {
 		- concerns: 이 무렵의 고민을 2~4문장으로 써요.
 		- emotion: 이 무렵의 주된 감정과 그 흐름을 1~3문장으로 써요.
 		- samples: 말투가 잘 드러나는 원문 문장 2~8개를 글자 그대로 담아요. 실명, 학교 · 회사 이름, 위치처럼 사람을 알아볼 수 있는 내용이 든 문장은 고르지 않아요.
-		- greetings: 이 사람이 그때의 말투로 건네는 첫 인사 정확히 3개예요. 각각 1~2문장이고, 그 무렵의 분위기를 살짝 담되 기록에 없는 일을 지어내지 않아요.""";
+		- greetings: 이 사람이 그때의 말투로 건네는 첫 인사 정확히 3개예요. 각각 1~2문장이고, 그 무렵의 분위기를 살짝 담되 기록에 없는 일을 지어내지 않아요. \
+		인사하는 사람은 이 기간을 지금 살고 있는 이 사람이에요. 이 기간의 일은 지금 겪는 일처럼 말하고 "그때", "그 무렵", "요즘은 좀 괜찮아?"처럼 지난 일을 돌아보는 말은 쓰지 않아요. \
+		<messenger_raw> · <diary>의 문장을 그대로 옮기거나 조금만 바꿔 쓰지 말고, 반가움이나 안부처럼 처음 건네는 말로 새로 써요.""";
 
 	/** 생각(thinking)이 max_tokens 안에 들어가요. 분석은 시점마다 한 번만 하고 결과를 재사용하니 MEDIUM으로 해요. */
 	private static final int MAX_TOKENS = 4096;
