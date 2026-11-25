@@ -208,7 +208,7 @@ export default function DiaryScreen() {
               메신저 대화를 올리면 대신 분석해 둘게요
             </AppText>
           </View>
-          <Pill label="메신저 올리기" tone="line" onPress={() => router.push('/messenger')} />
+          <Pill label="메신저 올리기" tone="line" onPress={() => router.push({ pathname: '/messenger', params: { date } })} />
         </Card>
       </ScrollView>
     </KeyboardAvoidingView>

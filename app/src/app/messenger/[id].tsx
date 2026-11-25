@@ -113,11 +113,11 @@ function ProcessingView() {
         대화를 분석하고 있어요
       </AppText>
       <AppText size={14} lineHeight={22} color={colors.brown} style={styles.centered}>
-        내 말을 주 단위로 요약하고 있어요.
+        고른 날의 내 말을 요약하고 있어요.
       </AppText>
       <Card tint style={styles.note}>
         <AppText size={13} lineHeight={20} style={styles.centered}>
-          {'1~2분쯤 걸릴 수 있어요.\n화면을 나가도 서버에서 계속 분석해요.'}
+          {'하루치라서 보통 30초 안에 끝나요.\n서버가 잠들어 있었다면 조금 더 걸릴 수 있어요.\n화면을 나가도 서버에서 계속 분석해요.'}
         </AppText>
       </Card>
     </Center>
@@ -174,7 +174,11 @@ function DoneView({ upload, bottomInset }: { upload: MessengerUpload; bottomInse
         분석이 끝났어요
       </AppText>
       <AppText size={12.5} lineHeight={19} color={colors.brown} style={styles.centered}>
-        {period && upload.weekCount ? `${period} · ${upload.weekCount}주 요약을 저장했어요` : '요약을 저장했어요'}
+        {upload.periodStart && upload.periodStart === upload.periodEnd
+          ? `${formatYearMonthDay(upload.periodStart)}의 대화 요약을 저장했어요`
+          : period && upload.weekCount
+            ? `${period} · ${upload.weekCount}주 요약을 저장했어요`
+            : '요약을 저장했어요'}
       </AppText>
 
       <Card style={styles.summary}>
