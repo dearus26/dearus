@@ -33,7 +33,7 @@ export interface paths {
          *     - 서버에 앱 ID · 클라이언트 ID(`KAKAO_APP_ID`, `GOOGLE_CLIENT_IDS`)가 설정되지 않은 제공자도 501이에요.
          *
          *     **계정 규칙**
-         *     - 제공자마다 별개 계정이에요. 같은 사람이 카카오와 구글로 각각 로그인하면 계정이 둘이고, 서로의 일기 · 대화는 이어지지 않아요. 이메일은 받지도 저장하지도 않아요.
+         *     - 제공자마다 별개 계정이에요. 같은 사람이 카카오와 구글로 각각 로그인하면 계정이 둘이고, 서로의 일기 · 대화는 이어지지 않아요. 이메일과 프로필 사진은 저장하지 않아요(구글 ID token에는 함께 담겨 올 수 있지만 서버는 사용자 식별값 `sub`와 이름만 읽어요).
          *     - 닉네임은 요청의 `nickname` → 제공자 프로필의 이름 → "사용자" 순으로 정하고, **계정을 처음 만들 때만** 정해요(다음 로그인에는 바꾸지 않아요).
          */
         post: operations["login"];
@@ -76,9 +76,12 @@ export interface paths {
          * 서비스 이용 동의
          * @description 로그인 직후 "서비스 이용 동의" 화면의 "동의하고 시작하기"예요. 로그인 응답의 `user.needsConsent`가 `true`인 사용자에게만 보여주고, 이미 동의한 계정은 이 화면을 건너뛰어요.
          *
-         *     - 필수 3개(`terms` 이용약관, `privacy` 개인정보 수집 · 이용, `aiAnalysis` 일기 · 대화 내용 AI 분석)가 모두 `true`여야 해요. 하나라도 아니면 400(`VALIDATION_FAILED`, `details.fields`)이에요.
+         *     - 필수 4개(`terms` 이용약관, `privacy` 개인정보 수집 · 이용, `aiAnalysis` 일기 · 대화 내용 AI 분석, `sensitiveInfo` 민감정보 처리)가 모두 `true`여야 해요. 하나라도 아니면 400(`VALIDATION_FAILED`, `details.fields`)이에요. 민감정보 동의는 다른 동의와 따로 받는 필수 동의예요(2026.11.18 결정). 화면에서도 체크 칸을 따로 둬요.
+         *     - `birthDate`(생년월일)는 처음 한 번만 받아요(2026.11.18 결정, 나이 확인용). 아직 저장된 생년월일이 없으면(`User.birthDate`가 `null`) 꼭 보내야 하고, 없으면 400이에요. 이미 저장돼 있으면 보내지 않아도 되고, 보내도 바뀌지 않아요. 오늘보다 뒤이거나 1900년보다 앞이면 400이에요.
+         *     - 만 14세 미만이면 403 `GUARDIAN_CONSENT_REQUIRED`예요. 법정대리인 동의 방법을 아직 정하지 않아서 지금은 가입을 마칠 수 없어요. 이때는 생년월일도 동의도 저장하지 않아요.
          *     - `notifications`(일기 작성 알림 받기, 선택)는 안 보내면 지금 설정을 그대로 둬요.
-         *     - 동의 시각은 한 번만 기록해요(`users.ai_consent_at`). 이미 유효한 동의에 다시 불러도 시각은 그대로고 알림 설정만 바뀌어요. 철회한 뒤 다시 동의하면 시각을 새로 기록하고 철회를 지워요.
+         *     - 동의 시각은 한 번만 기록해요(`users.ai_consent_at`, 민감정보는 `users.sensitive_consent_at`). 이미 유효한 동의에 다시 불러도 시각은 그대로고 알림 설정만 바뀌어요. 철회한 뒤 다시 동의하면 시각을 새로 기록하고 철회를 지워요.
+         *     - 2026.11.18 전에 동의한 계정은 민감정보 동의와 생년월일이 없어서 `needsConsent`가 `true`가 되고, AI를 부르는 API는 403 `AI_CONSENT_REQUIRED`예요. 동의 화면을 다시 거치면 이어서 써요.
          */
         put: operations["giveConsent"];
         post?: never;
@@ -181,46 +184,18 @@ export interface paths {
         put?: never;
         /**
          * 메신저 대화 올리기 (txt에서 추린 내 말)
-         * @description 카카오톡 대화 내보내기 **txt**로 올릴 때 써요(2026.11.8 결정). 앱이 폰 안에서 txt를 읽어(말한 사람 · 날짜 · 내용) 사용자가 고른 내 이름의 말만 이 API로 보내요. 상대 말은 폰에서 버려요. 글자를 가리는 처리는 앱 · 서버 모두 하지 않아요.
-         *     스크린샷(이미지)은 `POST /uploads/messenger/images`로 보내요. 이 API에 이미지나 `multipart/form-data`를 보내면 415예요.
+         * @description 카카오톡 대화 내보내기 **txt**로 올려요(2026.11.11부터 txt만 받아요). 앱이 폰 안에서 txt를 읽어(말한 사람 · 날짜 · 내용) 사용자가 고른 내 이름의 말만 이 API로 보내요. 상대 말은 폰에서 버려요. 글자를 가리는 처리는 앱 · 서버 모두 하지 않아요.
+         *     스크린샷(이미지)은 받지 않아요. 이 API에 이미지나 `multipart/form-data`를 보내면 415예요.
          *
          *     서버는 받은 글자를 주 단위로 묶어 AI로 요약하고 암호화해 저장해요. 시간이 걸릴 수 있어서 **202**로 바로 응답하고, 결과는 `GET /uploads/messenger/{uploadId}`를 1~2초 간격으로 조회해서 `status`가 `DONE` 또는 `FAILED`가 될 때까지 기다려요.
          *
          *     `messages[].date`는 앱이 txt의 날짜 줄에서 읽어요. 읽지 못한 줄은 앱이 사용자에게 알리고 빼고 보내요.
          *     `DONE`이 되면 받은 내 말 원문을 암호화해(`messenger_uploads.original_enc`) 요약과 함께 1년 보관해요(`expiresAt`). `FAILED`면 원문도 요약도 남기지 않아요. 서버가 다시 시작되거나 10분이 지나도 끝나지 않으면 `FAILED`(`PROCESSING_TIMEOUT`)가 되니, 앱은 `DONE`을 받을 때까지 추린 글자를 폰에 갖고 있다가 필요하면 다시 보내요.
-         *     앞서 올린 대화(txt · 이미지 모두)가 아직 `PROCESSING`이면 409 `UPLOAD_IN_PROGRESS`예요(같은 사람의 AI 호출이 겹치지 않게 막아요). 한 주라도 요약에 실패하면 그 업로드는 통째로 `FAILED`이고 요약은 하나도 저장하지 않아요.
+         *     앞서 올린 대화가 아직 `PROCESSING`이면 409 `UPLOAD_IN_PROGRESS`예요(같은 사람의 AI 호출이 겹치지 않게 막아요). 한 주라도 요약에 실패하면 그 업로드는 통째로 `FAILED`이고 요약은 하나도 저장하지 않아요.
          *     한도(초안): 메시지 5,000개, 한 메시지 2,000자, 요청 전체 1MB, 한 번에 60주(약 1년)까지. 주는 월요일에 시작해요.
          *     걸리는 시간: 한 주 요약은 최대 15초로 보고, 서버가 최대 4주씩 동시에 처리해요(8주면 30초 안쪽, 60주면 4분 안쪽). 앱의 "분석 중" 화면은 이 정도를 기다릴 수 있어야 해요.
          */
         post: operations["uploadMessenger"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/uploads/messenger/images": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * 메신저 대화 올리기 (스크린샷 이미지)
-         * @description 카카오톡 대화 **스크린샷**으로 올릴 때 써요(2026.11.8 결정). 앱은 사진을 가공하지 않고 그대로 보내요. 올릴 때 사용자 확인 단계는 없어요.
-         *     서버가 AI의 이미지 입력으로 내 말(오른쪽 · 노란색 말풍선)과 날짜 구분선을 읽고, **읽은 직후 사진을 지워요**(성공하든 실패하든 사진은 디스크 · DB에 남기지 않아요). 사진에 찍힌 상대 말과 이름은 서버와 AI로 가지만 읽어낸 결과에는 내 말만 남겨요.
-         *     그 뒤는 txt와 같아요. 읽어낸 내 말을 주 단위로 AI 요약해 암호화 저장하고, `DONE`이면 내 말 원문을 암호화해 1년 보관해요. **202**로 바로 응답하고 `GET /uploads/messenger/{uploadId}`로 상태를 조회해요. 응답 · 409 · 실패 규칙은 `POST /uploads/messenger`와 같아요.
-         *
-         *     날짜: 스크린샷에는 날짜 구분선("2026년 9월 28일 일요일")이 날이 바뀔 때만 보여요. 그래서 `images`는 **대화 순서대로(오래된 것부터)** 보내고, 서버는 앞 장에서 읽은 날짜를 다음 장으로 이어서 써요. 첫 날짜 구분선보다 앞에 있는 말은 날짜를 알 수 없어서 빼요. 날짜 구분선이 한 장에도 안 보이면 `FAILED`(`DATE_NOT_FOUND`), 내 말을 하나도 읽지 못하면 `FAILED`(`NO_MESSAGES_FOUND`)예요. 앱은 올리기 전에 "날짜 줄이 보이게 캡처해 주세요"를 안내해요.
-         *     실패하면 사진이 서버에 남지 않으니 앱이 다시 올려요(사진은 폰 갤러리에 그대로 있어요).
-         *     한도(초안): 한 번에 1~100장, 한 장 5MB, 요청 전체 50MB. 형식은 JPEG · PNG · WebP예요. 서버는 형식을 파일 앞부분으로 알아내요(보낸 Content-Type은 보지 않아요).
-         *     서버는 AI 한 번에 최대 10장(원본 20MB)씩 나눠 여러 묶음을 동시에 읽고, 묶음 사이에 겹쳐 찍힌 말은 한 번만 남겨요. 읽은 말이 60주를 넘으면 가장 최근 60주만 요약해요.
-         *     걸리는 시간: 읽기는 20장에 약 30초로 봐요(시험 전 추정). 그 뒤 주 단위 요약 시간이 더해져요.
-         */
-        post: operations["uploadMessengerImages"];
         delete?: never;
         options?: never;
         head?: never;
@@ -322,8 +297,9 @@ export interface paths {
          *     기록이 전혀 없으면(`NONE`) AI를 부르지 않고 바로 `READY`예요(기본 말투로 대화하고 앱이 정확도 안내를 보여줘요). 분석에 실패하면 `FAILED`이고 이전에 저장한 분석은 그대로 남아요.
          *
          *     `scope`는 시점 고르기에서 정해져요. 바로가기는 `AROUND`(전후 2주, `shortcutKey`도 함께 보내요), 캘린더에서 고른 날은 `DAY`(그날 하루)예요.
-         *     `forCouple: true`는 커플 모드에서 연인의 과거 페르소나와 대화하는 세션이에요(2026.11.7 확정). 페르소나는 연인의 기록(고른 시점까지)과 연인의 저장된 분석으로 만들고, `persona_owner_id`는 연인이에요. 커플이 `CONNECTED`이고 양측이 동의했고 철회가 없으며, 연인의 AI 분석 동의도 유효할 때만 만들 수 있어요(연인의 일기 · 요약이 AI로 가기 때문이에요). 아니면 403 `COUPLE_ACCESS_DENIED`예요. 앱은 채팅 상단에 연인의 이름을 `GET /couples/me`의 `partner`로 보여줘요.
-         *     커플 기능을 만들기 전(11월 3주 전)에는 `forCouple: true`가 항상 403 `COUPLE_ACCESS_DENIED`예요. `shortcutKey`는 `scope`가 `AROUND`일 때만 보낼 수 있어요(아니면 400).
+         *     `forCouple: true`는 커플 모드에서 연인의 과거 페르소나("그날의 연인")와 대화하는 세션이에요(2026.11.7 확정). 페르소나는 연인의 기록(고른 시점까지)과 연인의 저장된 분석으로 만들고(연인의 개인 모드와 같은 분석을 재사용해요), `persona_owner_id`는 연인이에요. 커플이 `CONNECTED`이고 양측이 동의했고 철회가 없으며, 연인의 AI 분석 동의도 유효할 때만 만들 수 있어요(연인의 일기 · 요약이 AI로 가기 때문이에요). 아니면 403 `COUPLE_ACCESS_DENIED`예요. 앱은 채팅 상단에 연인의 이름을 `GET /couples/me`의 `partner`로 보여줘요.
+         *     같은 날(`anchorDate` · `scope`)에 아직 끝내지 않은 커플 세션이 있으면 새로 만들지 않고 그 세션을 돌려줘요(201). 끝낸 세션이 있으면 새로 만들고, 두 시점 비교는 가장 최근 세션을 써요.
+         *     `shortcutKey`는 `scope`가 `AROUND`일 때만 보낼 수 있어요(아니면 400).
          *     `PREPARING`이 10분이 지나도 끝나지 않으면 조회할 때 `FAILED`(`PREPARING_TIMEOUT`)가 돼요(서버가 다시 켜진 경우 포함). 분석은 전후 2주가 약 14초, 하루가 약 9초 걸리는 것으로 봐요.
          */
         post: operations["createChat"];
@@ -395,8 +371,40 @@ export interface paths {
          *     **위기 신호:** 내 말에서 위기 신호(자살 · 자해 표현)가 감지되면 `safety` 이벤트가 `token`보다 먼저 와요(JSON 응답은 `safety` 필드). 지금은 규칙 기반 최소판이고 정교화는 나중에 해요. 상담전화 번호는 서버 설정이라 앱 배포 없이 바꿀 수 있어요.
          *
          *     AI가 실패하면 SSE는 `error` 이벤트(`AI_UNAVAILABLE` 등), JSON 응답은 503이에요. AI의 안전 장치가 요청을 거절한 경우도 지금은 같은 방식(`AI_REFUSED`)으로 알려요(대체 답 방식은 나중에 정해요).
+         *
+         *     **커플 세션:** 연인의 분석이 매 턴 AI로 가서, 보낼 때마다 커플 접근(연결됨 · 양측 동의 · 철회 없음 · 연인의 AI 분석 동의)을 다시 확인해요. 하나라도 아니면 403 `COUPLE_ACCESS_DENIED`예요.
          */
         post: operations["sendChatMessage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/chats/{chatId}/messages/{seq}/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                chatId: components["parameters"]["ChatId"];
+                /** @description 신고할 메시지의 순서(`Message.seq`) */
+                seq: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 부적절한 답변 신고
+         * @description 채팅에서 과거의 나(또는 커플 모드의 그날의 연인)가 한 답변을 눌러 신고해요(2026.11.11 결정, 2026.11.18 처리 방식 확정). 위기 신호 감지(서버가 자동으로 찾는 `safety` 이벤트)와는 다른 기능이에요.
+         *     - 신고할 수 있는 건 AI의 답변(`role: PERSONA`)뿐이에요. 내 말(`USER`)을 신고하면 400(`VALIDATION_FAILED`, 필드 `seq`)이에요. 첫 인사(`seq` 1)도 신고할 수 있어요.
+         *     - `reason`은 하나를 골라요. `OTHER`(기타)는 `detail`이 꼭 있어야 해요. `detail`은 최대 500자예요.
+         *     - 같은 답변을 다시 신고하면 처음 신고를 그대로 두고 204예요(여러 번 눌러도 같은 결과).
+         *     - AI를 부르지 않아서 AI 분석 동의를 철회한 뒤에도 지난 대화의 답변을 신고할 수 있어요.
+         *     - Dear Us 관리자가 신고를 확인하고, AI가 바르게 답하도록 프롬프트를 고쳐요. 신고한 사람에게 따로 답하지 않아서 앱은 "신고가 접수됐어요"만 보여줘요.
+         *     - 신고 기록은 그 대화와 함께 지워져요(탈퇴는 바로, AI 분석 동의 철회는 30일 뒤, 커플 해제 때 커플 대화와 함께).
+         */
+        post: operations["reportMessage"];
         delete?: never;
         options?: never;
         head?: never;
@@ -423,6 +431,7 @@ export interface paths {
          *     - 내 말이 2개 미만이면 끝낼 수는 있지만 리포트는 만들지 않아요(`reportStatus: NONE`).
          *     - 마지막 답변이 아직 오는 중이면 409 `CHAT_BUSY`예요. 끝난 뒤에는 `POST /chats/{chatId}/messages`가 409 `CHAT_ENDED`예요.
          *     - 리포트는 AI를 부르므로 AI 분석 동의가 없으면 403 `AI_CONSENT_REQUIRED`예요.
+         *     - 커플 세션은 리포트에 연인의 분석이 들어가서 커플 접근도 다시 확인해요(아니면 403 `COUPLE_ACCESS_DENIED`). 커플 세션의 리포트가 만들어지고 연인의 같은 날 리포트도 있으면, 이어서 두 사람의 간극 한 줄을 만들어요(`GET /couples/comparisons`).
          */
         post: operations["endChat"];
         delete?: never;
@@ -445,7 +454,7 @@ export interface paths {
          * @description 개인 모드는 당시 고민 · 현재 변화 · 한 줄 요약 3개 항목이에요 (세션당 1건). 아직 만드는 중이면 202를 돌려주니 1~2초 뒤에 다시 불러요.
          *     "현재 변화"는 이 대화에서 내가 한 말만 근거로 해요(최근 일기는 쓰지 않아요). 리포트는 평문으로 저장하고, 동의 철회 30일 뒤나 회원 탈퇴 때 대화와 함께 지워져요.
          *     내 말이 2개 미만이라 만들지 않은 대화는 404 `REPORT_NOT_AVAILABLE`이에요. 만들기에 실패했으면 502 `REPORT_FAILED`이고, `POST /chats/{chatId}/end`를 다시 부르면 다시 만들어요.
-         *     커플 모드(`forCouple`) 세션의 리포트는 3개 항목 대신 "그날의 연인에게서 들은 이야기"(`memorySummary`)와 한 줄 요약이에요. 두 사람의 대화를 나란히 보는 화면은 `GET /couples/comparisons`가 따로 만들어 줘요.
+         *     커플 모드(`forCouple`) 세션의 리포트는 3개 항목 대신 "그날의 연인에게서 들은 이야기"(`memorySummary`, 예: "그날의 도윤은 …했다고 했어요")와 한 줄 요약이에요(`pastConcern` · `presentChange`는 `null`). 두 사람의 대화를 나란히 보는 화면은 `GET /couples/comparisons`가 따로 만들어 줘요.
          */
         get: operations["getReport"];
         put?: never;
@@ -489,7 +498,8 @@ export interface paths {
         /**
          * 초대 코드 만들기
          * @description "초대 코드 만들기" 버튼을 누른 시점에 코드를 발급해요(화면에 들어올 때는 만들지 않아요). 코드는 24시간 동안 유효해요.
-         *     이미 만든 코드가 아직 유효하면 같은 코드를 돌려줘요. 만료됐으면 새로 만들어요. 이미 연결된 커플이 있으면 409예요.
+         *     이미 만든 코드가 아직 유효하면 같은 코드를 돌려줘요. 만료됐으면 새 코드로 바꿔요. 이미 연결된 커플이 있으면 409예요.
+         *     코드는 `DU-` 뒤에 4자리씩 두 묶음이고, 헷갈리는 글자(0 · O · 1 · I)는 쓰지 않아요.
          */
         post: operations["createInvite"];
         delete?: never;
@@ -510,6 +520,7 @@ export interface paths {
         /**
          * 받은 코드 입력하기
          * @description 받은 초대 코드를 입력해 연결해요. iOS와 Android 어느 쪽에서도 같은 방식이에요. 연결만 되고, 둘 다 동의해야 같은 날 비교를 열 수 있어요.
+         *     소문자로 입력해도 대문자로 바꿔서 읽어요. 내가 만들어 둔 코드가 있었으면(아직 연결 전) 그 코드는 취소돼요.
          */
         post: operations["acceptInvite"];
         delete?: never;
@@ -548,10 +559,10 @@ export interface paths {
         };
         /**
          * 함께 볼 수 있는 날
-         * @description "함께 볼 날 고르기" 화면이에요. 두 사람의 일기가 모두 있는 날만 돌려줘요. 그중 감정 태그가 대비되는 날(특히 다툰 날)을 서버가 먼저 추천해요(`recommended: true`).
+         * @description "함께 볼 날 고르기" 화면이에요. 두 사람의 일기가 모두 있는 날만 돌려줘요(오늘부터 1년 전까지, 대화를 시작할 수 있는 날만). 그중 감정이 엇갈린 날을 서버가 먼저 추천해요(`recommended: true`).
+         *     추천 규칙(2026.11.11, 간단하게 시작해요): 두 사람 중 한쪽이라도 화남 · 슬픔 · 불안이 있고, 두 사람의 감정 태그가 다르거나 둘 다 화남인 날이에요.
          *     한 달치를 받아 캘린더에 표시하고, 추천한 날은 맨 위 카드로 보여줘요. 연결됨 + 양측 동의 + 철회 없음일 때만 열려요(아니면 403 `COUPLE_ACCESS_DENIED`).
-         *     1개월 · 6개월 · 1년 전으로 비교하는 경우는 `GET /personas/shortcuts`의 바로가기를 같이 써요.
-         *     초안이에요. 커플 단계에서 스토리보드와 다시 맞춰요.
+         *     1개월 · 6개월 · 1년 전으로 비교하는 경우는 `GET /personas/shortcuts`의 바로가기를 같이 써요(`scope: AROUND`).
          */
         get: operations["listCoupleDays"];
         put?: never;
@@ -571,10 +582,13 @@ export interface paths {
         };
         /**
          * 같은 날 두 사람의 기억 비교
-         * @description "두 시점 비교" 화면이에요. 같은 날(`anchorDate` · `scope`)에 대해 각자 그날의 연인(상대의 과거 페르소나)과 나눈 대화(`POST /chats`의 `forCouple: true` 세션)를 같은 틀("그날의 기억")로 요약해 나란히 보여주고, 두사람의 간극을 한 줄로 합쳐 줘요.
-         *     두 사람 모두 대화를 끝내야 `READY`가 돼요. 한쪽만 끝냈으면 `WAITING_PARTNER`이고 상대의 기억은 아직 비어 있어요.
-         *     연결됨 + 양측 동의 + 철회 없음일 때만 열려요. 철회하면 이 비교와 두 세션 · 리포트를 모두 지워요.
-         *     초안이에요. 커플 단계에서 스토리보드와 다시 맞춰요.
+         * @description "두 시점 비교" 화면이에요. 같은 날(`anchorDate` · `scope`)에 대해 각자 그날의 연인(상대의 과거 페르소나)과 나눈 대화(`POST /chats`의 `forCouple: true` 세션)를 같은 틀("그날의 기억")로 요약해 나란히 보여주고, 두 사람의 간극을 한 줄로 합쳐 줘요.
+         *     - `partnerPastSelf`: 내가 그날의 연인과 대화해서 들은 이야기 ("그날의 도윤은 …했다고 했어요"). 내 리포트의 `memorySummary`예요.
+         *     - `myPastSelf`: 연인이 그날의 나와 대화해서 들은 이야기 ("그날의 서연은 …했다고 했어요"). 연인 리포트의 `memorySummary`예요.
+         *     - 두 요약은 내가 대화를 끝낸 뒤에만 보여요(먼저 보면 대화가 달라질 수 있어서요). 각 사람은 같은 날의 가장 최근 세션을 써요. 내 말이 2개 미만이라 리포트를 만들지 않은 세션은 세지 않아요(다시 대화해요).
+         *     - 두 사람 모두 끝내면 서버가 간극 한 줄을 AI로 만들어요(`GENERATING`). 다 되면 `READY`예요. 간극을 만들다 실패하면 이 API를 다시 부를 때 다시 만들어요(30초 간격).
+         *     연결됨 + 양측 동의 + 철회 없음일 때만 열려요. 철회하면 이 비교와 두 세션 · 리포트를 모두 지워요(되돌릴 수 없어요).
+         *     2026.11.11: 스토리보드의 카드("내가 기억하는 그날")는 예전 방식이라, 필드 이름을 `me` · `partner`에서 `myPastSelf` · `partnerPastSelf`로 바꿨어요.
          */
         get: operations["getCoupleComparison"];
         put?: never;
@@ -596,8 +610,10 @@ export interface paths {
         put?: never;
         /**
          * 동의 철회 · 연결 해제
-         * @description 상대의 접근을 바로 끊고, 이 커플의 대화와 리포트(기억 요약 · 간극)를 지워요. 내 일기와 개인 모드 기록, 내 분석 결과는 그대로 남아요.
-         *     되돌릴 수 없어요.
+         * @description 상대의 접근을 바로 끊고, 이 커플의 대화와 리포트(기억 요약 · 간극)를 두 사람 것 모두 지워요. 내 일기와 개인 모드 기록, 내 분석 결과는 그대로 남아요(기획서 6.3).
+         *     되돌릴 수 없어요. 다시 쓰려면 새 초대 코드로 처음부터 연결해요.
+         *     아직 연결 전(`PENDING` · `EXPIRED`)이면 만든 초대 코드를 취소해요. 연결이 없으면 아무 일도 하지 않고 `NONE`을 돌려줘요.
+         *     회원 탈퇴도 같은 일을 해요(연인 쪽의 커플 대화도 지워져요).
          */
         post: operations["revokeCouple"];
         delete?: never;
@@ -655,7 +671,7 @@ export interface components {
             nickname: string;
             /**
              * Format: date-time
-             * @description 서비스 이용 동의(필수 3개)를 받은 시각. 아직 동의하지 않았으면 `null`. 철회 뒤 다시 동의하면 새로 기록해요
+             * @description 서비스 이용 동의(필수 동의)를 받은 시각. 아직 동의하지 않았으면 `null`. 철회 뒤 다시 동의하면 새로 기록해요
              */
             aiConsentedAt?: string | null;
             /**
@@ -668,9 +684,20 @@ export interface components {
              * @description 철회한 상태일 때, 보관 중인 분석 데이터와 대화 기록이 지워지는 시각(철회 시각 + 30일). 설정 화면에 "○월 ○일에 모두 지워져요"로 보여줘요. 다시 동의하면 `null`이 돼요
              */
             aiDataDeleteAt?: string | null;
-            /** @description AI 분석 동의가 유효한지. 카톡 업로드 · 대화 · 리포트처럼 AI를 부르는 기능은 `true`일 때만 쓸 수 있어요 (아니면 403 `AI_CONSENT_REQUIRED`) */
+            /**
+             * Format: date-time
+             * @description 민감정보 처리 동의를 받은 시각(2026.11.18 추가). 아직 동의하지 않았으면 `null`이에요
+             */
+            sensitiveConsentedAt?: string | null;
+            /**
+             * Format: date
+             * @description 생년월일(나이 확인용, 처음 동의할 때 한 번만 받아요). `null`이면 동의 화면에서 생년월일을 받아요. 한 번 저장하면 바꿀 수 없어요
+             * @example 2003-05-14
+             */
+            birthDate?: string | null;
+            /** @description AI 분석 동의와 민감정보 동의가 모두 유효한지. 카톡 업로드 · 대화 · 리포트처럼 AI를 부르는 기능은 `true`일 때만 쓸 수 있어요 (아니면 403 `AI_CONSENT_REQUIRED`) */
             aiConsentActive: boolean;
-            /** @description 서비스 이용 동의 화면을 아직 거치지 않았어요. `true`면 로그인 직후 동의 화면을 보여줘요. 한 번 동의했다가 철회한 사람은 `false`예요 */
+            /** @description 서비스 이용 동의 화면을 거쳐야 해요. 동의한 적이 없거나, 민감정보 동의나 생년월일이 아직 없으면 `true`예요. `true`면 로그인 직후 동의 화면을 보여줘요. 필요한 것을 모두 받은 뒤 AI 분석 동의만 철회한 사람은 `false`예요 */
             needsConsent: boolean;
             /** @description 일기 작성 알림을 받겠다고 했는지 (동의 화면의 선택 항목) */
             notificationsOptIn: boolean;
@@ -689,12 +716,40 @@ export interface components {
              */
             privacy: true;
             /**
-             * @description 일기 · 대화 내용 AI 분석 (필수). 일기 · 내 말 글자와 올린 스크린샷이 AI로 가고 학습에는 쓰이지 않아요(글자는 가리지 않아요. 화면 문구는 기획서의 동의 문구 항목을 따라요)
+             * @description 일기 · 대화 내용 AI 분석 (필수). 일기 · 내 말 글자가 AI로 가고 학습에는 쓰이지 않아요(글자는 가리지 않아요. 화면 문구는 기획서의 동의 문구 항목을 따라요)
              * @enum {boolean}
              */
             aiAnalysis: true;
+            /**
+             * @description 민감정보 처리 (필수, 다른 동의와 따로 받아요). 일기 · 대화에 쓴 건강 · 정신 상태 같은 내용을 처리하고 AI로 보내는 것에 대한 동의예요(2026.11.18 추가)
+             * @enum {boolean}
+             */
+            sensitiveInfo: true;
+            /**
+             * Format: date
+             * @description 생년월일. 저장된 생년월일이 없으면 꼭 보내요(처음 한 번). 이미 있으면 보내지 않아도 되고 보내도 바뀌지 않아요. 만 14세 미만이면 403 `GUARDIAN_CONSENT_REQUIRED`예요
+             * @example 2003-05-14
+             */
+            birthDate?: string;
             /** @description 일기 작성 알림 받기 (선택). 안 보내면 지금 설정 그대로예요 */
             notifications?: boolean;
+        };
+        MessageReportRequest: {
+            /**
+             * @description 신고 사유(2026.11.18 확정)
+             *     - `HURTFUL`: 상처 주는 말
+             *     - `INACCURATE`: 내 기록과 다른 내용
+             *     - `HARMFUL`: 위험하거나 해로운 내용
+             *     - `PRIVACY`: 개인정보가 드러남
+             *     - `OTHER`: 기타(`detail` 필수)
+             * @enum {string}
+             */
+            reason: "HURTFUL" | "INACCURATE" | "HARMFUL" | "PRIVACY" | "OTHER";
+            /**
+             * @description 직접 적은 내용(선택, `OTHER`면 필수)
+             * @example 그때 나는 이런 말투를 쓰지 않았어요
+             */
+            detail?: string;
         };
         Usage: {
             /** Format: date */
@@ -758,7 +813,7 @@ export interface components {
         };
         /**
          * @description 어느 메신저의 대화인지. 내 말을 구분하는 방법이 메신저마다 달라요.
-         *     지금은 `KAKAOTALK`만 받아요(txt는 내 이름, 이미지는 오른쪽 · 노란색 말풍선). `DISCORD` · `OTHER`는 로드맵이라 지금 보내면 400 `VALIDATION_FAILED`예요.
+         *     지금은 `KAKAOTALK`만 받아요(txt에서 고른 내 이름으로 내 말을 구분해요). `DISCORD` · `OTHER`는 로드맵이라 지금 보내면 400 `VALIDATION_FAILED`예요.
          * @enum {string}
          */
         MessengerSource: "KAKAOTALK" | "DISCORD" | "OTHER";
@@ -797,24 +852,13 @@ export interface components {
             consent: true;
             messages: components["schemas"]["MessengerMessage"][];
         };
-        /** @description 스크린샷으로 올릴 때의 요청(`multipart/form-data`)이에요. 파트 이름은 `source` · `consent` · `images`예요 */
-        MessengerImageUploadRequest: {
-            source: components["schemas"]["MessengerSource"];
-            /**
-             * @description `POST /uploads/messenger`의 `consent`와 같아요. 문자열 `true`로 보내요
-             * @enum {boolean}
-             */
-            consent: true;
-            /** @description 카카오톡 스크린샷. **대화 순서대로(오래된 것부터)** 같은 이름(`images`)의 파트로 여러 개 보내요. 한 장 5MB, 전체 50MB, JPEG · PNG · WebP */
-            images: string[];
-        };
         /**
          * @example {
          *       "id": "0c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f",
-         *       "format": "IMAGE",
+         *       "format": "TXT",
          *       "status": "DONE",
          *       "uploadedAt": "2026-10-06T20:05:00+09:00",
-         *       "photoCount": 12,
+         *       "photoCount": 0,
          *       "periodStart": "2026-08-04",
          *       "periodEnd": "2026-09-28",
          *       "weekCount": 8,
@@ -826,7 +870,7 @@ export interface components {
             /** Format: uuid */
             id: string;
             /**
-             * @description 어떤 형식으로 올렸는지. 설정의 "내 데이터 보기"에서 "txt" · "이미지 12장"으로 보여줘요(서버는 `photo_count`가 0이면 `TXT`로 계산해요)
+             * @description 어떤 형식으로 올렸는지. txt만 받아서 지금은 늘 `TXT`예요. `IMAGE`는 2026.11.11 전에 스크린샷으로 올린 업로드에만 있어요
              * @enum {string}
              */
             format: "TXT" | "IMAGE";
@@ -834,7 +878,7 @@ export interface components {
             status: "PROCESSING" | "DONE" | "FAILED";
             /** Format: date-time */
             uploadedAt: string;
-            /** @description 올린 이미지 장수 ("읽은 대화 캡처 12장"). txt는 0이에요. 사진 자체는 읽은 직후 지워요 */
+            /** @description 스크린샷으로 올렸을 때의 이미지 장수였어요. txt만 받아서 지금은 늘 0이에요(API · DB를 그대로 두려고 남겼어요) */
             photoCount: number;
             /**
              * Format: date
@@ -856,8 +900,7 @@ export interface components {
             /**
              * @description `FAILED`일 때의 이유예요. `AI_UNAVAILABLE`(AI에 닿지 못했어요) · `AI_REFUSED`(AI의 안전 장치가 거절했어요) ·
              *     `AI_BAD_RESPONSE`(AI의 답을 읽지 못했어요) · `PROCESSING_TIMEOUT`(10분이 지나도 안 끝났어요) · `INTERNAL_ERROR`.
-             *     이미지만: `DATE_NOT_FOUND`(날짜 구분선이 한 장에도 안 보여요) · `NO_MESSAGES_FOUND`(내 말풍선을 하나도 읽지 못했어요).
-             *     txt는 앱이 추린 글자를 폰에 갖고 있다가 다시 보내고, 이미지는 사진을 다시 올려요(서버에 남지 않아요).
+             *     앱은 추린 글자를 폰에 갖고 있다가 다시 보내요.
              */
             failureCode?: string | null;
         };
@@ -1265,11 +1308,11 @@ export interface components {
          *       "anchorDate": "2026-10-04",
          *       "scope": "DAY",
          *       "chatId": "5b8c0d1e-2f3a-4b4c-9d5e-6f7a8b9c0d1e",
-         *       "me": {
+         *       "partnerNickname": "도윤",
+         *       "partnerPastSelf": {
          *         "memorySummary": "그날의 도윤은 갑자기 연락이 끊겨서 무슨 잘못을 했는지 몰라 불안했고, 그래서 다그치듯 물었다고 했어요."
          *       },
-         *       "partner": {
-         *         "nickname": "도윤",
+         *       "myPastSelf": {
          *         "memorySummary": "그날의 서연은 먼저 연락을 끊은 건 서운해서였는데, 그 마음을 설명하지 못해서 더 화가 났다고 했어요."
          *       },
          *       "gapSummary": "서운함은 침묵으로, 불안함은 다그침으로 전해졌어요."
@@ -1277,11 +1320,12 @@ export interface components {
          */
         CoupleComparison: {
             /**
-             * @description `NOT_STARTED` 내가 아직 이 날의 연인과 대화하지 않았어요, `IN_PROGRESS` 대화 중이에요,
-             *     `WAITING_PARTNER` 나는 끝냈고 상대를 기다려요, `READY` 두 사람이 모두 끝나서 비교할 수 있어요
+             * @description `NOT_STARTED` 내가 아직 이 날의 연인과 대화하지 않았어요(내 말이 2개 미만이라 리포트가 없는 대화도 여기에 들어가요),
+             *     `IN_PROGRESS` 대화 중이에요, `WAITING_PARTNER` 나는 끝냈고 상대를 기다려요,
+             *     `GENERATING` 두 사람 모두 끝났고 리포트나 간극을 만드는 중이에요, `READY` 두 요약과 간극이 모두 있어요
              * @enum {string}
              */
-            status: "NOT_STARTED" | "IN_PROGRESS" | "WAITING_PARTNER" | "READY";
+            status: "NOT_STARTED" | "IN_PROGRESS" | "WAITING_PARTNER" | "GENERATING" | "READY";
             /** Format: date */
             anchorDate: string;
             scope: components["schemas"]["PersonaScope"];
@@ -1290,14 +1334,15 @@ export interface components {
              * @description 내 세션 ID. 아직 시작하지 않았으면 `null`
              */
             chatId?: string | null;
-            /** @description 내가 그날의 연인과 나눈 대화의 요약 ("그날의 도윤은 이렇게 말했어요") */
-            me?: {
-                memorySummary?: string | null;
+            /** @example 도윤 */
+            partnerNickname?: string | null;
+            /** @description 내가 그날의 연인과 대화해서 들은 이야기 ("그날의 도윤은 …했다고 했어요"). 내 리포트가 만들어진 뒤에 있어요 */
+            partnerPastSelf?: {
+                memorySummary: string;
             } | null;
-            /** @description 연인이 그날의 나와 나눈 대화의 요약 ("그날의 서연은 이렇게 말했어요"). 상대가 끝나기 전에는 `memorySummary`가 `null`이에요 */
-            partner?: {
-                nickname?: string;
-                memorySummary?: string | null;
+            /** @description 연인이 그날의 나와 대화해서 들은 이야기 ("그날의 서연은 …했다고 했어요"). 내가 끝냈고 연인의 리포트도 만들어진 뒤에 있어요 */
+            myPastSelf?: {
+                memorySummary: string;
             } | null;
             /** @description "두 사람의 간극" 한 줄. `READY`일 때만 있어요 */
             gapSummary?: string | null;
@@ -1387,7 +1432,7 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
-        /** @description AI 분석 동의가 없거나 철회했어요 (`AI_CONSENT_REQUIRED`). `PUT /me/consent`로 다시 동의해야 해요 */
+        /** @description AI 분석 동의가 없거나 철회했어요 (`AI_CONSENT_REQUIRED`). 민감정보 동의가 없어도 같아요. `PUT /me/consent`로 다시 동의해야 해요 */
         AiConsentRequired: {
             headers: {
                 [name: string]: unknown;
@@ -1397,6 +1442,21 @@ export interface components {
                  * @example {
                  *       "code": "AI_CONSENT_REQUIRED",
                  *       "message": "AI 분석 동의가 필요해요."
+                 *     }
+                 */
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description 만 14세 미만이라 법정대리인 동의가 필요해요 (`GUARDIAN_CONSENT_REQUIRED`). 법정대리인 동의 방법은 아직 만들지 않아서, 지금은 "만 14세 미만은 보호자 동의가 필요해요" 같은 안내만 보여줘요 */
+        GuardianConsentRequired: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "code": "GUARDIAN_CONSENT_REQUIRED",
+                 *       "message": "만 14세 미만은 보호자(법정대리인)의 동의가 필요해요."
                  *     }
                  */
                 "application/json": components["schemas"]["Error"];
@@ -1538,6 +1598,7 @@ export interface operations {
             };
             400: components["responses"]["ValidationFailed"];
             401: components["responses"]["Unauthorized"];
+            403: components["responses"]["GuardianConsentRequired"];
         };
     };
     revokeAiConsent: {
@@ -1772,69 +1833,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description 이 API는 JSON만 받아요 (`IMAGES_NOT_ACCEPTED`). 스크린샷은 `POST /uploads/messenger/images`로 보내요 */
-            415: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-        };
-    };
-    uploadMessengerImages: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "multipart/form-data": components["schemas"]["MessengerImageUploadRequest"];
-            };
-        };
-        responses: {
-            /** @description 접수됨. 서버에서 이미지를 읽고 요약하는 중이에요 */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MessengerUpload"];
-                };
-            };
-            /** @description 동의하지 않았거나(`CONSENT_REQUIRED`) 요청 값이 올바르지 않아요(`VALIDATION_FAILED`, 이미지가 없거나 100장 초과 포함) */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["AiConsentRequired"];
-            /** @description 앞서 올린 대화를 아직 분석하고 있어요 (`UPLOAD_IN_PROGRESS`). `DONE`이나 `FAILED`가 된 뒤에 다시 올려요 */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description 한 장 5MB나 전체 50MB를 넘었어요 (`PAYLOAD_TOO_LARGE`). 나눠서 올려요 */
-            413: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description JPEG · PNG · WebP가 아닌 파일이 있어요 (`UNSUPPORTED_IMAGE_TYPE`), 또는 `multipart/form-data`가 아니에요 */
+            /** @description 이 API는 JSON만 받아요 (`IMAGES_NOT_ACCEPTED`). 스크린샷은 받지 않아요 */
             415: {
                 headers: {
                     [name: string]: unknown;
@@ -2102,7 +2101,15 @@ export interface operations {
             };
             400: components["responses"]["ValidationFailed"];
             401: components["responses"]["Unauthorized"];
-            403: components["responses"]["AiConsentRequired"];
+            /** @description AI 분석 동의가 없어요(`AI_CONSENT_REQUIRED`), 또는 커플 세션인데 커플 접근 조건이 깨졌어요(`COUPLE_ACCESS_DENIED`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             404: components["responses"]["NotFound"];
             /** @description 대화할 수 없는 상태예요 (`CHAT_NOT_READY`, `CHAT_ENDED`, 앞 답변이 아직 끝나지 않았으면 `CHAT_BUSY`) */
             409: {
@@ -2114,6 +2121,35 @@ export interface operations {
                 };
             };
             503: components["responses"]["AiUnavailable"];
+        };
+    };
+    reportMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                chatId: components["parameters"]["ChatId"];
+                /** @description 신고할 메시지의 순서(`Message.seq`) */
+                seq: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MessageReportRequest"];
+            };
+        };
+        responses: {
+            /** @description 신고가 접수됐어요(이미 신고한 답변이어도 같아요) */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["ValidationFailed"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
         };
     };
     endChat: {
@@ -2137,7 +2173,15 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
-            403: components["responses"]["AiConsentRequired"];
+            /** @description AI 분석 동의가 없어요(`AI_CONSENT_REQUIRED`), 또는 커플 세션인데 커플 접근 조건이 깨졌어요(`COUPLE_ACCESS_DENIED`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             404: components["responses"]["NotFound"];
             /** @description 아직 준비 중이거나 실패한 세션이에요(`CHAT_NOT_READY`), 또는 마지막 답변이 아직 오는 중이에요(`CHAT_BUSY`) */
             409: {

@@ -37,6 +37,19 @@ export function isValidDateString(value: unknown): value is string {
   return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
 }
 
+/** 숫자만 받아 'YYYY-MM-DD' 모양으로 이어 줘요(생년월일 입력). */
+export function formatBirthDateInput(text: string): string {
+  const digits = text.replace(/\D/g, '').slice(0, 8);
+  if (digits.length <= 4) return digits;
+  if (digits.length <= 6) return `${digits.slice(0, 4)}-${digits.slice(4)}`;
+  return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6)}`;
+}
+
+/** 서버(PUT /me/consent)와 같은 규칙이에요: 실제로 있는 날짜이고, 1900년부터 오늘까지예요. */
+export function isValidBirthDate(value: string, today: string = todayString()): boolean {
+  return isValidDateString(value) && value >= '1900-01-01' && value <= today;
+}
+
 export function weekdayOf(value: string): number {
   const { year, month, day } = parseDateString(value);
   return new Date(year, month - 1, day).getDay();
