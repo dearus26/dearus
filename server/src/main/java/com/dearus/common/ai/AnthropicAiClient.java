@@ -12,6 +12,8 @@ import com.anthropic.models.messages.RawMessageStreamEvent;
 import java.time.Duration;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
@@ -24,6 +26,8 @@ import org.springframework.stereotype.Component;
 @Component
 @ConditionalOnProperty(prefix = "app.ai", name = "provider", havingValue = "anthropic", matchIfMissing = true)
 public class AnthropicAiClient implements AiClient {
+
+	private static final Logger log = LoggerFactory.getLogger(AnthropicAiClient.class);
 
 	private final AiProperties properties;
 	private volatile AnthropicClient client;
@@ -90,6 +94,21 @@ public class AnthropicAiClient implements AiClient {
 			throw new AiException(AiException.Reason.BAD_RESPONSE, "AI의 답이 비어 있어요");
 		}
 		return new AiResult(text.toString(), tokens[0], tokens[1]);
+	}
+
+	/**
+	 * 모델 정보 조회(Models API)를 한 번 불러서 HTTP 연결 · TLS · SDK 클래스를 미리 준비해요. 토큰을 쓰지 않는 요청이라 비용이 없어요.
+	 * 막 켠 서버의 첫 대화가 첫 글자까지 3.7초 걸렸던 것을 줄이려는 거예요(backlog 4장).
+	 */
+	@Override
+	public void warmUp() {
+		long started = System.nanoTime();
+		try {
+			client().models().retrieve(properties.model());
+			log.info("AI 연결을 미리 열었어요 ms={}", (System.nanoTime() - started) / 1_000_000);
+		} catch (AnthropicException | AiException e) {
+			log.warn("AI 연결을 미리 열지 못했어요(첫 대화만 조금 느릴 수 있어요): {}", e.getClass().getSimpleName());
+		}
 	}
 
 	private MessageCreateParams params(AiRequest request) {

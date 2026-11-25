@@ -20,4 +20,11 @@ public interface AiClient {
 		onText.accept(result.text());
 		return result;
 	}
+
+	/**
+	 * 서버가 켜진 뒤 첫 대화가 느리지 않게 AI 회사와의 연결을 미리 열어 둬요(2026.11.25). 글자를 만들지 않아서 비용이 들지 않아요.
+	 * 실패해도 서버 동작에는 영향이 없어요. 기본은 아무것도 하지 않아요.
+	 */
+	default void warmUp() {
+	}
 }

@@ -13,6 +13,7 @@ import com.dearus.common.ai.AiResult;
 import com.dearus.couple.CoupleAccess;
 import com.dearus.persona.PersonaAnalysisService;
 import com.dearus.persona.PersonaContent;
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -173,9 +174,11 @@ public class ChatReplyService {
 				sink.safety(prepared.safety());
 			}
 			long[] firstToken = {-1};
+			long[] fromRequest = {-1}; // 요청을 받은 때부터(대화 · 분석 확인 포함) 첫 글자까지예요
 			AiResult result = ai.stream(prepared.request(), text -> {
 				if (firstToken[0] < 0) {
 					firstToken[0] = (System.nanoTime() - started) / 1_000_000;
+					fromRequest[0] = Duration.between(prepared.receivedAt(), Kst.now()).toMillis();
 				}
 				sink.token(text);
 			});
@@ -184,8 +187,9 @@ public class ChatReplyService {
 				throw new AiException(AiException.Reason.BAD_RESPONSE, "AI의 답이 비어 있어요");
 			}
 			ChatMessage[] saved = save(prepared, reply);
-			log.info("대화 답변 완료 sessionId={} firstTokenMs={} totalMs={} inputTokens={} outputTokens={} safety={}", prepared.chatId(),
-				firstToken[0], (System.nanoTime() - started) / 1_000_000, result.inputTokens(), result.outputTokens(), prepared.safety() != null);
+			log.info("대화 답변 완료 sessionId={} requestToFirstTokenMs={} firstTokenMs={} totalMs={} inputTokens={} outputTokens={} safety={}",
+				prepared.chatId(), fromRequest[0], firstToken[0], (System.nanoTime() - started) / 1_000_000, result.inputTokens(), result.outputTokens(),
+				prepared.safety() != null);
 			return new ChatReplyResponse(ChatMessageResponse.from(saved[0]), ChatMessageResponse.from(saved[1]), prepared.safety());
 		} finally {
 			inFlight.remove(prepared.chatId());
