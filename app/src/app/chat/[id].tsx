@@ -13,7 +13,7 @@ import { useCouple } from '@/features/couple/hooks';
 import { ConversationScreen } from '@/features/past/ConversationScreen';
 import { useChat, useCreateChat } from '@/features/past/hooks';
 import { josa, personaRingLabel, personaTitle, windowText } from '@/features/past/labels';
-import { notify } from '@/lib/dialog';
+import { notifyApiError } from '@/lib/apiErrors';
 import { colors } from '@/theme/colors';
 
 /** 시점 분석의 단계 순서(명세 preparingStep) */
@@ -211,7 +211,7 @@ function FailedView({ session }: { session: ChatSession }) {
       });
       router.replace({ pathname: '/chat/[id]', params: { id: next.id } });
     } catch (error) {
-      notify('다시 시도하지 못했어요', errorMessage(error));
+      notifyApiError('다시 시도하지 못했어요', error);
     }
   }
 

@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icon } from '@/components/Icon';
 import type { SendResult } from '@/features/past/useConversation';
+import { notifyApiError } from '@/lib/apiErrors';
 import { notify } from '@/lib/dialog';
 import { colors } from '@/theme/colors';
 import { fontFamily } from '@/theme/fonts';
@@ -34,7 +35,8 @@ export function ChatInputBar({ onSend, disabled, target = '과거의 나' }: Pro
     if (!result.ok) {
       // 그 사이에 새로 쓴 글이 있으면 그대로 두고, 없으면 보내려던 글을 되돌려서 다시 보낼 수 있게 해요
       setText((current) => (current.length > 0 ? current : content));
-      if (result.message) notify('보내지 못했어요', result.message);
+      if (result.error) notifyApiError('보내지 못했어요', result.error);
+      else if (result.message) notify('보내지 못했어요', result.message);
     }
   }
 

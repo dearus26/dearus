@@ -8,7 +8,9 @@ import {
   isReportPending,
   listChats,
   listMessages,
+  reportMessage,
   type ChatCreateInput,
+  type MessageReportInput,
 } from '@/api/chats';
 import { getShortcuts, previewPersona, type PersonaScope } from '@/api/personas';
 import { getTodayUsage } from '@/api/usage';
@@ -113,6 +115,14 @@ export function useEndChat() {
         queryClient.invalidateQueries({ queryKey: usageKeys.today }),
       ]);
     },
+  });
+}
+
+/** AI 답변 신고. 보내고 나면 저장할 것이 없어서 목록을 다시 받을 필요도 없어요. */
+export function useReportMessage() {
+  return useMutation({
+    mutationFn: ({ chatId, seq, input }: { chatId: string; seq: number; input: MessageReportInput }) =>
+      reportMessage(chatId, seq, input),
   });
 }
 

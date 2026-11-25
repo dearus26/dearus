@@ -1,4 +1,5 @@
 import { router } from 'expo-router';
+import { useState } from 'react';
 import { FlatList, KeyboardAvoidingView, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -14,12 +15,15 @@ import { ChatBubble } from '@/features/past/ChatBubble';
 import { ChatInputBar } from '@/features/past/ChatInputBar';
 import { useEndChat, useTodayUsage } from '@/features/past/hooks';
 import { accuracyLabel, personaDateTitle, personaPeriod, personaTitle } from '@/features/past/labels';
+import { ReportSheet, type ReportTarget } from '@/features/past/ReportSheet';
 import { SafetySheet } from '@/features/past/SafetySheet';
 import { useConversation, type Draft } from '@/features/past/useConversation';
+import { notifyApiError } from '@/lib/apiErrors';
 import { confirm, notify } from '@/lib/dialog';
 import { colors } from '@/theme/colors';
 
-type Row = { key: string; role: ChatMessage['role']; text: string | undefined };
+/** seq는 서버에 저장된 메시지에만 있어요(도착하는 중인 답변에는 없어서 신고할 수 없어요). */
+type Row = { key: string; role: ChatMessage['role']; text: string | undefined; seq?: number };
 
 /** 화면에 그릴 줄들. 목록은 아래부터 쌓이는 거꾸로 목록(inverted)이라 최신 것이 맨 앞이에요. */
 function buildRows(messages: ChatMessage[], draft: Draft | null): Row[] {
@@ -27,6 +31,7 @@ function buildRows(messages: ChatMessage[], draft: Draft | null): Row[] {
     key: `message-${message.seq}`,
     role: message.role,
     text: message.content,
+    seq: message.seq,
   }));
   if (draft) {
     rows.push({ key: 'draft-user', role: 'USER', text: draft.user });
@@ -47,6 +52,7 @@ export function ConversationScreen({ session }: { session: ChatSession }) {
   const conversation = useConversation(session.id);
   const usage = useTodayUsage();
   const endChat = useEndChat();
+  const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
   const isCouple = session.mode === 'COUPLE';
   const couple = useCouple(isCouple);
   // 커플 대화는 연인의 이름으로 불러요(이름을 받기 전에는 "연인")
@@ -100,7 +106,7 @@ export function ConversationScreen({ session }: { session: ChatSession }) {
       // 뒤로 가면 끝난 대화가 아니라 목록으로 가게 replace로 열어요
       router.replace({ pathname: '/report/[id]', params: { id: session.id } });
     } catch (error) {
-      notify('대화를 끝내지 못했어요', errorMessage(error));
+      notifyApiError('대화를 끝내지 못했어요', error);
     }
   }
 
@@ -154,7 +160,18 @@ export function ConversationScreen({ session }: { session: ChatSession }) {
           inverted
           data={rows}
           keyExtractor={(row) => row.key}
-          renderItem={({ item }) => <ChatBubble role={item.role} text={item.text} speaker={partner} />}
+          renderItem={({ item }) => {
+            const { seq, text } = item;
+            const reportable = item.role === 'PERSONA' && seq !== undefined && text !== undefined;
+            return (
+              <ChatBubble
+                role={item.role}
+                text={text}
+                speaker={partner}
+                onReport={reportable ? () => setReportTarget({ chatId: session.id, seq, text }) : undefined}
+              />
+            );
+          }}
           ItemSeparatorComponent={Separator}
           // 거꾸로 목록의 Footer는 화면 맨 위(대화의 시작)에 보여요
           ListFooterComponent={
@@ -209,6 +226,7 @@ export function ConversationScreen({ session }: { session: ChatSession }) {
       )}
 
       <SafetySheet notice={conversation.safety} onClose={conversation.dismissSafety} />
+      <ReportSheet target={reportTarget} onClose={() => setReportTarget(null)} />
     </KeyboardAvoidingView>
   );
 }

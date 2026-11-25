@@ -19,7 +19,7 @@ import { useMonthDiaries } from '@/features/diary/hooks';
 import { useCreateChat, usePersonaPreview, useShortcuts } from '@/features/past/hooks';
 import { levelNote, personaTitle, shortcutLabels, shortcutOrder, windowText } from '@/features/past/labels';
 import { addDays, addMonths, parseDateString, todayString } from '@/lib/date';
-import { notify } from '@/lib/dialog';
+import { notifyApiError } from '@/lib/apiErrors';
 import { colors, type Emotion } from '@/theme/colors';
 
 /** 오늘로부터 이만큼 전까지 고를 수 있어요(명세 anchorDate: 365일 전 ~ 오늘) */
@@ -94,7 +94,7 @@ export default function PickScreen() {
       // 뒤로 가면 시점 고르기가 아니라 목록으로 돌아오게 replace로 열어요
       router.replace({ pathname: '/chat/[id]', params: { id: session.id } });
     } catch (error) {
-      notify('과거의 나를 만나지 못했어요', errorMessage(error));
+      notifyApiError('과거의 나를 만나지 못했어요', error);
     }
   }
 

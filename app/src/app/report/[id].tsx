@@ -14,7 +14,7 @@ import { useCouple } from '@/features/couple/hooks';
 import { useChat, useEndChat, useReport } from '@/features/past/hooks';
 import { josa, personaTitle } from '@/features/past/labels';
 import { dateStringOf, formatYearMonthDay } from '@/lib/date';
-import { notify } from '@/lib/dialog';
+import { notifyApiError } from '@/lib/apiErrors';
 import { colors } from '@/theme/colors';
 
 /**
@@ -45,7 +45,7 @@ export default function ReportScreen() {
     try {
       await endChat.mutateAsync(id);
     } catch (error) {
-      notify('다시 만들지 못했어요', errorMessage(error));
+      notifyApiError('다시 만들지 못했어요', error);
     }
   }
 

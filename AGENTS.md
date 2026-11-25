@@ -41,7 +41,7 @@
 | `skills/privacy/background.md` | 비슷한 서비스(boba · What Brandon Thinks) 방침 조사와 2026.11.11 개인정보 결정 |
 | `DearUs_기능블록도.html` | 기능 블록도 3장 (시스템 구조 · 데이터 흐름 · 개인/커플 모드) |
 | `DearUs_ERD.html` | ERD (테이블 12개). `tools/gen_erd.js`로 만들어요 |
-| `DearUs_스토리보드.html` | 아이폰 17 프로 프레임의 화면 19장(커플 연결 한 장은 갤럭시 S25 울트라). **앱 UI/UX의 기준**이고, 화면마다 "연결" 칸에 필요한 API와 테이블이 적혀 있어요 |
+| `DearUs_스토리보드.html` | 아이폰 17 프로 프레임의 화면 22장(커플 연결 한 장은 갤럭시 S25 울트라). **앱 UI/UX의 기준**이고, 화면마다 "연결" 칸에 필요한 API와 테이블이 적혀 있어요 |
 | `storyboard_images/` | 스토리보드를 PPT용으로 렌더링한 이미지 (`slides/` 16:9 3840×2160 7장, `screens/` 투명 배경 폰 PNG 15장). 10월 초 15장 버전이라 지금 스토리보드(19장)와 달라요 |
 | `tools/` | 위 HTML과 이미지를 만든 스크립트 (아래 참고) |
 
@@ -94,6 +94,6 @@
 
 지금도 쓰는 스크립트는 `gen_erd.js` 하나예요. ERD의 원본이라서, 표나 설명을 고칠 때는 `DearUs_ERD.html`을 직접 고치지 말고 `gen_erd.js`를 고친 뒤 Node.js로 실행해서 HTML을 다시 만들어요.
 
-**`gen_storyboard.js`와 `gen_slides.js`는 돌리지 마요.** 이 둘은 10월 초 15장 버전을 만들어서, 실행하면 지금 `DearUs_스토리보드.html`(19장, 팀원이 직접 고쳤어요)을 덮어써요. 스토리보드는 HTML을 직접 고치고, `storyboard_images/`는 새 방식으로 다시 렌더링하기 전까지 낡은 채로 둬요.
+**`gen_storyboard.js`와 `gen_slides.js`는 돌리지 마요.** 이 둘은 10월 초 15장 버전을 만들어서, 실행하면 지금 `DearUs_스토리보드.html`(22장, 팀원이 직접 고쳤어요)을 덮어써요. 스토리보드는 HTML을 직접 고치고, `storyboard_images/`는 새 방식으로 다시 렌더링하기 전까지 낡은 채로 둬요.
 
 스크립트 안의 `C:/Users/Note/...` 경로는 스크립트를 만든 PC 기준이라서, 다른 PC에서 실행하려면 상수를 먼저 바꿔야 해요. 이미지 렌더링(`gen_slides.js`)에는 Google Chrome(headless) 경로도 필요해요.

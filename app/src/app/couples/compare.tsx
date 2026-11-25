@@ -12,7 +12,7 @@ import { Icon } from '@/components/Icon';
 import { useCouple, useCoupleComparison } from '@/features/couple/hooks';
 import { useCreateChat } from '@/features/past/hooks';
 import { josa, personaDateTitle } from '@/features/past/labels';
-import { notify } from '@/lib/dialog';
+import { notifyApiError } from '@/lib/apiErrors';
 import { colors, emotionColors } from '@/theme/colors';
 
 function leave() {
@@ -52,7 +52,7 @@ export default function CompareScreen() {
       const session = await createChat.mutateAsync({ anchorDate: date, scope, forCouple: true });
       router.push({ pathname: '/chat/[id]', params: { id: session.id } });
     } catch (error) {
-      notify(`${partnerName}${josa(partnerName, '을', '를')} 만나지 못했어요`, errorMessage(error));
+      notifyApiError(`${partnerName}${josa(partnerName, '을', '를')} 만나지 못했어요`, error);
     }
   }
 

@@ -11,6 +11,8 @@ export type SafetyNotice = components['schemas']['SafetyNotice'];
 export type EndChatResult = components['schemas']['EndChatResult'];
 export type Report = components['schemas']['Report'];
 export type ReportPending = components['schemas']['ReportPending'];
+export type MessageReportInput = components['schemas']['MessageReportRequest'];
+export type MessageReportReason = MessageReportInput['reason'];
 
 /** GET /chats — 과거의 나 목록(최근 대화 순, 최대 50개) */
 export function listChats() {
@@ -108,4 +110,12 @@ export function getReport(chatId: string) {
 
 export function isReportPending(report: Report | ReportPending): report is ReportPending {
   return 'status' in report;
+}
+
+/**
+ * POST /chats/{id}/messages/{seq}/report — AI 답변(PERSONA)을 신고해요. 사유 하나와 적는 내용(최대 500자, OTHER면 필수)을 보내고 204예요.
+ * 이미 신고한 답변에 다시 불러도 204예요. 내 말(USER)이거나 없는 메시지면 404, 검증에 실패하면 400 VALIDATION_FAILED.
+ */
+export function reportMessage(chatId: string, seq: number, input: MessageReportInput) {
+  return request<void>('POST', `/chats/${encodeURIComponent(chatId)}/messages/${seq}/report`, { body: input });
 }

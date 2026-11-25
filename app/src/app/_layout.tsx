@@ -71,6 +71,7 @@ function RootNavigator() {
         <Stack.Screen name="messenger/review" />
         <Stack.Screen name="messenger/[id]" />
         <Stack.Screen name="settings/index" />
+        <Stack.Screen name="settings/ai-consent" />
         <Stack.Screen name="settings/data" />
       </Stack.Protected>
       {/* 약관 문서는 로그인 상태와 상관없이 볼 수 있어요 */}

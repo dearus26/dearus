@@ -14,7 +14,7 @@ import { useMessengerUpload, useStartUpload } from '@/features/messenger/hooks';
 import { getPendingUpload, setPendingUpload } from '@/features/messenger/pending';
 import { personaKeys } from '@/features/past/hooks';
 import { dateStringOf, formatYearMonthDay } from '@/lib/date';
-import { notify } from '@/lib/dialog';
+import { notifyApiError } from '@/lib/apiErrors';
 import { colors } from '@/theme/colors';
 
 function goHome() {
@@ -136,7 +136,7 @@ function FailedView({ upload }: { upload: MessengerUpload }) {
       const created = await startUpload.mutateAsync(pending);
       router.replace({ pathname: '/messenger/[id]', params: { id: created.id } });
     } catch (error) {
-      notify('다시 올리지 못했어요', errorMessage(error));
+      notifyApiError('다시 올리지 못했어요', error);
     }
   }
 

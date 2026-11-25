@@ -3,7 +3,6 @@ import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { errorMessage } from '@/api/errors';
 import { AppText } from '@/components/AppText';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
@@ -12,7 +11,7 @@ import { useStartUpload } from '@/features/messenger/hooks';
 import { getParsedChat, setParsedChat, setPendingUpload } from '@/features/messenger/pending';
 import { planTxtUpload } from '@/features/messenger/uploadPlan';
 import { formatMonthDay, formatYearMonthDay } from '@/lib/date';
-import { notify } from '@/lib/dialog';
+import { notifyApiError } from '@/lib/apiErrors';
 import { colors } from '@/theme/colors';
 
 /** 내 말 확인 화면에 보여주는 최근 말의 개수(전부 보여주면 너무 길어요) */
@@ -50,7 +49,7 @@ export default function MessengerReviewScreen() {
       setParsedChat(null);
       router.replace({ pathname: '/messenger/[id]', params: { id: created.id } });
     } catch (error) {
-      notify('올리지 못했어요', errorMessage(error));
+      notifyApiError('올리지 못했어요', error);
     }
   }
 

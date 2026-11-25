@@ -51,6 +51,8 @@ const AROUND_DAYS = 14;
 const MAX_ANCHOR_DAYS = 365;
 const CHAT_LIST_LIMIT = 50;
 const MAX_MESSAGE_LENGTH = 2000;
+const MAX_REPORT_DETAIL = 500;
+const REPORT_REASONS: string[] = ['HURTFUL', 'INACCURATE', 'HARMFUL', 'PRIVACY', 'OTHER'];
 const PREVIEW_MAX_CHARS = 40;
 const RECOMMENDED_MINUTES = 30;
 /** 메시지 사이 간격은 이만큼까지만 대화 시간으로 쳐요(서버와 같은 5분 상한) */
@@ -614,6 +616,28 @@ export function handleChatRoute(
     }
     isPreparing(chat);
     return { items: chat.messages.filter((message) => message.seq > afterSeq).slice(0, limit) };
+  }
+
+  // POST /chats/{id}/messages/{seq}/report — AI 답변 신고(204). 내 말이거나 없는 메시지면 404, 다시 신고해도 같은 결과예요.
+  const reportMessageMatch = /^\/chats\/([^/]+)\/messages\/(\d+)\/report$/.exec(path);
+  if (method === 'POST' && reportMessageMatch) {
+    const chat = findChat(diaries, reportMessageMatch[1]);
+    const target = chat.messages.find((message) => message.seq === Number(reportMessageMatch[2]));
+    if (!target || target.role !== 'PERSONA') throw notFound();
+
+    const input = (body ?? {}) as Partial<components['schemas']['MessageReportRequest']>;
+    const detail = typeof input.detail === 'string' ? input.detail.trim() : '';
+    const problems: { field: string; reason: string }[] = [];
+    if (!input.reason || !REPORT_REASONS.includes(input.reason)) {
+      problems.push({ field: 'reason', reason: '신고 사유를 골라 주세요' });
+    } else if (input.reason === 'OTHER' && detail.length === 0) {
+      problems.push({ field: 'detail', reason: '기타를 고르면 내용을 적어 주세요' });
+    }
+    if (detail.length > MAX_REPORT_DETAIL) {
+      problems.push({ field: 'detail', reason: `${MAX_REPORT_DETAIL}자까지 쓸 수 있어요` });
+    }
+    if (problems.length > 0) throw validationFailed(problems);
+    return undefined;
   }
 
   // POST /chats/{id}/end — 대화 끝내기. 이미 끝난 대화에 다시 불러도 같은 결과예요.

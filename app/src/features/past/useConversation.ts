@@ -17,8 +17,11 @@ export type Draft = {
   recovering: boolean;
 };
 
-/** 보내기에 실패하면 message를 알려주고, 같은 글을 다시 보낼 수 있게 화면이 입력창을 되돌려요. */
-export type SendResult = { ok: true } | { ok: false; message: string };
+/**
+ * 보내기에 실패하면 message를 알려주고, 같은 글을 다시 보낼 수 있게 화면이 입력창을 되돌려요.
+ * 서버가 거절한 경우에는 error도 함께 와서, 화면이 동의 · 사용 상한 같은 코드를 따로 안내해요(lib/apiErrors).
+ */
+export type SendResult = { ok: true } | { ok: false; message: string; error?: unknown };
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
@@ -104,7 +107,7 @@ export function useConversation(chatId: string) {
         void queryClient.invalidateQueries({ queryKey: chatKeys.detail(chatId) });
         void queryClient.invalidateQueries({ queryKey: chatKeys.messages(chatId) });
       }
-      return { ok: false, message: errorMessage(error) };
+      return { ok: false, message: errorMessage(error), error };
     } finally {
       sending.current = false;
       // 목록의 마지막 말 · 시간과 오늘 대화 시간이 바뀌었어요
