@@ -1,5 +1,6 @@
 import { ApiError, UNAUTHORIZED_MESSAGE } from '@/api/errors';
-import { handleChatRoute, resetChatMock, streamChatMessage } from '@/api/mock/chat';
+import { deleteCoupleChats, findMyCoupleChat, handleChatRoute, resetChatMock, streamChatMessage } from '@/api/mock/chat';
+import { handleCoupleRoute, resetCoupleMock } from '@/api/mock/couple';
 import { NOT_HANDLED, notFound, sortedEmotions, validationFailed, wait } from '@/api/mock/helpers';
 import { handleUploadRoute, resetUploadMock } from '@/api/mock/uploads';
 import type { components } from '@/api/schema';
@@ -22,7 +23,7 @@ type Emotion = components['schemas']['Emotion'];
 /**
  * 서버 없이 앱을 만들 때 쓰는 가짜 서버예요(EXPO_PUBLIC_API_MODE=mock).
  * 요청 · 응답 모양은 server/openapi.yaml을 따라요. 화면은 이걸 몰라요 — api/ 함수만 불러요.
- * 여기에는 로그인 · 동의 · 일기가 있고, 시점 고르기 · 대화 · 리포트는 chat.ts에 있어요.
+ * 여기에는 로그인 · 동의 · 일기가 있고, 시점 고르기 · 대화 · 리포트는 chat.ts에, 커플(초대 · 동의 · 함께 볼 날 · 두 시점 비교)은 couple.ts에 있어요.
  * 메모리에만 있어서 앱을 완전히 다시 켜면 처음 상태로 돌아가요.
  */
 
@@ -198,6 +199,7 @@ export async function mockRequest<T>(
     user = null;
     diaries = null;
     resetChatMock();
+    resetCoupleMock();
     resetUploadMock();
     return undefined as T;
   }
@@ -275,6 +277,17 @@ export async function mockRequest<T>(
       return undefined as T;
     }
   }
+
+  // 커플: 초대 코드 · 동의 · 함께 볼 날 · 두 시점 비교 · 철회
+  const coupleResult = handleCoupleRoute(method, path, query, body, {
+    user: current,
+    diaries: store(),
+    chats: {
+      find: (anchorDate, scope) => findMyCoupleChat(store(), anchorDate, scope),
+      clear: deleteCoupleChats,
+    },
+  });
+  if (coupleResult !== NOT_HANDLED) return coupleResult as T;
 
   // 시점 고르기 · 대화 · 리포트 · 오늘 대화 시간
   const context = { user: current, diaries: store() };

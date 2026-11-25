@@ -9,9 +9,10 @@ import { AppText } from '@/components/AppText';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { Icon } from '@/components/Icon';
+import { useCouple } from '@/features/couple/hooks';
 import { ConversationScreen } from '@/features/past/ConversationScreen';
 import { useChat, useCreateChat } from '@/features/past/hooks';
-import { personaRingLabel, personaTitle, windowText } from '@/features/past/labels';
+import { josa, personaRingLabel, personaTitle, windowText } from '@/features/past/labels';
 import { notify } from '@/lib/dialog';
 import { colors } from '@/theme/colors';
 
@@ -20,9 +21,10 @@ const STEPS = ['COLLECT', 'ANALYZE', 'BUILD'] as const;
 /** 서버가 단계를 모를 때(null) 앱이 단계를 한 칸씩 넘기는 간격 */
 const MIMIC_STEP_MS = 3000;
 
-function leave() {
+/** 커플 대화(연인의 과거 페르소나)의 목록은 커플 화면이라서, 돌아갈 곳이 없으면 거기로 가요. */
+function leave(couple = false) {
   if (router.canGoBack()) router.back();
-  else router.replace('/past');
+  else router.replace(couple ? '/couple' : '/past');
 }
 
 /**
@@ -66,12 +68,12 @@ export default function ChatScreen() {
 }
 
 /** 화면 맨 위 뒤로 가기 줄 + 아래 내용 */
-function Shell({ children }: { children: ReactNode }) {
+function Shell({ children, couple = false }: { children: ReactNode; couple?: boolean }) {
   const insets = useSafeAreaInsets();
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
       <View style={styles.navbar}>
-        <Pressable accessibilityRole="button" accessibilityLabel="뒤로 가기" hitSlop={12} onPress={leave}>
+        <Pressable accessibilityRole="button" accessibilityLabel="뒤로 가기" hitSlop={12} onPress={() => leave(couple)}>
           <Icon name="chevronLeft" size={22} color={colors.brown} />
         </Pressable>
         <View style={styles.navSide} />
@@ -84,20 +86,25 @@ function Shell({ children }: { children: ReactNode }) {
 function PreparingView({ session }: { session: ChatSession }) {
   const insets = useSafeAreaInsets();
   const current = useStepIndex(session.preparingStep);
+  const isCouple = session.mode === 'COUPLE';
+  const couple = useCouple(isCouple);
+  // 커플이면 연인의 이름으로 불러요("10월 4일의 도윤을 불러오는 중이에요")
+  const partner = isCouple ? (couple.data?.partner?.nickname ?? '연인') : undefined;
+  const title = personaTitle(session, partner);
   const labels = [
     `${windowText(session)} 기록 모으기`,
     '말투와 대화 방식 분석하기',
-    '그때의 나 완성하기',
+    partner ? `그때의 ${partner} 완성하기` : '그때의 나 완성하기',
   ];
 
   return (
-    <Shell>
+    <Shell couple={isCouple}>
       <ScrollView
         contentContainerStyle={[styles.preparing, { paddingBottom: Math.max(insets.bottom, 14) }]}
         showsVerticalScrollIndicator={false}>
         <Rings label={personaRingLabel(session)} />
         <AppText serif weight="bold" size={24} lineHeight={34} style={styles.preparingTitle}>
-          {`${personaTitle(session)}를\n불러오는 중이에요`}
+          {`${title}${josa(title, '을', '를')}\n불러오는 중이에요`}
         </AppText>
 
         <View style={styles.steps}>
@@ -191,6 +198,7 @@ function failureMessage(code: string | null | undefined): string {
 
 function FailedView({ session }: { session: ChatSession }) {
   const createChat = useCreateChat();
+  const isCouple = session.mode === 'COUPLE';
 
   // 명세: 실패한 세션은 두고 같은 시점으로 새 세션을 만들어 다시 시도해요
   async function retry() {
@@ -199,7 +207,7 @@ function FailedView({ session }: { session: ChatSession }) {
         anchorDate: session.anchorDate,
         scope: session.scope,
         shortcutKey: session.shortcutKey ?? undefined,
-        forCouple: false,
+        forCouple: isCouple,
       });
       router.replace({ pathname: '/chat/[id]', params: { id: next.id } });
     } catch (error) {
@@ -208,17 +216,21 @@ function FailedView({ session }: { session: ChatSession }) {
   }
 
   return (
-    <Shell>
+    <Shell couple={isCouple}>
       <View style={styles.center}>
         <AppText serif weight="bold" size={24} lineHeight={34} style={styles.centered}>
-          {'그때의 나를\n불러오지 못했어요'}
+          {isCouple ? '그때의 연인을\n불러오지 못했어요' : '그때의 나를\n불러오지 못했어요'}
         </AppText>
         <AppText size={14} lineHeight={22} color={colors.brown} style={styles.failedMessage}>
           {failureMessage(session.failureCode)}
         </AppText>
         <View style={styles.buttons}>
           <Button label="다시 시도" loading={createChat.isPending} onPress={() => void retry()} />
-          <Button variant="line" label="목록으로" onPress={() => router.replace('/past')} />
+          <Button
+            variant="line"
+            label={isCouple ? '커플 화면으로' : '목록으로'}
+            onPress={() => router.replace(isCouple ? '/couple' : '/past')}
+          />
         </View>
       </View>
     </Shell>

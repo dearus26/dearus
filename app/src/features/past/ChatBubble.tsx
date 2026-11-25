@@ -2,23 +2,26 @@ import { StyleSheet, View } from 'react-native';
 
 import type { ChatMessage } from '@/api/chats';
 import { AppText } from '@/components/AppText';
+import { josa } from '@/features/past/labels';
 import { colors } from '@/theme/colors';
 
 type Props = {
   role: ChatMessage['role'];
   /** 답변이 아직 한 글자도 안 왔으면 undefined(점 세 개로 "입력 중"을 보여줘요) */
   text: string | undefined;
+  /** 답하는 쪽 이름(스크린 리더용). 개인 모드는 "과거의 나", 커플 모드는 연인 이름이에요 */
+  speaker?: string;
 };
 
 /** 스토리보드 .m — 과거의 나(PERSONA)는 왼쪽 흰 말풍선, 나(USER)는 오른쪽 금색 말풍선이에요. */
-export function ChatBubble({ role, text }: Props) {
+export function ChatBubble({ role, text, speaker = '과거의 나' }: Props) {
   const mine = role === 'USER';
 
   if (text === undefined) {
     return (
       <View
         accessible
-        accessibilityLabel="과거의 나가 답을 쓰는 중이에요"
+        accessibilityLabel={`${speaker}${josa(speaker, '이', '가')} 답을 쓰는 중이에요`}
         style={[styles.bubble, styles.persona, styles.typing]}>
         <View style={[styles.dot, { opacity: 0.5 }]} />
         <View style={[styles.dot, { opacity: 0.75 }]} />
@@ -30,7 +33,7 @@ export function ChatBubble({ role, text }: Props) {
   return (
     <View
       accessible
-      accessibilityLabel={`${mine ? '나' : '과거의 나'}: ${text}`}
+      accessibilityLabel={`${mine ? '나' : speaker}: ${text}`}
       style={[styles.bubble, mine ? styles.mine : styles.persona]}>
       <AppText size={15} lineHeight={22} selectable>
         {text}

@@ -15,10 +15,12 @@ type Props = {
   onSend: (content: string) => Promise<SendResult>;
   /** 앞의 답변이 오는 중이거나 대화를 아직 못 불러왔을 때 */
   disabled: boolean;
+  /** 말 거는 상대. 개인 모드는 "과거의 나", 커플 모드는 연인 이름이에요 */
+  target?: string;
 };
 
 /** 스토리보드 .inputbar — 말 거는 입력칸과 금색 보내기 버튼. 보내기에 실패하면 쓰던 글을 입력칸에 되돌려요. */
-export function ChatInputBar({ onSend, disabled }: Props) {
+export function ChatInputBar({ onSend, disabled, target = '과거의 나' }: Props) {
   const insets = useSafeAreaInsets();
   const inputRef = useRef<TextInputInstance>(null); // React Native 0.88부터 ref는 컴포넌트가 아니라 인스턴스 타입을 써요
   const [text, setText] = useState('');
@@ -46,10 +48,10 @@ export function ChatInputBar({ onSend, disabled }: Props) {
       <Pressable accessible={false} onPress={() => inputRef.current?.focus()} style={styles.field}>
         <TextInput
           ref={inputRef}
-          accessibilityLabel="과거의 나에게 말 걸기"
+          accessibilityLabel={`${target}에게 말 걸기`}
           value={text}
           onChangeText={setText}
-          placeholder="과거의 나에게 말 걸기"
+          placeholder={`${target}에게 말 걸기`}
           placeholderTextColor={colors.muted}
           multiline
           maxLength={MAX_LENGTH}

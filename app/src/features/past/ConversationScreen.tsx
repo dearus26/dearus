@@ -9,6 +9,7 @@ import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { Icon } from '@/components/Icon';
 import { Pill } from '@/components/Pill';
+import { useCouple } from '@/features/couple/hooks';
 import { ChatBubble } from '@/features/past/ChatBubble';
 import { ChatInputBar } from '@/features/past/ChatInputBar';
 import { useEndChat, useTodayUsage } from '@/features/past/hooks';
@@ -35,26 +36,36 @@ function buildRows(messages: ChatMessage[], draft: Draft | null): Row[] {
   return rows.reverse();
 }
 
-function leave() {
-  if (router.canGoBack()) router.back();
-  else router.replace('/past');
-}
-
 /**
  * 스토리보드 B-4 Time-Slip Chat. 위에는 시점 · 정확도 · 오늘 대화 시간, 가운데는 대화, 아래는 말 거는 칸이에요.
  * 오른쪽 위 "종료"로 대화를 끝내면 회고 리포트(B-6)로 가요. 끝난 대화는 읽기만 되고 "리포트 보기"가 나와요.
+ * 커플 모드(C)의 "그날의 연인과 대화"도 같은 화면이에요(스토리보드: 대화 화면은 개인 모드와 같고 상대 이름만 달라요).
+ * 커플 대화는 끝내면 리포트가 아니라 두 시점 비교(C-4)로 돌아가요.
  */
 export function ConversationScreen({ session }: { session: ChatSession }) {
   const insets = useSafeAreaInsets();
   const conversation = useConversation(session.id);
   const usage = useTodayUsage();
   const endChat = useEndChat();
+  const isCouple = session.mode === 'COUPLE';
+  const couple = useCouple(isCouple);
+  // 커플 대화는 연인의 이름으로 불러요(이름을 받기 전에는 "연인")
+  const partner = isCouple ? (couple.data?.partner?.nickname ?? '연인') : undefined;
   const ended = session.endedAt != null;
   const rows = buildRows(conversation.messages, conversation.draft);
   const lowRecords = session.level === 'NONE' || session.level === 'LOW';
 
+  function leave() {
+    if (router.canGoBack()) router.back();
+    else router.replace(isCouple ? '/couple' : '/past');
+  }
+
   function openReport() {
     router.push({ pathname: '/report/[id]', params: { id: session.id } });
+  }
+
+  function openComparison() {
+    router.push({ pathname: '/couples/compare', params: { date: session.anchorDate, scope: session.scope } });
   }
 
   async function end() {
@@ -68,7 +79,9 @@ export function ConversationScreen({ session }: { session: ChatSession }) {
       message:
         myMessages < 2
           ? '이야기가 짧아서 리포트는 만들어지지 않아요. 끝내면 이어서 대화할 수 없어요.'
-          : '끝내면 이어서 대화할 수 없어요. 이 대화로 회고 리포트를 만들어 드릴게요.',
+          : isCouple
+            ? '끝내면 이어서 대화할 수 없어요. 두 사람이 모두 끝내면 두 사람의 기억을 나란히 볼 수 있어요.'
+            : '끝내면 이어서 대화할 수 없어요. 이 대화로 회고 리포트를 만들어 드릴게요.',
       confirmLabel: '끝내기',
     });
     if (!ok) return;
@@ -76,6 +89,11 @@ export function ConversationScreen({ session }: { session: ChatSession }) {
       const result = await endChat.mutateAsync(session.id);
       if (result.reportStatus === 'NONE') {
         notify('대화를 끝냈어요', '이야기가 짧아서 리포트는 만들지 않았어요.');
+        leave();
+        return;
+      }
+      if (isCouple) {
+        // 비교 화면에서 시작한 대화라서 뒤로 가면 그 화면이고, 돌아오면 상태를 다시 받아서 내가 끝낸 뒤의 모습이 보여요
         leave();
         return;
       }
@@ -95,7 +113,7 @@ export function ConversationScreen({ session }: { session: ChatSession }) {
           </Pressable>
           <View style={styles.titleBox}>
             <AppText weight="bold" size={17} lineHeight={22} numberOfLines={1}>
-              {personaTitle(session)}
+              {personaTitle(session, partner)}
             </AppText>
             <AppText size={12} lineHeight={17} color={colors.brown} numberOfLines={1}>
               {`${personaPeriod(session)} · 정확도 ${accuracyLabel(session.level)}`}
@@ -136,14 +154,14 @@ export function ConversationScreen({ session }: { session: ChatSession }) {
           inverted
           data={rows}
           keyExtractor={(row) => row.key}
-          renderItem={({ item }) => <ChatBubble role={item.role} text={item.text} />}
+          renderItem={({ item }) => <ChatBubble role={item.role} text={item.text} speaker={partner} />}
           ItemSeparatorComponent={Separator}
           // 거꾸로 목록의 Footer는 화면 맨 위(대화의 시작)에 보여요
           ListFooterComponent={
             <View style={styles.listHead}>
               <View style={styles.sep}>
                 <AppText size={11.5} lineHeight={17} color={colors.brown}>
-                  {personaDateTitle(session)}
+                  {personaDateTitle(session, partner)}
                 </AppText>
               </View>
               {lowRecords ? (
@@ -177,13 +195,14 @@ export function ConversationScreen({ session }: { session: ChatSession }) {
               끝난 대화예요
             </AppText>
             <AppText size={12} lineHeight={18} color={colors.brown}>
-              이어서 대화할 수 없고, 리포트를 볼 수 있어요
+              {isCouple ? '이어서 대화할 수 없고, 두 사람의 기억을 비교해 볼 수 있어요' : '이어서 대화할 수 없고, 리포트를 볼 수 있어요'}
             </AppText>
           </View>
-          <Pill label="리포트 보기" onPress={openReport} />
+          <Pill label={isCouple ? '비교 보기' : '리포트 보기'} onPress={isCouple ? openComparison : openReport} />
         </View>
       ) : (
         <ChatInputBar
+          target={partner}
           onSend={conversation.send}
           disabled={conversation.loading || conversation.failed || conversation.draft !== null}
         />

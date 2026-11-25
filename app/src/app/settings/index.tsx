@@ -10,6 +10,9 @@ import { BottomSheet } from '@/components/BottomSheet';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { Icon } from '@/components/Icon';
+import { SheetLine } from '@/components/SheetLine';
+import { RevokeSheet } from '@/features/couple/RevokeSheet';
+import { useCouple } from '@/features/couple/hooks';
 import { addDays, dateStringOf, formatMonthDay, formatYearMonthDay, todayString } from '@/lib/date';
 import { confirm, notify } from '@/lib/dialog';
 import { useSession } from '@/session/SessionProvider';
@@ -20,7 +23,16 @@ const providerLabels = { kakao: '카카오', google: '구글', apple: '애플', 
 /** 동의 철회 뒤 분석 데이터와 대화 기록을 보관하는 기간(일). 서버 규칙(2026.10.29 확정)과 같아요. */
 const RETENTION_DAYS = 30;
 
-type SheetName = 'revoke' | 'withdraw';
+type SheetName = 'revoke' | 'withdraw' | 'couple';
+
+/** 커플 상태를 설정 줄에 쓸 한마디로 바꿔요. */
+function coupleSummary(state: ReturnType<typeof useCouple>['data']): string {
+  if (!state) return '확인하는 중…';
+  if (state.status === 'CONNECTED') return `${state.partner?.nickname ?? '상대'}님과 연결됨`;
+  if (state.status === 'PENDING') return '초대 코드로 상대를 기다리는 중';
+  if (state.status === 'EXPIRED') return '초대 코드가 만료됨';
+  return '연결 안 됨';
+}
 
 /**
  * 설정: 계정 · AI 분석 동의 철회와 다시 동의 · 알림 · 내 데이터 · 약관 · 로그아웃 · 회원 탈퇴.
@@ -30,6 +42,7 @@ type SheetName = 'revoke' | 'withdraw';
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { user, giveConsent, revokeAiConsent, deleteAccount, signOut } = useSession();
+  const couple = useCouple();
   const [sheet, setSheet] = useState<SheetName | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -152,6 +165,27 @@ export default function SettingsScreen() {
           </AppText>
         </Section>
 
+        <Section title="커플 모드" flush>
+          <View style={[styles.infoRow, couple.data?.status !== 'NONE' && styles.linkRowLine]}>
+            <AppText size={15} lineHeight={22} style={styles.grow}>
+              커플 모드
+            </AppText>
+            <AppText size={13} lineHeight={20} color={colors.brown}>
+              {coupleSummary(couple.data)}
+            </AppText>
+          </View>
+          {couple.data?.status === 'NONE' ? (
+            <LinkRow label="커플 모드 시작하기" onPress={() => router.push('/couple')} last />
+          ) : couple.data ? (
+            <LinkRow
+              label={couple.data.status === 'CONNECTED' ? '동의 철회 · 연결 해제' : '초대 코드 취소'}
+              danger
+              onPress={() => setSheet('couple')}
+              last
+            />
+          ) : null}
+        </Section>
+
         <Section title="내 정보" flush>
           <LinkRow label="내 데이터 · 올린 메신저 대화" onPress={() => router.push('/settings/data')} />
           <LinkRow label="이용약관" onPress={() => router.push({ pathname: '/legal/[type]', params: { type: 'terms' } })} />
@@ -202,6 +236,11 @@ export default function SettingsScreen() {
         </AppText>
         <View style={styles.sheetList}>
           <SheetLine>일기 · 대화 · 리포트 · 올린 메신저 대화와 분석까지 모든 정보가 바로 지워지고, 되돌릴 수 없어요</SheetLine>
+          {couple.data?.status === 'CONNECTED' ? (
+            <SheetLine>
+              {`연결된 ${couple.data.partner?.nickname ?? '상대'}님과의 커플 대화와 리포트도 두 사람 것 모두 지워져요`}
+            </SheetLine>
+          ) : null}
           <SheetLine>이미 AI 회사로 보낸 글자는 그곳 정책에 따라 30일 안에 지워져요</SheetLine>
         </View>
         <View style={styles.sheetButtons}>
@@ -209,6 +248,7 @@ export default function SettingsScreen() {
           <Button variant="line" label="취소" disabled={busy} onPress={() => setSheet(null)} />
         </View>
       </BottomSheet>
+      <RevokeSheet visible={sheet === 'couple'} onClose={() => setSheet(null)} state={couple.data} />
     </View>
   );
 }
@@ -246,19 +286,6 @@ function LinkRow({
       </AppText>
       <Icon name="chevronRight" size={16} color={colors.muted} />
     </Pressable>
-  );
-}
-
-function SheetLine({ children }: { children: ReactNode }) {
-  return (
-    <View style={styles.sheetLine}>
-      <AppText size={14} lineHeight={22} color={colors.gold} weight="bold">
-        ✓
-      </AppText>
-      <AppText size={14} lineHeight={22} style={styles.grow}>
-        {children}
-      </AppText>
-    </View>
   );
 }
 
@@ -314,6 +341,13 @@ const styles = StyleSheet.create({
   rowButton: {
     marginTop: 12,
   },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 15,
+    paddingHorizontal: 16,
+  },
   linkRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -339,11 +373,6 @@ const styles = StyleSheet.create({
   sheetList: {
     marginTop: 14,
     gap: 8,
-  },
-  sheetLine: {
-    flexDirection: 'row',
-    gap: 8,
-    alignItems: 'flex-start',
   },
   sheetButtons: {
     marginTop: 18,

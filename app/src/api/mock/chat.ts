@@ -1,4 +1,12 @@
 import { ApiError } from '@/api/errors';
+import {
+  PARTNER_NICKNAME,
+  connectedCoupleId,
+  coupleAccessDenied,
+  coupleCompareOpen,
+  partnerEmotionsOn,
+  type CoupleChatInfo,
+} from '@/api/mock/couple';
 import { NOT_HANDLED, notFound, sortedEmotions, validationFailed, wait } from '@/api/mock/helpers';
 import { uploadedWeekStarts } from '@/api/mock/uploads';
 import type { components } from '@/api/schema';
@@ -32,6 +40,8 @@ type SafetyNotice = components['schemas']['SafetyNotice'];
 /**
  * 가짜 서버 중 "과거의 나" 쪽이에요: 시점 고르기(/personas) · 대화 세션 · 메시지(SSE) · 끝내기 · 리포트 · 오늘 대화 시간.
  * 동작은 실제 서버(server/)를 따라해요(분석 재사용, 준비 단계, 답변 도중 끊겨도 저장, 5분 상한 대화 시간 등).
+ * 커플 모드의 "그날의 연인과 대화"(forCouple)도 같은 엔진이에요. 커플 대화는 목록(GET /chats)에 나오지 않고,
+ * 커플 연결 · 양측 동의가 아니면 만들기 · 보내기 · 끝내기가 403 COUPLE_ACCESS_DENIED예요.
  */
 
 /** index.ts가 요청마다 넘겨 주는 지금 사용자와 일기 목록이에요. */
@@ -158,6 +168,8 @@ type ReportState = { kind: 'NONE' } | { kind: 'GENERATING'; readyAt: number } | 
 
 type MockChat = {
   id: string;
+  /** 커플 모드에서 연인의 과거 페르소나와 나누는 대화인지(목록에는 나오지 않아요) */
+  couple: boolean;
   shortcutKey: ShortcutKey | null;
   /** 세션을 만들 때의 시점 · 기록량 */
   range: PersonaWindow;
@@ -184,6 +196,33 @@ const analysisKey = (scope: PersonaScope, anchorDate: string) => `${scope}|${anc
 export function resetChatMock() {
   chats = null;
   analyses.clear();
+}
+
+/** 커플 철회 · 연결 해제: 이 커플의 대화와 리포트를 모두 지워요(개인 모드 대화는 그대로예요). */
+export function deleteCoupleChats() {
+  if (chats) chats = chats.filter((chat) => !chat.couple);
+  for (const key of [...analyses.keys()]) if (key.startsWith('couple|')) analyses.delete(key);
+}
+
+/**
+ * 이 시점의 내 커플 대화 중 가장 최근 것(같은 날 비교 화면이 써요). 내 말이 2개 미만이라 리포트를 만들지 않은 대화는
+ * 세지 않아요(명세: 다시 대화해요). 대화가 없으면 null이에요.
+ */
+export function findMyCoupleChat(diaries: Diary[], anchorDate: string, scope: PersonaScope): CoupleChatInfo | null {
+  const candidates = chatStore(diaries).filter(
+    (chat) =>
+      chat.couple && chat.range.anchorDate === anchorDate && chat.range.scope === scope && chat.report?.kind !== 'NONE',
+  );
+  const latest = candidates[candidates.length - 1];
+  if (!latest) return null;
+  settleReport(latest);
+  const report = latest.report;
+  return {
+    id: latest.id,
+    endedAt: latest.endedAt,
+    report: report ? report.kind : null,
+    memorySummary: report?.kind === 'READY' ? (report.report.memorySummary ?? null) : null,
+  };
 }
 
 function addMessage(chat: MockChat, role: ChatMessage['role'], content: string, at: Date = new Date()): ChatMessage {
@@ -213,6 +252,7 @@ function seedChats(diaries: Diary[]): MockChat[] {
     const start = new Date(`${addDays(today, -daysAgo)}T${time}:00+09:00`);
     const chat: MockChat = {
       id: `mock-chat-${++chatSeq}`,
+      couple: false,
       shortcutKey,
       range,
       startedAt: start.toISOString(),
@@ -309,8 +349,8 @@ function chatSession(chat: MockChat): ChatSession {
     status: preparing ? 'PREPARING' : 'READY',
     preparingStep: chat.preparing ? preparingStep(chat.preparing) : null,
     failureCode: null,
-    mode: 'PERSONAL',
-    coupleId: null,
+    mode: chat.couple ? 'COUPLE' : 'PERSONAL',
+    coupleId: chat.couple ? connectedCoupleId() : null,
     scope: chat.range.scope,
     shortcutKey: chat.shortcutKey,
     anchorDate: chat.range.anchorDate,
@@ -363,6 +403,22 @@ function talkedMs(messages: ChatMessage[], onlyDay?: string): number {
 const toMinutes = (ms: number) => Math.round(ms / 60_000);
 
 function buildReport(chat: MockChat, createdAt: string): Report {
+  // 커플 모드 리포트는 당시 고민 · 현재 변화 대신 "그날의 연인에게서 들은 이야기"와 한 줄 요약이에요(명세)
+  if (chat.couple) {
+    return {
+      id: `mock-report-${chat.id}`,
+      chatId: chat.id,
+      mode: 'COUPLE',
+      scope: chat.range.scope,
+      anchorDate: chat.range.anchorDate,
+      durationMinutes: toMinutes(talkedMs(chat.messages)),
+      pastConcern: null,
+      presentChange: null,
+      oneLineSummary: '말하지 못한 마음이 서로 다르게 남아 있었어요.',
+      memorySummary: `그날의 ${PARTNER_NICKNAME}은 갑자기 연락이 끊겨서 무슨 잘못을 했는지 몰라 불안했고, 그래서 다그치듯 물었다고 했어요.`,
+      createdAt,
+    };
+  }
   return {
     id: `mock-report-${chat.id}`,
     chatId: chat.id,
@@ -409,6 +465,8 @@ export async function streamChatMessage(
     throw validationFailed([{ field: 'content', reason: `한 번에 ${MAX_MESSAGE_LENGTH}자까지 보낼 수 있어요` }]);
   }
   if (!ctx.user.aiConsentActive) throw new ApiError(403, 'AI_CONSENT_REQUIRED', 'AI 분석에 동의해야 쓸 수 있어요.');
+  // 커플 대화는 보낼 때마다 연결 · 양측 동의를 다시 확인해요(철회하면 바로 막혀요)
+  if (chat.couple && !coupleCompareOpen()) throw coupleAccessDenied();
   if (isPreparing(chat)) throw new ApiError(409, 'CHAT_NOT_READY', '아직 그때의 나를 준비하는 중이에요.');
   if (chat.endedAt) throw new ApiError(409, 'CHAT_ENDED', '이미 끝난 대화예요.');
   if (chat.busy) throw new ApiError(409, 'CHAT_BUSY', '앞의 답변이 아직 오는 중이에요.');
@@ -476,6 +534,7 @@ export function handleChatRoute(
   // GET /chats — 과거의 나 목록 (최근 대화 순)
   if (method === 'GET' && path === '/chats') {
     const items = chatStore(diaries)
+      .filter((chat) => !chat.couple)
       .map(chatListItem)
       .sort((a, b) => b.lastMessageAt.localeCompare(a.lastMessageAt))
       .slice(0, CHAT_LIST_LIMIT);
@@ -493,11 +552,25 @@ export function handleChatRoute(
       throw validationFailed([{ field: 'shortcutKey', reason: '바로가기는 전후 2주(AROUND)일 때만 보낼 수 있어요' }]);
     }
     if (!user.aiConsentActive) throw new ApiError(403, 'AI_CONSENT_REQUIRED', 'AI 분석에 동의해야 쓸 수 있어요.');
-    if (input.forCouple) throw new ApiError(403, 'COUPLE_ACCESS_DENIED', '커플 모드는 아직 쓸 수 없어요.');
+    const forCouple = input.forCouple === true;
+    if (forCouple && !coupleCompareOpen()) throw coupleAccessDenied();
 
-    const range = personaWindow(diaries, checkAnchor(input.anchorDate, 'anchorDate'), scope);
-    const key = analysisKey(scope, range.anchorDate);
-    const fingerprint = recordsFingerprint(diaries, range);
+    const anchorDate = checkAnchor(input.anchorDate, 'anchorDate');
+    // 커플: 같은 시점에 끝내지 않은 대화가 있으면 새로 만들지 않고 그 대화를 이어가요(서버와 같아요)
+    const unfinished = forCouple
+      ? chatStore(diaries).find(
+          (chat) => chat.couple && !chat.endedAt && chat.range.anchorDate === anchorDate && chat.range.scope === scope,
+        )
+      : undefined;
+    if (unfinished) return chatSession(unfinished);
+
+    let range = personaWindow(diaries, anchorDate, scope);
+    // 커플은 연인의 기록으로 그때의 연인을 만들어요. 연인의 기록량은 앱이 모르니 충분하다고 쳐요(그날 하루면 그날 감정도 연인 것이에요)
+    if (forCouple) {
+      range = { ...range, level: 'ENOUGH', emotions: scope === 'DAY' ? (partnerEmotionsOn(anchorDate) ?? []) : undefined };
+    }
+    const key = forCouple ? `couple|${analysisKey(scope, anchorDate)}` : analysisKey(scope, anchorDate);
+    const fingerprint = forCouple ? 'couple' : recordsFingerprint(diaries, range);
     // 기록이 하나도 없으면(NONE) 분석 없이 바로 기본 말투로 대화해요
     const needsAnalysis = range.level !== 'NONE' && analyses.get(key) !== fingerprint;
     if (needsAnalysis) analyses.set(key, fingerprint);
@@ -505,6 +578,7 @@ export function handleChatRoute(
     const now = Date.now();
     const chat: MockChat = {
       id: `mock-chat-${++chatSeq}`,
+      couple: forCouple,
       shortcutKey: input.shortcutKey ?? null,
       range,
       startedAt: new Date(now).toISOString(),
@@ -547,6 +621,7 @@ export function handleChatRoute(
   if (method === 'POST' && endMatch) {
     const chat = findChat(diaries, endMatch[1]);
     if (!user.aiConsentActive) throw new ApiError(403, 'AI_CONSENT_REQUIRED', 'AI 분석에 동의해야 쓸 수 있어요.');
+    if (chat.couple && !coupleCompareOpen()) throw coupleAccessDenied();
     if (isPreparing(chat)) throw new ApiError(409, 'CHAT_NOT_READY', '아직 그때의 나를 준비하는 중이에요.');
     if (chat.busy) throw new ApiError(409, 'CHAT_BUSY', '답변이 아직 오는 중이에요. 잠시 뒤에 끝내 주세요.');
 

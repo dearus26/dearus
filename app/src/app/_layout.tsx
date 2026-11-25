@@ -65,6 +65,8 @@ function RootNavigator() {
         <Stack.Screen name="persona/pick" />
         <Stack.Screen name="chat/[id]" />
         <Stack.Screen name="report/[id]" />
+        <Stack.Screen name="couples/consent" />
+        <Stack.Screen name="couples/compare" />
         <Stack.Screen name="messenger/index" />
         <Stack.Screen name="messenger/review" />
         <Stack.Screen name="messenger/[id]" />

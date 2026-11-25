@@ -24,15 +24,29 @@ export const shortcutOrder: ShortcutKey[] = ['ONE_MONTH', 'SIX_MONTHS', 'ONE_YEA
 /** 세션이 어느 시점인지 알려주는 값. 목록 항목 · 세션 · 기록량이 모두 이 모양을 갖고 있어요. */
 type Target = Pick<ChatListItem, 'scope' | 'shortcutKey' | 'anchorDate'>;
 
-/** "1개월 전의 나", "10월 4일의 나". 명세에 따라 제목은 앱이 scope · anchorDate로 만들어요. */
-export function personaTitle({ scope, shortcutKey, anchorDate }: Target): string {
+/**
+ * "1개월 전의 나", "10월 4일의 나". 명세에 따라 제목은 앱이 scope · anchorDate로 만들어요.
+ * 커플 모드에서는 `who`에 연인 이름을 넘겨서 "10월 4일의 도윤"으로 만들어요(바로가기 이름은 쓰지 않고 날짜로 보여줘요).
+ */
+export function personaTitle({ scope, shortcutKey, anchorDate }: Target, who?: string): string {
+  if (who) return personaDateTitle({ scope, anchorDate }, who);
   if (shortcutKey) return shortcutLabels[shortcutKey].title;
   return personaDateTitle({ scope, anchorDate });
 }
 
 /** 대화 첫머리 구분선: "7월 6일 무렵의 나"(전후 2주), "10월 4일의 나"(그날 하루). 바로가기여도 날짜로 보여줘요. */
-export function personaDateTitle({ scope, anchorDate }: Pick<Target, 'scope' | 'anchorDate'>): string {
-  return scope === 'DAY' ? `${formatPointInTime(anchorDate)}의 나` : `${formatPointInTime(anchorDate)} 무렵의 나`;
+export function personaDateTitle({ scope, anchorDate }: Pick<Target, 'scope' | 'anchorDate'>, who = '나'): string {
+  return scope === 'DAY' ? `${formatPointInTime(anchorDate)}의 ${who}` : `${formatPointInTime(anchorDate)} 무렵의 ${who}`;
+}
+
+/**
+ * 받침이 있으면 앞의 조사를, 없으면 뒤의 조사를 골라요. 예: `${name}${josa(name, '을', '를')}` → "도윤을", "서연을".
+ * 한글이 아닌 글자로 끝나면 받침이 없는 것으로 봐요.
+ */
+export function josa(word: string, withBatchim: string, withoutBatchim: string): string {
+  const last = word.charCodeAt(word.length - 1);
+  const isHangul = last >= 0xac00 && last <= 0xd7a3;
+  return isHangul && (last - 0xac00) % 28 !== 0 ? withBatchim : withoutBatchim;
 }
 
 /** 대화 화면 위 제목 아래 글: "2026년 7월 무렵"(전후 2주), "2026년 10월 4일"(그날 하루) */
