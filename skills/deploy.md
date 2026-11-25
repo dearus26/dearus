@@ -46,7 +46,7 @@
 ## 배포 뒤 할 일
 
 - [x] 서버 ↔ 서울 DB 사이 지연 재기(2026.11.21): 깨어 있을 때 PC에서 DB를 안 쓰는 요청은 약 150ms, DB를 한 번 쓰는 요청(`/me` · `/diaries`)은 약 310ms였어요. DB 왕복과 처리에 약 160ms가 더 들어요
-- [ ] 진짜 Claude로 대화 첫 글자 5초 목표와 SSE 스트리밍이 Render를 거쳐도 조금씩 오는지 확인하기. 폰의 개발 빌드로 말을 보내고 Render 로그의 `대화 답변 완료` 줄(`requestToFirstTokenMs` · `firstTokenMs` · `totalMs`)을 봐요. 서버가 켜질 때 `AI 연결을 미리 열었어요` 줄이 나오면 데우기가 된 거예요(2026.11.25)
+- [x] 진짜 Claude로 대화 첫 글자 5초 목표와 SSE 스트리밍 확인(2026.11.25): 답이 폰에서 조금씩 나타나요. 깬 직후 첫 대화만 첫 글자 5.9초이고 그다음은 1.1~1.2초예요. 서버 로그의 `대화 답변 완료` 줄(`requestToFirstTokenMs` · `firstTokenMs` · `totalMs`)과 켜질 때의 `AI 연결을 미리 열었어요` 줄로 다시 볼 수 있어요
 - [ ] Render가 접속 기록(로그)을 얼마나 보관하는지 확인해 방침 초안의 빈칸 채우기
 - [x] 배포 서버의 `DEV_LOGIN_ENABLED`를 `false`로 바꾸기(`render.yaml`, 2026.11.21). Render 화면의 값도 `false`인지 확인해요
 - [ ] 소셜 로그인 콘솔 설정 끝내기(`skills/social-login.md`)
