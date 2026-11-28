@@ -1807,7 +1807,7 @@ components:
         consent:
           type: boolean
           enum: [true]
-          description: '"위 내용을 이해했고 대화 분석에 동의해요" 체크. 올릴 때마다 한 번 더 확인해요. `true`가 아니면 400 `CONSENT_REQUIRED`예요'
+          description: '"위 내용을 이해했고 대화 분석에 동의해요" 체크. 앱은 처음 한 번만 체크를 받고 폰에 기억해 둔 뒤 올릴 때마다 true로 보내요(2026.11.28, AI 분석 동의를 철회하면 다시 받아요). 안내 문구는 올릴 때마다 보여줘요. `true`가 아니면 400 `CONSENT_REQUIRED`예요'
         messages:
           type: array
           minItems: 1

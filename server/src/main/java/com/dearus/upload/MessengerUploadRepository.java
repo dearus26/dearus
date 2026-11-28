@@ -33,6 +33,17 @@ public interface MessengerUploadRepository extends JpaRepository<MessengerUpload
 	List<MessengerUpload> findCovering(@Param("userId") UUID userId, @Param("from") LocalDate from, @Param("to") LocalDate to,
 		@Param("now") OffsetDateTime now, @Param("status") MessengerStatus status);
 
+	/**
+	 * 날마다의 추천 감정 · 한 줄 요약(messenger_day_notes)이 아직 없는 업로드예요(2026.11.28 전에 올린 것). 최근 업로드부터 limit개예요.
+	 * 원문이 있고 만료되지 않았고, 올린 사람의 AI 분석 · 민감정보 동의가 유효한 것만이에요(DayNoteBackfillJob이 채워요).
+	 */
+	@Query(value = "select u.id from messenger_uploads u join users us on us.id = u.user_id "
+		+ "where u.status = 'DONE' and u.original_enc is not null and u.expires_at > :now "
+		+ "and us.ai_consent_at is not null and us.ai_revoked_at is null and us.sensitive_consent_at is not null "
+		+ "and not exists (select 1 from messenger_day_notes n where n.upload_id = u.id) "
+		+ "order by u.uploaded_at desc limit :limit", nativeQuery = true)
+	List<UUID> findMissingDayNotes(@Param("now") OffsetDateTime now, @Param("limit") int limit);
+
 	/** 업로드 하나의 내 말 원문(암호화한 값)이에요. 아직 없으면(요약 전, V7 전 업로드) null이에요. 시점 분석이 읽어요. */
 	@Query(value = "select original_enc from messenger_uploads where id = :id", nativeQuery = true)
 	byte[] findOriginal(@Param("id") UUID id);
