@@ -35,6 +35,7 @@
 - `main`에 `server/` 아래 파일이 바뀌어 합쳐지면 자동으로 다시 배포해요(`autoDeploy`, `buildFilter`). 앱 · 문서만 바뀌면 그대로예요.
 - 새 마이그레이션이 있으면 배포된 서버가 켜질 때 공용 DB에 적용해요. 공용 DB에 먼저 적용하지 않은 마이그레이션은 `main`에 합치기 전에 팀에 알려요.
 - 환경변수를 바꾸면 Render가 서버를 다시 켜요.
+- **배포가 `429 Too Many Requests`로 실패하면(2026.11.28 겪음):** Render 빌드 서버가 Maven Central에서 라이브러리 jar를 받다가 요청 제한에 걸린 거예요. 코드 문제가 아니라서 10분~1시간 뒤 Manual Deploy로 다시 배포해요. 실패한 배포는 서버를 켜기 전에 멈춰서 마이그레이션도 돌지 않고, 이전 버전이 그대로 돌아요. 다시 생기지 않게 Dockerfile이 `downloadDependencies`(`build.gradle`)로 jar를 소스보다 먼저 받아 캐시 층에 남겨요. 그래서 `build.gradle`이 바뀐 배포에서만 Maven Central에서 jar를 다시 받아요.
 
 ## 운영할 때 알아 둘 점
 

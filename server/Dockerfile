@@ -4,10 +4,11 @@
 
 FROM eclipse-temurin:21-jdk AS build
 WORKDIR /workspace
-# 의존성을 먼저 받아 두면, 코드만 바뀌었을 때 이 단계를 다시 쓰지 않아도 돼요
+# 라이브러리 jar를 소스보다 먼저 받아 두면, 코드만 바뀌었을 때는 이 층을 캐시에서 다시 써서 Maven Central에 가지 않아요.
+# (예전의 `dependencies` 작업은 목록만 보고 jar를 받지 않아서, 배포마다 jar를 새로 받다가 429로 실패했어요, 2026.11.28)
 COPY gradlew settings.gradle build.gradle ./
 COPY gradle gradle
-RUN chmod +x gradlew && ./gradlew --no-daemon dependencies > /dev/null
+RUN chmod +x gradlew && ./gradlew --no-daemon downloadDependencies
 COPY src src
 # 테스트는 각자 PC에서 돌려요(DB · AI 키가 필요한 시험은 기본으로 건너뛰어요)
 RUN ./gradlew --no-daemon bootJar -x test && cp build/libs/*-SNAPSHOT.jar app.jar

@@ -45,3 +45,14 @@ dependencies {
 tasks.named('test') {
 	useJUnitPlatform()
 }
+
+// Docker 빌드가 실행 파일(bootJar)에 필요한 라이브러리 jar를 소스보다 먼저 받아서 캐시 층에 남기려고 써요(server/Dockerfile, 2026.11.28).
+// `dependencies` 작업은 목록만 확인하고 jar를 받지 않아서, 배포할 때마다 Maven Central에서 jar를 새로 받다가 429(요청이 너무 많음)로 막혔어요.
+tasks.register('downloadDependencies') {
+	description = '실행 파일에 필요한 라이브러리 jar를 미리 받아요(Docker 빌드 캐시용)'
+	def deps = files(configurations.compileClasspath, configurations.annotationProcessor, configurations.runtimeClasspath)
+	inputs.files(deps)
+	doLast {
+		println "라이브러리 ${deps.files.size()}개를 받아 뒀어요"
+	}
+}
