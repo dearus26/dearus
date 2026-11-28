@@ -140,7 +140,9 @@ public class PersonaAnalysisService {
 		List<WeekView> weeks = input.weeks().stream().map(w -> weekView(range.scope(), w)).toList();
 		List<DatedText> raw = rawLines(input);
 
-		PersonaContent content = analyzer.analyze(new Prompt(range, diaries, weeks, raw));
+		List<DatedText> dayLines = input.dayLines().stream()
+			.map(line -> new DatedText(line.date(), crypto.decrypt(line.lineEnc()))).toList();
+		PersonaContent content = analyzer.analyze(new Prompt(range, diaries, weeks, raw, dayLines));
 
 		progress.accept(Step.BUILD);
 		byte[] encrypted = crypto.encrypt(content.toJson());

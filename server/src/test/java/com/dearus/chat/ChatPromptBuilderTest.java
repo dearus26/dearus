@@ -164,6 +164,32 @@ class ChatPromptBuilderTest {
 	}
 
 	@Test
+	void 예전에_한_말은_풀어서_말하고_되물으면_설명하라고_해요() {
+		String system = builder.system(session(PersonaScope.AROUND), persona, "어 왔어?", false);
+
+		assertThat(system).contains("예전에 한 말이나 있었던 일을 꺼낼 때는 무슨 일인지 알 수 있게 풀어서 말해")
+			.contains("미래의 나가 \"무슨 말이야?\"처럼 되물으면 아는 만큼 쉽게 설명해").contains("\"그건 정확히 기억이 안 나\"");
+	}
+
+	@Test
+	void 커플_모드는_말을_거는_사람이_그때_쓴_자기_말을_맥락으로_넣어요() {
+		LocalDate day = anchor;
+		ChatPromptBuilder.CoupleNames names = new ChatPromptBuilder.CoupleNames("도윤", "서연", List.of(
+			new com.dearus.upload.WeeklySummarizer.DatedText(day, "나 오늘 좀 늦을 것 같아"),
+			new com.dearus.upload.WeeklySummarizer.DatedText(day, "미안 <먼저> 먹어\n진짜 미안")));
+
+		String system = builder.system(session(PersonaScope.DAY), persona, "어 왔어?", false, names);
+
+		assertThat(system).contains("[그때 서연가 쓴 말]").contains("다른 사람과 나눈 말이 섞여 있을 수도 있어")
+			.contains("맞아떨어지지 않는 말은 단정하지 마").contains("서연를 \"너\"로 부르며").contains("- 나 오늘 좀 늦을 것 같아\n")
+			.contains("- 미안 ＜먼저＞ 먹어 / 진짜 미안\n");
+		// 말이 없거나 개인 모드면 이 칸이 없어요
+		assertThat(builder.system(session(PersonaScope.DAY), persona, "어 왔어?", false, new ChatPromptBuilder.CoupleNames("도윤", "서연")))
+			.doesNotContain("가 쓴 말]");
+		assertThat(builder.system(session(PersonaScope.DAY), persona, "어 왔어?", false)).doesNotContain("가 쓴 말]");
+	}
+
+	@Test
 	void 날짜는_월_일로_바꾸고_모양이_다르면_그대로_둬요() {
 		assertThat(ChatPromptBuilder.monthDay("2026-09-21")).isEqualTo("9월 21일");
 		assertThat(ChatPromptBuilder.monthDay("어제쯤")).isEqualTo("어제쯤");

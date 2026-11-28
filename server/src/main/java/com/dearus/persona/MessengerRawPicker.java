@@ -15,7 +15,7 @@ import java.util.TreeMap;
  * 넘치면 날짜마다 한 줄씩 돌아가며 골라서(라운드 로빈) 말이 많은 날이 다른 날을 밀어내지 않아요.
  * 결과는 날짜 순이고, 같은 날 안에서는 원래 순서예요.
  */
-final class MessengerRawPicker {
+public final class MessengerRawPicker {
 
 	/** 구간 하나에 넣는 원문 전체 글자 수 한도(약 1만 자, 2026.11.9 결정). */
 	static final int MAX_CHARS = 10_000;
@@ -25,7 +25,7 @@ final class MessengerRawPicker {
 	private MessengerRawPicker() {
 	}
 
-	static List<DatedText> pick(List<DatedText> lines, int maxChars) {
+	public static List<DatedText> pick(List<DatedText> lines, int maxChars) {
 		Map<LocalDate, Deque<Indexed>> byDate = new TreeMap<>();
 		for (int i = 0; i < lines.size(); i++) {
 			DatedText line = lines.get(i);

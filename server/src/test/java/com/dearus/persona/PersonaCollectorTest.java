@@ -15,6 +15,8 @@ import com.dearus.diary.DiaryRepository;
 import com.dearus.diary.Emotion;
 import com.dearus.persona.PersonaInput.OriginalEntry;
 import com.dearus.persona.PersonaInput.WeekEntry;
+import com.dearus.upload.MessengerDayNote;
+import com.dearus.upload.MessengerDayNoteRepository;
 import com.dearus.upload.MessengerOriginal;
 import com.dearus.upload.MessengerSource;
 import com.dearus.upload.MessengerUpload;
@@ -43,8 +45,9 @@ class PersonaCollectorTest {
 	private final DiaryRepository diaries = mock(DiaryRepository.class);
 	private final MessengerWeeklySummaryRepository summaries = mock(MessengerWeeklySummaryRepository.class);
 	private final MessengerUploadRepository uploads = mock(MessengerUploadRepository.class);
+	private final MessengerDayNoteRepository dayNotes = mock(MessengerDayNoteRepository.class);
 	private final CryptoService crypto = new CryptoService(new CryptoProperties(Base64.getEncoder().encodeToString(new byte[32])));
-	private final PersonaCollector collector = new PersonaCollector(diaries, summaries, uploads, crypto);
+	private final PersonaCollector collector = new PersonaCollector(diaries, summaries, uploads, dayNotes, crypto);
 	private final UUID userId = UUID.randomUUID();
 
 	/** 60일쯤 전 주의 월요일 · 화요일 · 수요일 */
@@ -127,6 +130,22 @@ class PersonaCollectorTest {
 		assertThat(input.originals()).singleElement().satisfies(o -> {
 			assertThat(o.uploadId()).isEqualTo(monUpload);
 			assertThat(o.dates()).containsExactly(mon);
+		});
+	}
+
+	@Test
+	void 날마다의_한_줄_요약은_그날_주인_업로드_것만_가져와요() {
+		UUID oldUpload = upload(mon, mon, new DatedText(mon, "예전 말"));
+		UUID newUpload = upload(mon, mon, new DatedText(mon, "다시 올린 말"));
+		when(dayNotes.findByUploadIdInAndDayBetween(any(), any(), any())).thenReturn(List.of(
+			MessengerDayNote.create(oldUpload, mon, List.of(), crypto.encrypt("예전 요약")),
+			MessengerDayNote.create(newUpload, mon, List.of(), crypto.encrypt("새 요약"))));
+
+		PersonaInput input = collect(PersonaScope.DAY, mon);
+
+		assertThat(input.dayLines()).singleElement().satisfies(line -> {
+			assertThat(line.date()).isEqualTo(mon);
+			assertThat(crypto.decrypt(line.lineEnc())).isEqualTo("새 요약");
 		});
 	}
 

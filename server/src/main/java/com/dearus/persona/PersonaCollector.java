@@ -8,6 +8,8 @@ import com.dearus.diary.DiaryRepository;
 import com.dearus.persona.PersonaInput.DiaryEntry;
 import com.dearus.persona.PersonaInput.OriginalEntry;
 import com.dearus.persona.PersonaInput.WeekEntry;
+import com.dearus.upload.MessengerDayNote;
+import com.dearus.upload.MessengerDayNoteRepository;
 import com.dearus.upload.MessengerOriginal;
 import com.dearus.upload.MessengerStatus;
 import com.dearus.upload.MessengerUpload;
@@ -17,6 +19,8 @@ import com.dearus.upload.MessengerWeeklySummaryRepository;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -42,13 +46,15 @@ public class PersonaCollector {
 	private final DiaryRepository diaries;
 	private final MessengerWeeklySummaryRepository summaries;
 	private final MessengerUploadRepository uploads;
+	private final MessengerDayNoteRepository dayNotes;
 	private final CryptoService crypto;
 
 	public PersonaCollector(DiaryRepository diaries, MessengerWeeklySummaryRepository summaries, MessengerUploadRepository uploads,
-		CryptoService crypto) {
+		MessengerDayNoteRepository dayNotes, CryptoService crypto) {
 		this.diaries = diaries;
 		this.summaries = summaries;
 		this.uploads = uploads;
+		this.dayNotes = dayNotes;
 		this.crypto = crypto;
 	}
 
@@ -123,7 +129,22 @@ public class PersonaCollector {
 				originals.add(new OriginalEntry(entry.getKey(), Set.copyOf(inRange), originalEnc));
 			}
 		}
-		return new PersonaInput(range, List.copyOf(diaryEntries), List.copyOf(weekEntries), List.copyOf(originals), messengerDays);
+		// 날마다의 한 줄 요약도 그날 주인 업로드 것만, 구간 안의 날만 가져와요(2026.11.28)
+		List<PersonaInput.DayLine> dayLines = new ArrayList<>();
+		Set<UUID> ownersInRange = new HashSet<>();
+		for (OriginalEntry original : originals) {
+			ownersInRange.add(original.uploadId());
+		}
+		if (!ownersInRange.isEmpty()) {
+			for (MessengerDayNote note : dayNotes.findByUploadIdInAndDayBetween(ownersInRange, range.start(), range.end())) {
+				if (note.getLineEnc() != null && note.getUploadId().equals(ownerByDate.get(note.getDay()))) {
+					dayLines.add(new PersonaInput.DayLine(note.getDay(), note.getLineEnc()));
+				}
+			}
+			dayLines.sort(Comparator.comparing(PersonaInput.DayLine::date));
+		}
+		return new PersonaInput(range, List.copyOf(diaryEntries), List.copyOf(weekEntries), List.copyOf(originals), messengerDays,
+			dayLines);
 	}
 
 	/**

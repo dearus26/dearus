@@ -215,7 +215,7 @@ class PersonaAnalyzerTest {
 
 	@Test
 	void 분석_프롬프트는_새_항목과_실명_대신_관계를_적게_해요() {
-		assertThat(PersonaAnalyzer.PROMPT_VERSION).isEqualTo(6);
+		assertThat(PersonaAnalyzer.PROMPT_VERSION).isEqualTo(7);
 		assertThat(PersonaAnalyzer.SYSTEM_PROMPT).contains("\"day\"").contains("\"episodes\"").contains("\"people\"")
 			.contains("\"attitude\"").contains("\"hopes\"").contains("실명 대신 관계")
 			.contains("드러나지 않은 일과(수업, 회의, 출근 같은)는 짐작해서 채우지 않아요")
@@ -223,5 +223,18 @@ class PersonaAnalyzerTest {
 		// 첫 인사는 미래의 나를 만나 자기 근황을 곁들이고, 상대를 위로하지 않아요. 커플 인사는 따로예요
 		assertThat(PersonaAnalyzer.SYSTEM_PROMPT).contains("\"coupleGreetings\"").contains("상대를 위로하거나 쉬라고 권하지 않아요")
 			.contains("상대를 \"미래의 나\"라고 부르지 않고");
+		// 7: 날마다의 한 줄 요약을 맥락으로 쓰고, 있었던 일을 내 말만으로도 알 수 있게 풀어 써요
+		assertThat(PersonaAnalyzer.SYSTEM_PROMPT).contains("<messenger_day>").contains("이 사람의 말만 읽어도 무슨 일인지 알 수 있게 풀어 써요");
+	}
+
+	@Test
+	void 날마다의_한_줄_요약은_원문_앞에_날짜와_함께_넣어요() {
+		PersonaRange range = PersonaRange.of(PersonaScope.DAY, LocalDate.of(2026, 10, 7), TODAY);
+		String prompt = PersonaAnalyzer.userPrompt(new Prompt(range, List.of(), List.of(),
+			List.of(new com.dearus.upload.WeeklySummarizer.DatedText(LocalDate.of(2026, 10, 7), "다들 왜그래")),
+			List.of(new com.dearus.upload.WeeklySummarizer.DatedText(LocalDate.of(2026, 10, 7), "팀원들이 회의를 또 미뤄서 <짜증> 났어요."))));
+
+		assertThat(prompt).contains("<messenger_day date=\"2026-10-07\">팀원들이 회의를 또 미뤄서 ＜짜증＞ 났어요.</messenger_day>");
+		assertThat(prompt.indexOf("<messenger_day")).isLessThan(prompt.indexOf("<messenger_raw"));
 	}
 }

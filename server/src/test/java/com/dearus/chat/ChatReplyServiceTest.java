@@ -98,7 +98,7 @@ class ChatReplyServiceTest {
 			return new AiResult("어, 그래?", 12, 3);
 		});
 		service = new ChatReplyService(sessions, messages, users, persona, mock(com.dearus.couple.CoupleAccess.class), new ChatPromptBuilder(), new RuleSafetyDetector(),
-			safetyProperties, ai, new TransactionTemplate(mock(PlatformTransactionManager.class)), new com.dearus.common.LimitProperties(200, 100, 5, 20, 10, 120));
+			safetyProperties, ai, new TransactionTemplate(mock(PlatformTransactionManager.class)), new com.dearus.common.LimitProperties(200, 100, 5, 20, 10, 120), mock(com.dearus.persona.MessengerDays.class));
 	}
 
 	private void addMessage(int seq, ChatRole role, String text) {

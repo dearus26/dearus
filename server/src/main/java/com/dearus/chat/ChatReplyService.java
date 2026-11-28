@@ -11,9 +11,13 @@ import com.dearus.common.ai.AiException;
 import com.dearus.common.ai.AiRequest;
 import com.dearus.common.ai.AiResult;
 import com.dearus.couple.CoupleAccess;
+import com.dearus.persona.MessengerDays;
 import com.dearus.persona.PersonaAnalysisService;
 import com.dearus.persona.PersonaContent;
+import com.dearus.persona.PersonaRange;
+import com.dearus.upload.WeeklySummarizer.DatedText;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -81,11 +85,12 @@ public class ChatReplyService {
 	private final AiClient ai;
 	private final TransactionTemplate tx;
 	private final LimitProperties limits;
+	private final MessengerDays messengerDays;
 	private final Set<UUID> inFlight = ConcurrentHashMap.newKeySet();
 
 	public ChatReplyService(ChatSessionRepository sessions, ChatMessageRepository messages, UserRepository users,
 		PersonaAnalysisService persona, CoupleAccess couples, ChatPromptBuilder prompts, SafetyDetector detector, SafetyProperties safetyProperties,
-		AiClient ai, TransactionTemplate tx, LimitProperties limits) {
+		AiClient ai, TransactionTemplate tx, LimitProperties limits, MessengerDays messengerDays) {
 		this.sessions = sessions;
 		this.messages = messages;
 		this.users = users;
@@ -97,6 +102,7 @@ public class ChatReplyService {
 		this.ai = ai;
 		this.tx = tx;
 		this.limits = limits;
+		this.messengerDays = messengerDays;
 	}
 
 	/** 오류는 일반 HTTP 오류로 나가요(스트림을 열기 전이라서요). 성공하면 같은 세션의 잠금을 잡은 채로 돌려줘요. */
@@ -108,8 +114,10 @@ public class ChatReplyService {
 			throw new ApiException(HttpStatus.FORBIDDEN, "AI_CONSENT_REQUIRED", "AI 분석에 동의해야 쓸 수 있어요.");
 		}
 		checkLimits(userId, chatId);
-		ChatPromptBuilder.CoupleNames names = couples.requireForSession(session) // 커플 세션이면 접근을 다시 확인해요(아니면 403)
-			.map(link -> new ChatPromptBuilder.CoupleNames(link.partner().getNickname(), link.me().getNickname())).orElse(null);
+		// 커플 세션이면 접근을 다시 확인해요(아니면 403). 말을 거는 나의 그 시점 메신저 말도 맥락으로 넣어요(내 데이터예요, 2026.11.28)
+		ChatPromptBuilder.CoupleNames names = couples.requireForSession(session)
+			.map(link -> new ChatPromptBuilder.CoupleNames(link.partner().getNickname(), link.me().getNickname(), talkerLines(userId, session)))
+			.orElse(null);
 		if (session.getEndedAt() != null) {
 			throw new ApiException(HttpStatus.CONFLICT, "CHAT_ENDED", "이미 끝난 대화예요.");
 		}
@@ -134,6 +142,13 @@ public class ChatReplyService {
 			inFlight.remove(chatId);
 			throw e;
 		}
+	}
+
+	/** 말을 거는 사람(나)이 그 세션의 구간(그날 하루 또는 전후 2주)에 메신저로 올린 내 말이에요. */
+	private List<DatedText> talkerLines(UUID userId, ChatSession session) {
+		LocalDate started = session.getStartedAt().atZoneSameInstant(Kst.ZONE).toLocalDate();
+		PersonaRange range = PersonaRange.at(session.scope(), session.getAnchorDate(), started);
+		return messengerDays.lines(userId, range.start(), range.end());
 	}
 
 	/**

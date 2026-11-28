@@ -11,6 +11,8 @@ import com.dearus.upload.MessengerUpload;
 import com.dearus.upload.MessengerUploadRepository;
 import com.dearus.upload.WeeklySummarizer.DatedText;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -48,13 +50,22 @@ public class MessengerDays {
 	/** from ~ to(양 끝 포함) 중 그날 올린 내 말이 있는 날이에요. */
 	@Transactional(readOnly = true)
 	public Set<LocalDate> withLines(UUID userId, LocalDate from, LocalDate to) {
-		return ownersWithLines(userId, from, to).keySet();
+		return scan(userId, from, to).owners().keySet();
+	}
+
+	/**
+	 * from ~ to에 올린 내 말 원문이에요(날짜 순, 같은 날은 원래 순서). 날짜마다 그날 주인 업로드의 말만 담아요.
+	 * 커플 대화에서 말을 거는 사람이 그날 쓴 자기 말을 맥락으로 쓸 때 써요(2026.11.28).
+	 */
+	@Transactional(readOnly = true)
+	public List<DatedText> lines(UUID userId, LocalDate from, LocalDate to) {
+		return scan(userId, from, to).lines();
 	}
 
 	/** from ~ to 중 그날 올린 내 말이 있는 날과, 그날 주인 업로드의 추천 감정 · 한 줄 요약이에요(날짜 오름차순). */
 	@Transactional(readOnly = true)
 	public Map<LocalDate, Day> days(UUID userId, LocalDate from, LocalDate to) {
-		Map<LocalDate, UUID> owners = ownersWithLines(userId, from, to);
+		Map<LocalDate, UUID> owners = scan(userId, from, to).owners();
 		Map<LocalDate, Day> result = new TreeMap<>();
 		owners.forEach((date, uploadId) -> result.put(date, new Day(uploadId, List.of(), null)));
 		if (owners.isEmpty()) {
@@ -69,8 +80,11 @@ public class MessengerDays {
 		return result;
 	}
 
-	/** 그날 올린 내 말이 있는 날 → 그날의 주인 업로드예요(날짜 오름차순). */
-	private Map<LocalDate, UUID> ownersWithLines(UUID userId, LocalDate from, LocalDate to) {
+	/** owners: 그날 올린 내 말이 있는 날 → 그날의 주인 업로드(날짜 오름차순), lines: 그 말 원문(날짜 순) */
+	private record Scan(Map<LocalDate, UUID> owners, List<DatedText> lines) {
+	}
+
+	private Scan scan(UUID userId, LocalDate from, LocalDate to) {
 		// 최근 업로드부터라 먼저 차지한 업로드가 그날의 주인이에요
 		Map<LocalDate, UUID> ownerByDate = new LinkedHashMap<>();
 		for (MessengerUpload upload : uploads.findCovering(userId, from, to, Kst.now(), MessengerStatus.DONE)) {
@@ -85,6 +99,7 @@ public class MessengerDays {
 				Collectors.mapping(Map.Entry::getKey, Collectors.toCollection(TreeSet::new))));
 
 		Map<LocalDate, UUID> result = new TreeMap<>();
+		List<DatedText> lines = new ArrayList<>();
 		datesByUpload.forEach((uploadId, owned) -> {
 			byte[] originalEnc = uploads.findOriginal(uploadId);
 			if (originalEnc == null) {
@@ -93,9 +108,11 @@ public class MessengerDays {
 			for (DatedText line : MessengerOriginal.fromJson(crypto.decrypt(originalEnc))) {
 				if (owned.contains(line.date()) && !line.text().isBlank()) {
 					result.put(line.date(), uploadId);
+					lines.add(line);
 				}
 			}
 		});
-		return result;
+		lines.sort(Comparator.comparing(DatedText::date)); // 안정 정렬이라 같은 날은 원래 순서예요
+		return new Scan(result, List.copyOf(lines));
 	}
 }

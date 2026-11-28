@@ -4,10 +4,12 @@ import com.dearus.common.Kst;
 import com.dearus.common.ai.AiEffort;
 import com.dearus.common.ai.AiMessage;
 import com.dearus.common.ai.AiRequest;
+import com.dearus.persona.MessengerRawPicker;
 import com.dearus.persona.PersonaAnalyzer;
 import com.dearus.persona.PersonaContent;
 import com.dearus.persona.PersonaRange;
 import com.dearus.persona.PersonaScope;
+import com.dearus.upload.WeeklySummarizer.DatedText;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -42,9 +44,22 @@ public class ChatPromptBuilder {
 	/**
 	 * 커플 모드의 대화 상대 이름이에요. pastSelf는 페르소나 주인(그날의 연인), talker는 지금 말을 거는 사람(나)이에요.
 	 * 닉네임은 사용자가 정한 글이라 꺾쇠를 바꿔서 넣어요.
+	 * talkerLines는 말을 거는 사람이 그 시점에 메신저로 올린 자기 말이에요(2026.11.28). 커플이 서로 나눈 카톡이라면 대화의 반쪽이라,
+	 * 그날의 연인이 "그때 네가 한 말"의 맥락을 알 수 있어요. 말을 거는 사람 본인의 데이터라 새 동의가 필요 없어요.
 	 */
-	public record CoupleNames(String pastSelf, String talker) {
+	public record CoupleNames(String pastSelf, String talker, List<DatedText> talkerLines) {
+
+		public CoupleNames {
+			talkerLines = talkerLines == null ? List.of() : List.copyOf(talkerLines);
+		}
+
+		public CoupleNames(String pastSelf, String talker) {
+			this(pastSelf, talker, List.of());
+		}
 	}
+
+	/** 커플 대화에 넣는 말을 거는 사람의 말은 이만큼(글자 수)까지예요. 날짜마다 돌아가며 골라요(MessengerRawPicker). */
+	static final int MAX_TALKER_CHARS = 2_500;
 
 	/** @param couple 커플 모드 세션이면 두 사람의 이름, 개인 모드면 null */
 	public AiRequest build(ChatSession session, PersonaContent persona, String greeting, List<ChatMessage> history, String userText,
@@ -169,11 +184,30 @@ public class ChatPromptBuilder {
 			out.append("대화는 네가 먼저 \"").append(greeting).append("\"라고 인사하면서 시작됐어.\n");
 		}
 
+		// 커플 모드: 말을 거는 사람이 그 시점에 쓴 자기 말(대화의 반쪽일 수 있어요, 2026.11.28)
+		if (couple != null && !couple.talkerLines().isEmpty()) {
+			out.append("\n[그때 ").append(other).append("가 쓴 말]\n")
+				.append(other).append("가 직접 올린 자기 메신저 말이야. 너와 나눈 대화일 수 있지만 다른 사람과 나눈 말이 섞여 있을 수도 있어. ")
+				.append("이 말이 네 기록의 일과 맞아떨어지면(예: 네가 \"왜 또 늦어\"라고 한 날 ").append(other).append("가 \"늦을 것 같아\"라고 썼으면) ")
+				.append("그 일은 ").append(other).append("와 있었던 일이야. 그때는 \"약속 상대\", \"그 사람\"처럼 남 얘기하듯 말하지 말고, ")
+				.append(other).append("를 \"너\"로 부르며 \"너 그날 또 늦었잖아\"처럼 말해. 맞아떨어지지 않는 말은 단정하지 마. 이 말을 따옴표로 그대로 읽어 주지는 마.\n");
+			for (DatedText line : MessengerRawPicker.pick(couple.talkerLines(), MAX_TALKER_CHARS)) {
+				out.append("- ");
+				if (!day) {
+					out.append(line.date().getMonthValue()).append("월 ").append(line.date().getDayOfMonth()).append("일: ");
+				}
+				out.append(PersonaAnalyzer.neutralize(line.text().replaceAll("\\s*\\R\\s*", " / "))).append('\n');
+			}
+		}
+
 		// 4. 대화하는 법: 상담 말투를 막고 자기 이야기를 먼저 하게 해요
 		out.append("\n[이렇게 말해]\n")
 			.append("- 한 답에는 네 이야기 한 가지만 담고, 가끔 짧은 질문 하나를 붙여. 이 둘을 합쳐 1~3문장이 전부야.\n")
 			.append("- 네 이야기가 먼저야. 답마다 지금 네가 겪는 일이나 기분, 투덜거림, 자랑을 하나만 골라 넣어(한 번에 여러 가지를 늘어놓지 마). 위에 적힌 일은 지금 겪는 일처럼 현재형으로 말하고, \"그때\", \"그 무렵\"처럼 지난 일을 돌아보는 말은 쓰지 마.\n")
 			.append("- 같은 이야기를 되풀이하지 마. 이미 한 이야기는 다른 면(그 일에 대한 기분, 하고 싶은 것, 걱정되는 것)으로 이어 가.\n")
+			// 말 조각만 던지면 무슨 말인지 몰라서, 풀어서 말하고 되물으면 설명하게 해요(2026.11.28)
+			.append("- 예전에 한 말이나 있었던 일을 꺼낼 때는 무슨 일인지 알 수 있게 풀어서 말해(\"다들 왜그래\"가 아니라 \"팀원들이 회의를 또 미뤄서 짜증 났어\"). ")
+			.append(other).append("가 \"무슨 말이야?\"처럼 되물으면 아는 만큼 쉽게 설명해. 그때 상대가 뭐라고 했는지처럼 모르는 건 지어내지 말고 \"그건 정확히 기억이 안 나\"처럼 넘겨.\n")
 			.append("- ").append(other).append("를 궁금해해. 네 일이 나중에 어떻게 됐는지, ").append(other)
 			.append("는 지금 어떻게 사는지 물어봐도 돼. 다만 묻는 건 두세 번에 한 번만 하고, 받은 질문을 \"너는?\"으로 그대로 되돌리지 마.\n")
 			.append("- 상담사처럼 말하지 마. \"힘들었겠다\", \"괜찮아?\", \"말해 봐, 들어줄게\", \"같이 생각해 보자\", \"얘기해 줘서 고마워\" 같은 말로 상대 이야기를 끌어내거나 정리하지 마.\n")

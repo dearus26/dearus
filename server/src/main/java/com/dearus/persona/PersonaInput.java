@@ -16,12 +16,27 @@ import java.util.stream.Collectors;
  * weeks는 구간의 주에서 날짜를 하나라도 가진 업로드의 주간 요약이라, 한 주에 여러 개일 수 있어요(from ~ to는 그 요약이 담은 날).
  * originals는 그 업로드들의 원문이고, dates는 이 구간에서 그 업로드가 주인인 날이에요(원문이 겹치지 않아요).
  * messengerDays는 이 구간에서 메신저 업로드가 주인인 날의 수예요. 하루 단위(DAY)는 그날 실제로 쓴 내 말이 있을 때만 1이에요.
+ * dayLines는 이 구간의 날마다 업로드할 때 AI가 그날 내 말 전체를 보고 만든 한 줄 요약이에요(암호화된 채, 2026.11.28).
+ * 말 조각만으로는 무슨 일이었는지 모를 때 맥락이 돼요.
  */
 public record PersonaInput(PersonaRange range, List<DiaryEntry> diaries, List<WeekEntry> weeks, List<OriginalEntry> originals,
-	int messengerDays) {
+	int messengerDays, List<DayLine> dayLines) {
+
+	public PersonaInput {
+		dayLines = dayLines == null ? List.of() : List.copyOf(dayLines);
+	}
 
 	public PersonaInput(PersonaRange range, List<DiaryEntry> diaries, List<WeekEntry> weeks) {
-		this(range, diaries, weeks, List.of(), 0);
+		this(range, diaries, weeks, List.of(), 0, List.of());
+	}
+
+	public PersonaInput(PersonaRange range, List<DiaryEntry> diaries, List<WeekEntry> weeks, List<OriginalEntry> originals,
+		int messengerDays) {
+		this(range, diaries, weeks, originals, messengerDays, List.of());
+	}
+
+	/** 메신저로 올린 하루의 한 줄 요약(암호화한 값)이에요. */
+	public record DayLine(LocalDate date, byte[] lineEnc) {
 	}
 
 	public record DiaryEntry(UUID id, LocalDate date, OffsetDateTime updatedAt, List<Emotion> emotions, String content) {
