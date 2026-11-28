@@ -79,7 +79,7 @@ export default function MessengerReviewScreen() {
           어느 이름이 나인가요?
         </AppText>
         <AppText size={12.5} lineHeight={19} color={colors.brown} style={styles.sub}>
-          {`${formatKoreanDate(targetDate)}의 대화예요. 고른 이름의 말만 서버로 보내고, 나머지 사람의 말은 폰에서 버려요`}
+          {`${formatKoreanDate(targetDate)}의 대화예요. 고른 이름의 말만 서버로 보내고, 나머지 사람의 말은 보내지 않아요`}
         </AppText>
 
         {speakers.length === 0 ? (

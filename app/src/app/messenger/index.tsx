@@ -115,7 +115,7 @@ export default function MessengerUploadScreen() {
           <AppText weight="bold" size={14.5} lineHeight={22}>
             분석 전에 확인해 주세요
           </AppText>
-          <Bullet>고른 날의 내 말만 서버로 보내요. 다른 날과 상대 말은 폰에서 버려요</Bullet>
+          <Bullet>고른 날의 내 말만 서버로 보내요. 다른 날의 말과 상대 말은 보내지 않아요</Bullet>
           <Bullet>내 말은 암호화해서 대화한 날부터 약 1년 보관하고, 요약도 암호화해서 저장해요</Bullet>
           <Bullet>글자를 가리지 않고 AI로 보내요. 학습에는 쓰이지 않아요</Bullet>
           <Pressable

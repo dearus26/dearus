@@ -183,7 +183,7 @@ function DoneView({ upload, bottomInset }: { upload: MessengerUpload; bottomInse
 
       <Card style={styles.summary}>
         <Row label="올린 방식" value="txt (내 말만)" />
-        <Row label="상대 말" value="폰에서 버림" />
+        <Row label="상대 말" value="보내지 않음" />
         <Row label="내 말 원문" value={`${expires}까지 보관`} last />
       </Card>
 
