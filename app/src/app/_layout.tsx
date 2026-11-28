@@ -4,6 +4,7 @@ import { SplashScreen, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 
+import { ServerWakeBanner } from '@/components/ServerWakeBanner';
 import { SessionProvider, useSession } from '@/session/SessionProvider';
 import { colors } from '@/theme/colors';
 import { fontAssets } from '@/theme/fonts';
@@ -25,6 +26,7 @@ export default function RootLayout() {
         <SplashGate />
         <StatusBar style="dark" />
         <RootNavigator />
+        <ServerWakeBanner />
       </SessionProvider>
     </QueryClientProvider>
   );

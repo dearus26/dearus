@@ -26,6 +26,10 @@ import { colors } from '@/theme/colors';
 type Row = { key: string; role: ChatMessage['role']; text: string | undefined; seq?: number };
 
 /** 화면에 그릴 줄들. 목록은 아래부터 쌓이는 거꾸로 목록(inverted)이라 최신 것이 맨 앞이에요. */
+/** 대화를 시작할 때 보여주는 예시 질문이에요. 내가 첫 말을 보내면 사라져요(2026.11.28) */
+const STARTERS = ['요즘 어때?', '오늘 뭐 했어?', '요즘 고민 있어?', '그때 기분 어땠어?'];
+const COUPLE_STARTERS = ['그날 어땠어?', '그날 기분 어땠어?', '그때 나한테 서운했던 거 있어?', '그날 무슨 생각 했어?'];
+
 function buildRows(messages: ChatMessage[], draft: Draft | null): Row[] {
   const rows: Row[] = messages.map((message) => ({
     key: `message-${message.seq}`,
@@ -220,6 +224,7 @@ export function ConversationScreen({ session }: { session: ChatSession }) {
       ) : (
         <ChatInputBar
           target={partner}
+          starters={conversation.messages.some((message) => message.role === 'USER') ? [] : isCouple ? COUPLE_STARTERS : STARTERS}
           onSend={conversation.send}
           disabled={conversation.loading || conversation.failed || conversation.draft !== null}
         />

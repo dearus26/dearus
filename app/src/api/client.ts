@@ -3,6 +3,7 @@ import { fetch as streamFetch } from 'expo/fetch';
 import { ApiError, NETWORK_MESSAGE, UNAUTHORIZED_MESSAGE, UNKNOWN_MESSAGE } from '@/api/errors';
 import { mockRequest, mockStreamRequest } from '@/api/mock';
 import { createSseParser, type SseEvent } from '@/api/sse';
+import { trackSlow } from '@/lib/serverWake';
 
 /**
  * 서버(Spring Boot) 호출의 유일한 입구예요. 화면은 fetch를 직접 쓰지 않고 api/ 함수만 불러요.
@@ -45,7 +46,7 @@ export async function request<T>(method: Method, path: string, options: Options 
   try {
     return API_MODE === 'mock'
       ? await mockRequest<T>(method, fullPath, body, token)
-      : await liveRequest<T>(method, fullPath, body, token);
+      : await trackSlow(liveRequest<T>(method, fullPath, body, token)); // 오래 걸리면 "서버를 깨우는 중" 안내를 띄워요
   } catch (error) {
     if (auth && token && error instanceof ApiError && error.status === 401) {
       unauthorizedHandler?.();

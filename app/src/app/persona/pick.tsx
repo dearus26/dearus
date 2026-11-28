@@ -15,7 +15,7 @@ import { EmotionBadge } from '@/components/EmotionBadge';
 import { EmotionLegend } from '@/components/EmotionLegend';
 import { Icon } from '@/components/Icon';
 import { MonthCalendar } from '@/components/MonthCalendar';
-import { useMonthDiaries } from '@/features/diary/hooks';
+import { useMonthCalendar, useMonthDiaries } from '@/features/diary/hooks';
 import { useCreateChat, usePersonaPreview, useShortcuts } from '@/features/past/hooks';
 import { levelNote, personaTitle, shortcutLabels, shortcutOrder, windowText } from '@/features/past/labels';
 import { MAX_PAST_DAYS, addDays, addMonths, isPickablePastDate, isValidDateString, parseDateString, todayString } from '@/lib/date';
@@ -51,11 +51,22 @@ export default function PickScreen() {
 
   const shortcuts = useShortcuts();
   const monthDiaries = useMonthDiaries(view.year, view.month);
+  // 홈 캘린더와 같아요(2026.11.28): 일기 날은 꽉 찬 점, 메신저만 올린 날은 AI 추천 감정의 테두리 점이에요
+  const monthCalendar = useMonthCalendar(view.year, view.month);
   const dayPreview = usePersonaPreview(choice?.kind === 'day' ? choice.date : null, 'DAY');
   const createChat = useCreateChat();
 
   const markers: Record<string, Emotion[]> = {};
-  for (const diary of monthDiaries.data ?? []) markers[diary.date] = diary.emotions;
+  const suggested: Record<string, Emotion[]> = {};
+  if (monthCalendar.data) {
+    for (const day of monthCalendar.data) {
+      if (day.hasDiary) markers[day.date] = day.emotions;
+      else if (day.hasMessenger) suggested[day.date] = day.suggestedEmotions;
+    }
+  } else {
+    // 캘린더를 못 받으면(예: 서버가 아직 예전 버전) 일기 점만이라도 보여요
+    for (const diary of monthDiaries.data ?? []) markers[diary.date] = diary.emotions;
+  }
 
   const selectedShortcut =
     choice?.kind === 'shortcut' ? shortcuts.data?.find((item) => item.key === choice.key) : undefined;
@@ -142,6 +153,7 @@ export default function PickScreen() {
           year={view.year}
           month={view.month}
           markers={markers}
+          suggested={suggested}
           today={today}
           selectedDate={choice?.kind === 'day' ? choice.date : undefined}
           size={calendarSize}

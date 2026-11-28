@@ -140,6 +140,7 @@ export default function HomeScreen() {
           onWrite={openDiary}
           onDelete={removeDiary}
           onChat={openChat}
+          onUpload={(date) => router.push({ pathname: '/messenger', params: { date } })}
         />
       </View>
     </View>

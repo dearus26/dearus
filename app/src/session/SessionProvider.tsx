@@ -11,6 +11,7 @@ import {
 } from '@/api/auth';
 import { setAccessToken, setUnauthorizedHandler } from '@/api/client';
 import { ApiError } from '@/api/errors';
+import { forgetMessengerConsent } from '@/features/messenger/consentMemory';
 import { getSocialCredential, type SocialProvider } from '@/session/socialLogin';
 import { clearToken, readToken, saveToken } from '@/session/tokenStorage';
 
@@ -110,7 +111,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }
 
   async function revokeAiConsent() {
-    setUser(await revokeAiConsentApi());
+    const updated = await revokeAiConsentApi();
+    // 메신저 올리기의 동의도 다시 받아요(처음 한 번만 받고 기억해 두던 것, 2026.11.28)
+    await forgetMessengerConsent(updated.id);
+    setUser(updated);
   }
 
   async function deleteAccount() {

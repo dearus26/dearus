@@ -1,26 +1,32 @@
 import { Redirect, router } from 'expo-router';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/AppText';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
+import { ChoiceChip } from '@/components/ChoiceChip';
 import { Icon } from '@/components/Icon';
 import { useStartUpload } from '@/features/messenger/hooks';
 import { getParsedChat, getTargetDate, setParsedChat, setPendingUpload, setTargetDate } from '@/features/messenger/pending';
 import { planTxtUpload } from '@/features/messenger/uploadPlan';
-import { formatKoreanDate } from '@/lib/date';
+import { formatKoreanDate, formatMonthDay, isPickablePastDate } from '@/lib/date';
 import { notifyApiError } from '@/lib/apiErrors';
 import { colors } from '@/theme/colors';
 
-/** 내 말 확인 화면에 보여주는 말의 개수(하루치라 대개 다 보이지만, 아주 많은 날은 줄여요) */
+/** 내 말 확인 화면에 보여주는 말의 개수(고른 날이 적으면 대개 다 보이지만, 많으면 줄여요) */
 const PREVIEW_COUNT = 30;
+/** 한 번에 올릴 수 있는 날 수예요. 많이 고를수록 분석이 오래 걸려서 2주로 묶었어요(2026.11.28) */
+export const MAX_UPLOAD_DAYS = 14;
+/** 날 고르기에서 처음에 보여주는 날 수(최근 것부터). 더 보기를 누르면 모두 보여요 */
+const INITIAL_DAY_CHIPS = 21;
 
 /**
  * 스토리보드 6번(바뀐 방식) txt: 내 이름 고르기 · 내 말 확인.
- * 앱이 txt에서 읽은 대화 중 **고른 날(홈 캘린더에서 넘어온 날)** 에 말한 사람들을 보여주고, 내 이름을 고르면 그날의 내 말만 추려서 보여줘요.
- * 이 내용만 서버로 가고 다른 날과 상대 말은 폰에서 버려요(2026.11.25).
+ * txt에 있는 날 중 올릴 날을 고르고(홈 캘린더에서 넘어온 날을 먼저 골라 둬요, 최대 14일, 2026.11.28),
+ * 그날들에 말한 사람 중 내 이름을 고르면 고른 날의 내 말만 추려서 보여줘요.
+ * 이 내용만 서버로 가고 다른 날과 상대 말은 보내지 않아요. 과거의 나로 만날 수 있는 날(최근 1년)만 고를 수 있어요.
  */
 export default function MessengerReviewScreen() {
   const insets = useSafeAreaInsets();
@@ -28,12 +34,36 @@ export default function MessengerReviewScreen() {
   const parsed = getParsedChat();
   const targetDate = getTargetDate();
   const [me, setMe] = useState<string | null>(null);
+  // 이 파일에서 고를 수 있는 날(최근 1년, 최근 것부터)
+  const availableDates = useMemo(
+    () => [...new Set((parsed?.messages ?? []).map((message) => message.date))].filter((date) => isPickablePastDate(date)).sort().reverse(),
+    [parsed],
+  );
+  const [selectedDates, setSelectedDates] = useState<string[]>(() =>
+    targetDate && availableDates.includes(targetDate) ? [targetDate] : [],
+  );
+  const [showAllDates, setShowAllDates] = useState(false);
 
-  // 앱을 다시 켜는 등으로 읽은 글이나 고른 날이 사라졌으면 처음 화면으로 돌아가요
-  if (!parsed || !targetDate) return <Redirect href="/messenger" />;
+  // 앱을 다시 켜는 등으로 읽은 글이 사라졌으면 처음 화면으로 돌아가요
+  if (!parsed) return <Redirect href="/messenger" />;
 
-  // 고른 날에 나눈 말만 봐요. 말한 사람과 개수도 그날 기준이에요(그날 말한 사람만 목록에 나와요).
-  const dayMessages = parsed.messages.filter((message) => message.date === targetDate);
+  function toggleDate(date: string) {
+    setSelectedDates((current) =>
+      current.includes(date) ? current.filter((d) => d !== date) : current.length >= MAX_UPLOAD_DAYS ? current : [...current, date],
+    );
+  }
+
+  // 고른 날에 나눈 말만 봐요. 말한 사람과 개수도 고른 날 기준이에요(그날들에 말한 사람만 목록에 나와요).
+  const selectedSet = new Set(selectedDates);
+  const dayMessages = parsed.messages.filter((message) => selectedSet.has(message.date));
+  const visibleDates = showAllDates ? availableDates : availableDates.slice(0, INITIAL_DAY_CHIPS);
+  const sortedSelected = [...selectedDates].sort();
+  const selectedText =
+    sortedSelected.length === 0
+      ? ''
+      : sortedSelected.length === 1
+        ? formatKoreanDate(sortedSelected[0])
+        : `${formatMonthDay(sortedSelected[0])} ~ ${formatMonthDay(sortedSelected[sortedSelected.length - 1])} 중 ${sortedSelected.length}일`;
   const counts = new Map<string, number>();
   for (const message of dayMessages) counts.set(message.speaker, (counts.get(message.speaker) ?? 0) + 1);
   const speakers = [...counts.entries()].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count);
@@ -76,18 +106,47 @@ export default function MessengerReviewScreen() {
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <AppText serif weight="bold" size={22} lineHeight={31}>
-          어느 이름이 나인가요?
+          올릴 날과 내 이름을 골라 주세요
         </AppText>
         <AppText size={12.5} lineHeight={19} color={colors.brown} style={styles.sub}>
-          {`${formatKoreanDate(targetDate)}의 대화예요. 고른 이름의 말만 서버로 보내고, 나머지 사람의 말은 보내지 않아요`}
+          {`고른 날에 나눈 내 말만 서버로 보내고, 다른 날과 나머지 사람의 말은 보내지 않아요. 한 번에 ${MAX_UPLOAD_DAYS}일까지 고를 수 있어요`}
         </AppText>
 
-        {speakers.length === 0 ? (
+        <AppText weight="bold" size={14} lineHeight={21} style={styles.previewTitle}>
+          {`올릴 날 ${selectedDates.length}/${MAX_UPLOAD_DAYS}`}
+        </AppText>
+        {targetDate && !availableDates.includes(targetDate) ? (
+          <AppText size={12.5} lineHeight={19} color={colors.brown}>
+            {`${formatKoreanDate(targetDate)}의 대화는 이 파일에 없어요. 아래에서 올릴 날을 골라 주세요`}
+          </AppText>
+        ) : null}
+        {availableDates.length === 0 ? (
           <Card tint style={styles.summary}>
             <AppText size={13.5} lineHeight={21}>
-              이 txt에는 이 날 나눈 대화가 없어요. 다른 파일을 고르거나 홈 캘린더에서 다른 날을 골라 주세요.
+              이 txt에는 최근 1년 안에 나눈 대화가 없어요. 다른 파일을 골라 주세요.
             </AppText>
           </Card>
+        ) : (
+          <View style={styles.dates}>
+            {visibleDates.map((date) => (
+              <ChoiceChip
+                key={date}
+                label={formatMonthDay(date)}
+                selected={selectedSet.has(date)}
+                disabled={!selectedSet.has(date) && selectedDates.length >= MAX_UPLOAD_DAYS}
+                onPress={() => toggleDate(date)}
+              />
+            ))}
+            {!showAllDates && availableDates.length > INITIAL_DAY_CHIPS ? (
+              <ChoiceChip label={`더 보기 (${availableDates.length - INITIAL_DAY_CHIPS}일)`} selected={false} onPress={() => setShowAllDates(true)} />
+            ) : null}
+          </View>
+        )}
+
+        {selectedDates.length > 0 ? (
+          <AppText weight="bold" size={14} lineHeight={21} style={styles.previewTitle}>
+            어느 이름이 나인가요?
+          </AppText>
         ) : null}
 
         <View style={styles.speakers} accessibilityRole="radiogroup">
@@ -125,7 +184,7 @@ export default function MessengerReviewScreen() {
                   {`내 말 ${plan.messages.length.toLocaleString('ko-KR')}개`}
                 </AppText>
                 <AppText size={13} lineHeight={20} color={colors.brown}>
-                  {formatKoreanDate(targetDate)}
+                  {selectedText}
                 </AppText>
                 {plan.notes.map((note) => (
                   <AppText key={note} size={12.5} lineHeight={19} color={colors.brown}>
@@ -169,7 +228,13 @@ export default function MessengerReviewScreen() {
 
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
         <Button
-          label={plan ? `내 말 ${plan.messages.length.toLocaleString('ko-KR')}개 올리기` : '내 이름을 골라 주세요'}
+          label={
+            selectedDates.length === 0
+              ? '올릴 날을 골라 주세요'
+              : plan
+                ? `내 말 ${plan.messages.length.toLocaleString('ko-KR')}개 올리기`
+                : '내 이름을 골라 주세요'
+          }
           disabled={!plan}
           loading={startUpload.isPending}
           onPress={() => void upload()}
@@ -201,6 +266,12 @@ const styles = StyleSheet.create({
   },
   sub: {
     marginTop: 4,
+  },
+  dates: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 8,
   },
   speakers: {
     marginTop: 14,

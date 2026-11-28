@@ -6,7 +6,7 @@ export type MessengerMessage = components['schemas']['MessengerMessage'];
 
 /**
  * POST /uploads/messenger — txt에서 추린 내 말을 올려요(202). 상대 말은 폰에서 버리고, 글자를 가리지 않아요.
- * 올릴 때마다 동의 체크를 한 번 더 확인해서 consent는 항상 true예요(사용자가 체크한 뒤에만 부르는 함수예요).
+ * 동의 체크는 처음 한 번 받고 폰에 기억해 둬서(features/messenger/consentMemory, 2026.11.28) consent는 항상 true예요(동의한 뒤에만 부르는 함수예요).
  * 400 CONSENT_REQUIRED · VALIDATION_FAILED, 403 AI_CONSENT_REQUIRED, 409 UPLOAD_IN_PROGRESS(앞서 올린 게 분석 중), 413 용량 초과
  */
 export function uploadMessengerTxt(messages: MessengerMessage[]) {

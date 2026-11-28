@@ -14,7 +14,7 @@ import { useMessengerUpload, useStartUpload } from '@/features/messenger/hooks';
 import { getPendingUpload, setPendingUpload } from '@/features/messenger/pending';
 import { calendarKey } from '@/features/diary/keys';
 import { personaKeys } from '@/features/past/hooks';
-import { dateStringOf, formatYearMonthDay } from '@/lib/date';
+import { dateStringOf, formatMonthDay, formatYearMonthDay, isPickablePastDate } from '@/lib/date';
 import { notifyApiError } from '@/lib/apiErrors';
 import { colors } from '@/theme/colors';
 
@@ -24,6 +24,12 @@ function goHome() {
 
 function goBackToUpload() {
   router.replace('/messenger');
+}
+
+/** 분석이 끝난 날의 나를 바로 만나러 가요. 홈으로 돌아간 뒤 시점 고르기를 그날이 골라진 채로 열어요(2026.11.28). */
+function goChat(date: string) {
+  router.dismissTo('/');
+  router.push({ pathname: '/persona/pick', params: { date } });
 }
 
 /** FAILED의 이유(명세 failureCode)를 풀어 쓴 문장 */
@@ -119,7 +125,7 @@ function ProcessingView() {
       </AppText>
       <Card tint style={styles.note}>
         <AppText size={13} lineHeight={20} style={styles.centered}>
-          {'하루치라서 보통 30초 안에 끝나요.\n서버가 잠들어 있었다면 조금 더 걸릴 수 있어요.\n화면을 나가도 서버에서 계속 분석해요.'}
+          {'고른 날이 적으면 보통 30초 안에 끝나요. 여러 주에 걸쳐 고르면 조금 더 걸려요.\n서버가 잠들어 있었다면 조금 더 걸릴 수 있어요.\n화면을 나가도 서버에서 계속 분석해요.'}
         </AppText>
       </Card>
     </Center>
@@ -190,11 +196,17 @@ function DoneView({ upload, bottomInset }: { upload: MessengerUpload; bottomInse
       </Card>
 
       <AppText size={12.5} lineHeight={20} color={colors.brown} style={styles.centered}>
-        {`요약과 내 말 원문은 암호화해서 보관하고,\n대화한 날부터 약 1년 뒤(${expires})에 자동으로 지워져요.\n캘린더에는 표시되지 않아요.`}
+        {`요약과 내 말 원문은 암호화해서 보관하고,\n대화한 날부터 약 1년 뒤(${expires})에 자동으로 지워져요.\n홈 캘린더에 테두리 점으로 표시돼요.`}
       </AppText>
 
       <View style={styles.doneButton}>
-        <Button variant="brown" label="홈으로" onPress={goHome} />
+        {upload.periodEnd && isPickablePastDate(upload.periodEnd) ? (
+          <Button
+            label={upload.periodStart === upload.periodEnd ? '이 날의 나와 대화하기' : `${formatMonthDay(upload.periodEnd)}의 나와 대화하기`}
+            onPress={() => goChat(upload.periodEnd as string)}
+          />
+        ) : null}
+        <Button variant={upload.periodEnd ? 'line' : 'brown'} label="홈으로" onPress={goHome} />
       </View>
     </ScrollView>
   );
@@ -291,5 +303,6 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
     marginTop: 'auto',
     paddingTop: 24,
+    gap: 8,
   },
 });

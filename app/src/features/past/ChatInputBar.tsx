@@ -1,8 +1,9 @@
 import { useRef, useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View, type TextInputInstance } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, TextInput, View, type TextInputInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icon } from '@/components/Icon';
+import { Pill } from '@/components/Pill';
 import type { SendResult } from '@/features/past/useConversation';
 import { notifyApiError } from '@/lib/apiErrors';
 import { notify } from '@/lib/dialog';
@@ -18,19 +19,21 @@ type Props = {
   disabled: boolean;
   /** 말 거는 상대. 개인 모드는 "과거의 나", 커플 모드는 연인 이름이에요 */
   target?: string;
+  /** 대화를 시작할 때 누르면 바로 보내는 예시 질문(2026.11.28). 비어 있으면 보여주지 않아요 */
+  starters?: string[];
 };
 
 /** 스토리보드 .inputbar — 말 거는 입력칸과 금색 보내기 버튼. 보내기에 실패하면 쓰던 글을 입력칸에 되돌려요. */
-export function ChatInputBar({ onSend, disabled, target = '과거의 나' }: Props) {
+export function ChatInputBar({ onSend, disabled, target = '과거의 나', starters = [] }: Props) {
   const insets = useSafeAreaInsets();
   const inputRef = useRef<TextInputInstance>(null); // React Native 0.88부터 ref는 컴포넌트가 아니라 인스턴스 타입을 써요
   const [text, setText] = useState('');
   const canSend = text.trim().length > 0 && !disabled;
 
-  async function submit() {
-    const content = text.trim();
+  async function submit(starter?: string) {
+    const content = (starter ?? text).trim();
     if (content.length === 0 || disabled) return;
-    setText('');
+    if (starter === undefined) setText('');
     const result = await onSend(content);
     if (!result.ok) {
       // 그 사이에 새로 쓴 글이 있으면 그대로 두고, 없으면 보내려던 글을 되돌려서 다시 보낼 수 있게 해요
@@ -41,40 +44,55 @@ export function ChatInputBar({ onSend, disabled, target = '과거의 나' }: Pro
   }
 
   return (
-    <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, 10) }]}>
-      {/*
-        테두리 · 여백은 바깥 상자가 맡고, 입력칸 자체는 여백 없이 둬요. Android의 여러 줄 입력칸은 자기 여백과 최소 높이가
-        함께 있을 때 글자 높이가 조금만 커도 칸 안에서 스크롤돼 글자가 위로 밀려 보였어요(일기 쓰기 입력칸처럼 여백 없이 두면 괜찮아요).
-        여백 부분을 눌러도 입력칸에 커서가 가게 해요.
-      */}
-      <Pressable accessible={false} onPress={() => inputRef.current?.focus()} style={styles.field}>
-        <TextInput
-          ref={inputRef}
-          accessibilityLabel={`${target}에게 말 걸기`}
-          value={text}
-          onChangeText={setText}
-          placeholder={`${target}에게 말 걸기`}
-          placeholderTextColor={colors.muted}
-          multiline
-          maxLength={MAX_LENGTH}
-          textAlignVertical="top"
-          style={styles.input}
-        />
-      </Pressable>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="보내기"
-        accessibilityState={{ disabled: !canSend }}
-        disabled={!canSend}
-        onPress={() => void submit()}
-        style={({ pressed }) => [styles.send, { opacity: !canSend ? 0.45 : pressed ? 0.85 : 1 }]}>
-        <Icon name="send" size={20} color={colors.ink} />
-      </Pressable>
+    <View>
+      {starters.length > 0 ? (
+        // 처음에 무슨 말을 할지 막막하지 않게 예시 질문을 보여줘요. 누르면 바로 보내요
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.starters}>
+          {starters.map((starter) => (
+            <Pill key={starter} label={starter} tone="line" disabled={disabled} onPress={() => void submit(starter)} />
+          ))}
+        </ScrollView>
+      ) : null}
+      <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, 10) }]}>
+        {/*
+          테두리 · 여백은 바깥 상자가 맡고, 입력칸 자체는 여백 없이 둬요. Android의 여러 줄 입력칸은 자기 여백과 최소 높이가
+          함께 있을 때 글자 높이가 조금만 커도 칸 안에서 스크롤돼 글자가 위로 밀려 보였어요(일기 쓰기 입력칸처럼 여백 없이 두면 괜찮아요).
+          여백 부분을 눌러도 입력칸에 커서가 가게 해요.
+        */}
+        <Pressable accessible={false} onPress={() => inputRef.current?.focus()} style={styles.field}>
+          <TextInput
+            ref={inputRef}
+            accessibilityLabel={`${target}에게 말 걸기`}
+            value={text}
+            onChangeText={setText}
+            placeholder={`${target}에게 말 걸기`}
+            placeholderTextColor={colors.muted}
+            multiline
+            maxLength={MAX_LENGTH}
+            textAlignVertical="top"
+            style={styles.input}
+          />
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="보내기"
+          accessibilityState={{ disabled: !canSend }}
+          disabled={!canSend}
+          onPress={() => void submit()}
+          style={({ pressed }) => [styles.send, { opacity: !canSend ? 0.45 : pressed ? 0.85 : 1 }]}>
+          <Icon name="send" size={20} color={colors.ink} />
+        </Pressable>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  starters: {
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingTop: 8,
+  },
   bar: {
     flexDirection: 'row',
     alignItems: 'flex-end',

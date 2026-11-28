@@ -25,6 +25,8 @@ type Props = {
   onDelete: (diary: Diary) => void;
   /** "이 날의 나와 대화" */
   onChat: (date: string) => void;
+  /** "메신저 올리기"(그날이 골라진 채로 메신저 올리기를 열어요, 2026.11.28) */
+  onUpload: (date: string) => void;
   style?: StyleProp<ViewStyle>;
 };
 
@@ -35,7 +37,7 @@ type Props = {
  * "이 날의 나와 대화"는 일기가 없는 날에도 보여요(일기 대신 메신저를 올린 날, 2026.11.28). 1년보다 오래된 날은 고를 수 없어서 숨겨요.
  * 메신저를 올린 날은 AI가 만든 한 줄 요약과 추천 감정을 보여줘요. 추천 감정은 직접 고른 감정과 다르게 "AI 추천"으로 표시해요(2026.11.28).
  */
-export function DayPanel({ date, diary, calendarDay, loading, failed, deleting, onRetry, onWrite, onDelete, onChat, style }: Props) {
+export function DayPanel({ date, diary, calendarDay, loading, failed, deleting, onRetry, onWrite, onDelete, onChat, onUpload, style }: Props) {
   const canChat = isPickablePastDate(date);
   const messenger = calendarDay?.hasMessenger ? calendarDay : undefined;
   // 일기에 직접 고른 감정이 먼저예요. 일기가 없는 날만 AI 추천 감정을 머리에 보여줘요
@@ -98,7 +100,7 @@ export function DayPanel({ date, diary, calendarDay, loading, failed, deleting, 
             </AppText>
             <AppText size={12} lineHeight={18} color={colors.brown} style={styles.emptyHint}>
               {canChat
-                ? '이 날의 메신저 대화를 올렸다면 그날의 나와 대화할 수 있어요'
+                ? '일기를 쓰거나 이 날의 메신저 대화를 올리면 그날의 나와 대화할 수 있어요'
                 : '1년보다 오래된 날은 그날의 나와 대화할 수 없어요'}
             </AppText>
           </>
@@ -129,10 +131,14 @@ export function DayPanel({ date, diary, calendarDay, loading, failed, deleting, 
             <View style={styles.fullButton}>
               <Button size="small" label="일기 쓰기" disabled={loading} onPress={() => onWrite(date)} />
             </View>
-            {/* 일기가 없어도 그날 올린 메신저로 만날 수 있어요. 기록이 있는지는 시점 고르기 카드가 알려줘요 */}
-            {canChat ? (
+            {/* 메신저만 올린 날은 그 기록으로 만나고, 기록이 없는 날은 바로 메신저를 올릴 수 있어요(2026.11.28) */}
+            {canChat && messenger ? (
               <View style={styles.fullButton}>
                 <Button size="small" label="이 날의 나와 대화" variant="line" disabled={loading} onPress={() => onChat(date)} />
+              </View>
+            ) : canChat ? (
+              <View style={styles.fullButton}>
+                <Button size="small" label="메신저 올리기" variant="line" disabled={loading} onPress={() => onUpload(date)} />
               </View>
             ) : null}
           </>
