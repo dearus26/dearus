@@ -29,15 +29,19 @@ public class PersonaAnalyzer {
 	 * 2: 메신저 내 말 원문(<messenger_raw>)을 더했어요(2026.11.9).
 	 * 3: 일기를 가리지 않고 보내게 되어 가려진 표시([이름] 등) 안내를 뺐어요(2026.11.9).
 	 * 4: 말투(voice)를 비워 두지 않고, 첫 인사가 원문 문장을 따라 하지 않게 했어요(2026.11.25).
+	 * 5: 메신저 요약이 한 주에 여럿일 수 있어서(하루치씩 올려요) 요약이 담은 날짜(start ~ end)를 붙였어요(2026.11.28).
 	 */
-	public static final int PROMPT_VERSION = 4;
+	public static final int PROMPT_VERSION = 5;
 
 	/** AI로 보내는 일기 한 편. content는 가리지 않은 일기 원문이에요. */
 	public record DiaryView(LocalDate date, List<Emotion> emotions, String content) {
 	}
 
-	/** 메신저 주간 요약. 하루 단위(DAY)에서는 말투 분석(traits)만 있고 summary · samples는 null이에요. */
-	public record WeekView(LocalDate weekStart, String summary, String traits, List<String> samples) {
+	/**
+	 * 메신저 요약 하나. from ~ to는 이 요약이 담은 날이에요(한 번 올린 대화를 주마다 요약해서 한 주 안이에요. 하루치를 올렸으면 from = to).
+	 * 하루 단위(DAY)에서는 말투 분석(traits)만 있고 summary · samples는 null이에요.
+	 */
+	public record WeekView(LocalDate from, LocalDate to, String summary, String traits, List<String> samples) {
 	}
 
 	/** raw는 이 구간에 메신저에서 직접 쓴 말 원문 일부예요(날짜 순, MessengerRawPicker가 글자 수 안에서 골라요). */
@@ -50,7 +54,7 @@ public class PersonaAnalyzer {
 
 	static final String SYSTEM_PROMPT = """
 		당신은 한국어 일기와 메신저 말투를 분석해서, 한 사람의 "그 무렵의 모습"을 정리하는 도우미예요. \
-		입력은 <diary>(그 사람이 쓴 일기), <messenger_week>(메신저에서 쓴 말을 주 단위로 요약한 것), <messenger_voice>(메신저 말투 분석), \
+		입력은 <diary>(그 사람이 쓴 일기), <messenger_week>(메신저에서 쓴 말을 요약한 것. start ~ end가 요약한 날이고 같은 주에 여럿일 수 있어요), <messenger_voice>(메신저 말투 분석), \
 		<messenger_raw>(그 사람이 이 기간에 메신저에서 직접 쓴 말 원문 일부, 날짜별)로 주어져요.
 
 		규칙
@@ -105,10 +109,10 @@ public class PersonaAnalyzer {
 		}
 		for (WeekView week : prompt.weeks()) {
 			if (range.scope() == PersonaScope.DAY) {
-				out.append("<messenger_voice week_start=\"").append(week.weekStart()).append("\">\n")
+				out.append("<messenger_voice start=\"").append(week.from()).append("\" end=\"").append(week.to()).append("\">\n")
 					.append(neutralize(week.traits())).append("\n</messenger_voice>\n");
 			} else {
-				out.append("<messenger_week start=\"").append(week.weekStart()).append("\">\n")
+				out.append("<messenger_week start=\"").append(week.from()).append("\" end=\"").append(week.to()).append("\">\n")
 					.append("요약: ").append(neutralize(week.summary())).append('\n')
 					.append("말투: ").append(neutralize(week.traits())).append('\n')
 					.append("대표 문장: ").append(week.samples().stream().map(PersonaAnalyzer::neutralize).collect(Collectors.joining(" | ")))

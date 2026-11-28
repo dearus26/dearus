@@ -21,6 +21,6 @@ public record PersonaWindowResponse(
 			? input.diaries().stream().flatMap(d -> d.emotions().stream()).distinct().sorted().toList()
 			: List.of();
 		return new PersonaWindowResponse(range.anchor(), range.scope(), range.start(), range.end(),
-			input.diaries().size(), input.weeks().size(), emotions, input.level());
+			input.diaries().size(), input.messengerWeeks(), emotions, input.level());
 	}
 }

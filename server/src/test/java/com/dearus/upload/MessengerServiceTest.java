@@ -18,6 +18,8 @@ import com.dearus.common.ai.AiException;
 import com.dearus.common.ai.AiRequest;
 import com.dearus.common.ai.AiResult;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
@@ -227,6 +229,35 @@ class MessengerServiceTest {
 		assertThat(crypto.decrypt(first.getTraitsEnc())).isEqualTo("말투 분석");
 		assertThat(crypto.decrypt(first.getSampleEnc())).isEqualTo("[\"문장 하나\"]");
 		assertThat(first.getExpiresAt()).isEqualTo(saved.getExpiresAt());
+		// 지워지는 시각은 대화한 마지막 날(10.5) + 1년 2주가 지난 자정이에요(올린 날 + 1년보다 일러요, 2026.11.28)
+		assertThat(saved.getExpiresAt()).isEqualTo(OffsetDateTime.of(2027, 10, 20, 0, 0, 0, 0, ZoneOffset.ofHours(9)));
+	}
+
+	@Test
+	void 지워지는_시각은_대화한_날부터_1년_2주이고_올린_날부터_1년을_넘지_않아요() {
+		OffsetDateTime uploadedAt = OffsetDateTime.of(2026, 11, 28, 15, 0, 0, 0, ZoneOffset.ofHours(9));
+
+		// 석 달 전의 대화: 대화한 날 기준이 더 일러요
+		assertThat(MessengerUpload.expiryFor(uploadedAt, LocalDate.of(2026, 8, 28)))
+			.isEqualTo(OffsetDateTime.of(2027, 9, 12, 0, 0, 0, 0, ZoneOffset.ofHours(9)));
+		// 오늘의 대화: 대화한 날 기준(1년 2주)이 올린 날 + 1년보다 늦어서 올린 날 + 1년이에요
+		assertThat(MessengerUpload.expiryFor(uploadedAt, LocalDate.of(2026, 11, 28))).isEqualTo(uploadedAt.plusYears(1));
+	}
+
+	@Test
+	void 일년보다_오래된_날의_글이_있으면_400이에요() {
+		ApiException e = apiError(() -> service.accept(userId, request(
+			msg(Kst.today().minusDays(366).toString(), "너무 옛날"), msg(Kst.today().toString(), "오늘"))));
+
+		assertThat(e.getCode()).isEqualTo("VALIDATION_FAILED");
+		verify(ai, never()).complete(any());
+	}
+
+	@Test
+	void 딱_일년_전의_글은_받아요() {
+		service.accept(userId, request(msg(Kst.today().minusDays(365).toString(), "일 년 전 오늘")));
+
+		assertThat(saved.getStatus()).isEqualTo(MessengerStatus.DONE);
 	}
 
 	@Test

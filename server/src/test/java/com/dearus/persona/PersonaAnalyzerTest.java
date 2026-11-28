@@ -34,14 +34,14 @@ class PersonaAnalyzerTest {
 		PersonaRange range = PersonaRange.of(PersonaScope.AROUND, LocalDate.of(2026, 9, 7), TODAY);
 		return new Prompt(range,
 			List.of(new DiaryView(LocalDate.of(2026, 9, 3), List.of(Emotion.TIRED, Emotion.ANXIOUS), "시험이 걱정돼서 잠이 안 와.\n내일은 도서관 가야지")),
-			List.of(new WeekView(LocalDate.of(2026, 8, 31), "시험 준비로 바빴어요.", "짧은 반말을 써요.", List.of("오늘 피곤", "ㅋㅋ 그러게"))));
+			List.of(new WeekView(LocalDate.of(2026, 8, 31), LocalDate.of(2026, 9, 6), "시험 준비로 바빴어요.", "짧은 반말을 써요.", List.of("오늘 피곤", "ㅋㅋ 그러게"))));
 	}
 
 	private Prompt day() {
 		PersonaRange range = PersonaRange.of(PersonaScope.DAY, LocalDate.of(2026, 10, 7), TODAY);
 		return new Prompt(range,
 			List.of(new DiaryView(LocalDate.of(2026, 10, 7), List.of(Emotion.ANGRY), "오늘 진짜 화났다")),
-			List.of(new WeekView(LocalDate.of(2026, 10, 5), null, "짧은 반말을 쓰고 ㅋㅋ를 자주 써요.", null)));
+			List.of(new WeekView(LocalDate.of(2026, 10, 7), LocalDate.of(2026, 10, 7), null, "짧은 반말을 쓰고 ㅋㅋ를 자주 써요.", null)));
 	}
 
 	@Test
@@ -51,7 +51,7 @@ class PersonaAnalyzerTest {
 		assertThat(prompt).contains("<period scope=\"AROUND\" start=\"2026-08-24\" end=\"2026-09-21\"/>");
 		assertThat(prompt).contains("<diary date=\"2026-09-03\" emotions=\"피곤, 불안\">");
 		assertThat(prompt).contains("시험이 걱정돼서 잠이 안 와.\n내일은 도서관 가야지"); // 일기의 줄바꿈은 그대로
-		assertThat(prompt).contains("<messenger_week start=\"2026-08-31\">");
+		assertThat(prompt).contains("<messenger_week start=\"2026-08-31\" end=\"2026-09-06\">");
 		assertThat(prompt).contains("요약: 시험 준비로 바빴어요.");
 		assertThat(prompt).contains("말투: 짧은 반말을 써요.");
 		assertThat(prompt).contains("대표 문장: 오늘 피곤 | ㅋㅋ 그러게");
@@ -63,7 +63,7 @@ class PersonaAnalyzerTest {
 
 		assertThat(prompt).contains("<period scope=\"DAY\" start=\"2026-10-07\" end=\"2026-10-07\"/>");
 		assertThat(prompt).contains("<diary date=\"2026-10-07\" emotions=\"화남\">");
-		assertThat(prompt).contains("<messenger_voice week_start=\"2026-10-05\">\n짧은 반말을 쓰고 ㅋㅋ를 자주 써요.\n</messenger_voice>");
+		assertThat(prompt).contains("<messenger_voice start=\"2026-10-07\" end=\"2026-10-07\">\n짧은 반말을 쓰고 ㅋㅋ를 자주 써요.\n</messenger_voice>");
 		assertThat(prompt).doesNotContain("<messenger_week").doesNotContain("요약:").doesNotContain("대표 문장");
 	}
 

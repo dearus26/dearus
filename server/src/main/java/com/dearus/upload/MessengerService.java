@@ -42,6 +42,8 @@ public class MessengerService {
 	static final long MAX_TEXT_BYTES = 1_048_576;
 	/** 한 업로드에서 요약할 수 있는 주 수(약 1년). AI 호출 수와 비용을 묶어 둬요. */
 	static final int MAX_WEEKS = 60;
+	/** 이보다 오래된 날의 글은 받지 않아요. 과거의 나는 오늘부터 365일 전까지만 고를 수 있어서 올려도 쓰이지 않아요(2026.11.28). */
+	static final int MAX_DAYS_BACK = 365;
 
 	/** 주(월요일 시작) 단위로 묶은 결과예요. first · last는 가장 이른 · 늦은 날짜예요. */
 	record Grouped(List<WeekMessages> weeks, LocalDate first, LocalDate last) {
@@ -74,6 +76,9 @@ public class MessengerService {
 		for (MessengerMessage message : request.messages()) {
 			if (message.date().isAfter(today)) {
 				throw ApiException.validation("messages", "미래 날짜의 글이 있어요");
+			}
+			if (message.date().isBefore(today.minusDays(MAX_DAYS_BACK))) {
+				throw ApiException.validation("messages", "1년보다 오래된 날의 글은 올릴 수 없어요");
 			}
 			bytes += message.text().getBytes(StandardCharsets.UTF_8).length;
 			lines.add(new DatedText(message.date(), message.text().strip()));

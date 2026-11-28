@@ -100,7 +100,7 @@ class PersonaAnalysisServiceTest {
 	}
 
 	private WeekEntry week(String summary, String traits, String samplesJson) {
-		return new WeekEntry(UUID.randomUUID(), anchor.minusDays(3), Kst.now(), crypto.encrypt(summary), crypto.encrypt(traits),
+		return new WeekEntry(UUID.randomUUID(), Weeks.startOf(anchor), anchor, anchor, Kst.now(), crypto.encrypt(summary), crypto.encrypt(traits),
 			crypto.encrypt(samplesJson));
 	}
 
@@ -118,44 +118,54 @@ class PersonaAnalysisServiceTest {
 	}
 
 	@Test
-	void 하루_단위는_그날_일기가_없어도_메신저_말투_분석이_있으면_그_말투로_분석해요() {
-		current = input(PersonaScope.DAY, List.of(), List.of(week("요약", "말투", "[\"문장\"]")));
+	void 하루_단위는_그날_일기가_없어도_그날_올린_메신저가_있으면_그_말투와_말로_분석해요() {
+		current = new PersonaInput(PersonaRange.of(PersonaScope.DAY, anchor, Kst.today()), List.of(),
+			List.of(week("요약", "말투", "[\"문장\"]")), List.of(original(Set.of(anchor), new DatedText(anchor, "그날 한 말"))), 1);
 
 		assertThat(run(PersonaScope.DAY, new ArrayList<>())).isPresent();
 		verify(ai).complete(any());
 		String prompt = aiRequests.get(0).messages().get(0).text();
 		// 하루 단위는 말투 분석만 보내고(요약 · 대표 문장은 보내지 않아요), 일기가 없으니 <diary>도 없어요
-		assertThat(prompt).contains("<messenger_voice").contains("말투").doesNotContain("<diary").doesNotContain("요약: ");
+		assertThat(prompt).contains("<messenger_voice").contains("말투").contains("그날 한 말")
+			.doesNotContain("<diary").doesNotContain("요약: ");
 	}
 
-	private OriginalEntry original(LocalDate weekStart, DatedText... lines) {
-		return new OriginalEntry(UUID.randomUUID(), Set.of(weekStart),
+	@Test
+	void 하루_단위에_일기도_그날_올린_메신저도_없으면_같은_주의_말투가_있어도_분석하지_않아요() {
+		current = new PersonaInput(PersonaRange.of(PersonaScope.DAY, anchor, Kst.today()), List.of(),
+			List.of(week("요약", "말투", "[\"문장\"]")), List.of(), 0);
+
+		assertThat(run(PersonaScope.DAY, new ArrayList<>())).isEmpty();
+		verify(ai, never()).complete(any());
+	}
+
+	private OriginalEntry original(Set<LocalDate> dates, DatedText... lines) {
+		return new OriginalEntry(UUID.randomUUID(), dates,
 			crypto.encrypt(MessengerOriginal.toJson(List.of(lines))));
 	}
 
 	@Test
-	void 메신저_원문은_구간_안이고_그_업로드에서_고른_주의_말만_AI로_보내요() {
+	void 메신저_원문은_구간_안이고_그_업로드가_주인인_날의_말만_AI로_보내요() {
 		PersonaRange range = PersonaRange.of(PersonaScope.AROUND, anchor, Kst.today());
-		LocalDate inWeek = Weeks.startOf(anchor);
 		current = new PersonaInput(range, List.of(diary("시험이 걱정돼", 1)), List.of(), List.of(
-			original(inWeek,
+			original(Set.of(anchor, range.start().minusDays(1)),
 				new DatedText(anchor, "구간 안 내 말"),
 				new DatedText(range.start().minusDays(1), "구간 밖 말"),
-				new DatedText(anchor.plusDays(7), "고르지 않은 주의 말"))));
+				new DatedText(anchor.plusDays(7), "고르지 않은 주의 말"))), 1);
 
 		run(PersonaScope.AROUND, new ArrayList<>());
 
 		String prompt = aiRequests.get(0).messages().get(0).text();
-		// 7일 뒤는 언제나 다음 주라서, 구간 안이어도 이 업로드에서 고른 주가 아니면 빼요
+		// 7일 뒤는 구간 안이지만 이 업로드가 주인인 날이 아니라서(더 최근 업로드가 그날을 다시 올렸어요) 빼요
 		assertThat(prompt).contains("구간 안 내 말").doesNotContain("고르지 않은 주의 말").doesNotContain("구간 밖 말");
 	}
 
 	@Test
 	void 하루_단위는_그날의_메신저_원문만_보내요() {
 		current = new PersonaInput(PersonaRange.of(PersonaScope.DAY, anchor, Kst.today()), List.of(diary("오늘 일기", 0)), List.of(),
-			List.of(original(Weeks.startOf(anchor),
+			List.of(original(Set.of(anchor, anchor.plusDays(1)),
 				new DatedText(anchor, "그날 한 말"),
-				new DatedText(anchor.plusDays(1), "다음 날 한 말"))));
+				new DatedText(anchor.plusDays(1), "다음 날 한 말"))), 1);
 
 		run(PersonaScope.DAY, new ArrayList<>());
 

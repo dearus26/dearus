@@ -57,7 +57,7 @@ class PersonaAnalyzerLiveTest {
 			diary("2026-09-03", "오늘은 도서관에서 하루종일 공부했다. 뿌듯하긴 한데 눈이 너무 아파 ㅋㅋ", Emotion.CALM, Emotion.TIRED),
 			diary("2026-09-06", "주말이라 집에서 쉬었다. 아무것도 안 하니까 오히려 불안해짐", Emotion.ANXIOUS),
 			diary("2026-09-10", "중간고사 일정 떴다. 3주 남았음. 이번엔 진짜 열심히 해야지", Emotion.EXCITED)),
-			List.of(new WeekView(LocalDate.of(2026, 8, 31), "개강 첫 주라 정신없이 보냈고 과제 걱정이 많았어요.",
+			List.of(new WeekView(LocalDate.of(2026, 8, 31), LocalDate.of(2026, 9, 6), "개강 첫 주라 정신없이 보냈고 과제 걱정이 많았어요.",
 				"기본적으로 반말을 쓰고 'ㅋㅋ', 'ㅠㅠ'를 자주 써요. 문장은 짧고 '~했음', '~같음'처럼 끝내는 습관이 있어요.", List.of("아 진짜 가기 싫다 ㅠㅠ", "ㅋㅋㅋ 그게 왜 그래")))));
 	}
 
@@ -66,7 +66,7 @@ class PersonaAnalyzerLiveTest {
 		PersonaRange range = PersonaRange.of(PersonaScope.DAY, LocalDate.of(2026, 10, 7), TODAY);
 		PersonaContent content = run("DAY", new Prompt(range,
 			List.of(diary("2026-10-07", "오늘 팀플에서 민호가 또 약속을 안 지켰다. 진짜 화난다. 말해야 하나 그냥 참아야 하나", Emotion.ANGRY)),
-			List.of(new WeekView(LocalDate.of(2026, 10, 5), null, "반말을 쓰고 'ㅋㅋ'를 자주 써요. 화가 나면 문장이 짧아지고 '진짜'를 많이 붙여요.", null))));
+			List.of(new WeekView(LocalDate.of(2026, 10, 7), LocalDate.of(2026, 10, 7), null, "반말을 쓰고 'ㅋㅋ'를 자주 써요. 화가 나면 문장이 짧아지고 '진짜'를 많이 붙여요.", null))));
 
 		assertThat(content.voice()).isNotBlank();
 	}

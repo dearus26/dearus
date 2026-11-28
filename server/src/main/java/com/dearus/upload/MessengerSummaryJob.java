@@ -20,7 +20,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 받은 글자를 주 단위로 요약해서 암호화해 저장하는 일이에요. 모든 주의 요약이 끝나면 요약과 내 말 원문(암호화)을
- * 한 트랜잭션에서 저장하고 DONE으로 바꿔요(원문은 업로드와 함께 1년 보관해요).
+ * 한 트랜잭션에서 저장하고 DONE으로 바꿔요(원문과 요약은 대화한 날부터 1년 2주, 올린 날부터 최대 1년 보관해요).
  * 일부 주만 성공한 채로 저장하지 않고, 하나라도 실패하면 전체를 FAILED로 바꾸고 원문도 남기지 않아요(앱이 같은 글자를 다시 보내요).
  * 로그에는 글자도 요약도 남기지 않고 업로드 ID와 개수만 남겨요.
  */
@@ -91,6 +91,7 @@ public class MessengerSummaryJob {
 			log.info("요약이 끝났지만 업로드가 이미 지워졌어요 uploadId={}", uploadId);
 			return;
 		}
+		upload.complete(periodStart, periodEnd); // 지워지는 시각이 여기서 정해져서 요약 행보다 먼저 해요
 		for (int i = 0; i < weeks.size(); i++) {
 			SummaryParts parts = results.get(i);
 			summaries.save(MessengerWeeklySummary.create(
@@ -103,7 +104,6 @@ public class MessengerSummaryJob {
 		}
 		List<DatedText> original = weeks.stream().flatMap(week -> week.lines().stream()).toList();
 		uploads.storeOriginal(uploadId, crypto.encrypt(MessengerOriginal.toJson(original)));
-		upload.complete(periodStart, periodEnd);
 		uploads.save(upload);
 		log.info("메신저 요약 완료 uploadId={} weeks={}", uploadId, weeks.size());
 	}

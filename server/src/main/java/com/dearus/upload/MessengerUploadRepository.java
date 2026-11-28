@@ -1,5 +1,6 @@
 package com.dearus.upload;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -22,6 +23,15 @@ public interface MessengerUploadRepository extends JpaRepository<MessengerUpload
 	@Modifying(flushAutomatically = true)
 	@Query(value = "update messenger_uploads set original_enc = :originalEnc where id = :id", nativeQuery = true)
 	int storeOriginal(@Param("id") UUID id, @Param("originalEnc") byte[] originalEnc);
+
+	/**
+	 * 한 사람의 요약이 끝난(DONE) 아직 만료되지 않은 업로드 중 올린 기간(period_start ~ period_end)이 from ~ to와 겹치는 것이에요.
+	 * 최근에 올린 순이에요. 시점 분석이 날짜마다 그날을 담은 가장 최근 업로드를 고를 때 써요.
+	 */
+	@Query("select u from MessengerUpload u where u.userId = :userId and u.status = :status and u.expiresAt > :now "
+		+ "and u.periodStart <= :to and u.periodEnd >= :from order by u.uploadedAt desc, u.id desc")
+	List<MessengerUpload> findCovering(@Param("userId") UUID userId, @Param("from") LocalDate from, @Param("to") LocalDate to,
+		@Param("now") OffsetDateTime now, @Param("status") MessengerStatus status);
 
 	/** 업로드 하나의 내 말 원문(암호화한 값)이에요. 아직 없으면(요약 전, V7 전 업로드) null이에요. 시점 분석이 읽어요. */
 	@Query(value = "select original_enc from messenger_uploads where id = :id", nativeQuery = true)

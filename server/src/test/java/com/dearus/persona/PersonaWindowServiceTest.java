@@ -7,6 +7,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.dearus.common.Kst;
+import com.dearus.common.Weeks;
 import com.dearus.diary.Emotion;
 import com.dearus.persona.PersonaInput.DiaryEntry;
 import com.dearus.persona.PersonaInput.WeekEntry;
@@ -27,7 +28,7 @@ class PersonaWindowServiceTest {
 	}
 
 	private WeekEntry week(LocalDate weekStart) {
-		return new WeekEntry(UUID.randomUUID(), weekStart, Kst.now(), new byte[1], new byte[1], new byte[1]);
+		return new WeekEntry(UUID.randomUUID(), weekStart, weekStart, weekStart, Kst.now(), new byte[1], new byte[1], new byte[1]);
 	}
 
 	@Test
@@ -49,15 +50,34 @@ class PersonaWindowServiceTest {
 	}
 
 	@Test
-	void 하루_단위에_일기_없이_메신저_말투_분석만_있으면_messengerWeeks가_1이고_수준은_LOW예요() {
+	void 하루_단위에_일기_없이_그날_올린_메신저만_있으면_messengerWeeks가_1이고_수준은_LOW예요() {
 		LocalDate day = Kst.today().minusDays(24);
 		when(collector.collect(eq(userId), any())).thenAnswer(call -> new PersonaInput(call.getArgument(1),
-			List.of(), List.of(week(LocalDate.of(2026, 10, 5)))));
+			List.of(), List.of(week(day)), List.of(), 1));
 
 		PersonaWindowResponse response = service.window(userId, PersonaScope.DAY, day);
 
 		assertThat(response.messengerWeeks()).isEqualTo(1);
-		assertThat(response.level()).isEqualTo(RecordLevel.LOW); // 일기 없이 메신저만 올린 날도 기록이 있는 날이에요
+		assertThat(response.level()).isEqualTo(RecordLevel.LOW); // 일기 없이 그날 메신저를 올린 날도 기록이 있는 날이에요
+	}
+
+	@Test
+	void 하루_단위에_그날_올린_메신저가_없으면_NONE이에요() {
+		LocalDate day = Kst.today().minusDays(24);
+		when(collector.collect(eq(userId), any())).thenAnswer(call -> new PersonaInput(call.getArgument(1),
+			List.of(), List.of(), List.of(), 0));
+
+		assertThat(service.window(userId, PersonaScope.DAY, day).level()).isEqualTo(RecordLevel.NONE);
+	}
+
+	@Test
+	void 한_주에_요약이_여럿이어도_메신저_주는_한_주로_세요() {
+		LocalDate anchor = Kst.today().minusDays(60);
+		LocalDate monday = Weeks.startOf(anchor);
+		when(collector.collect(eq(userId), any())).thenAnswer(call -> new PersonaInput(call.getArgument(1),
+			List.of(), List.of(week(monday), week(monday.plusDays(2)))));
+
+		assertThat(service.window(userId, PersonaScope.AROUND, anchor).messengerWeeks()).isEqualTo(2);
 	}
 
 	@Test

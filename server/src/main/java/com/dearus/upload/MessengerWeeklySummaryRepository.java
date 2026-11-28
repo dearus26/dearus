@@ -17,6 +17,7 @@ public interface MessengerWeeklySummaryRepository extends JpaRepository<Messenge
 	/**
 	 * 한 사람의 주간 요약 중 weekStart가 from~to(포함)이고 아직 만료되지 않은 것이에요(시점 분석이 읽어요).
 	 * 같은 주를 여러 번 올렸으면 그 주의 행이 여러 개라서, 주 오름차순 · 같은 주 안에서는 최근 순으로 줘요.
+	 * 어느 행을 쓸지는 PersonaCollector가 날짜의 주인(그날을 담은 가장 최근 업로드)으로 정해요.
 	 */
 	@Query("select s from MessengerWeeklySummary s where s.uploadId in (select u.id from MessengerUpload u where u.userId = :userId) "
 		+ "and s.weekStart between :from and :to and s.expiresAt > :now order by s.weekStart asc, s.createdAt desc")

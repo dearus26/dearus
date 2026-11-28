@@ -68,7 +68,7 @@ class PersonaAnalysisDbTest {
 				written.add(diaries.saveAndFlush(Diary.create(userId, anchor.plusDays(i), "일기 " + i + " 내 번호 010-1234-5678", Set.of(Emotion.TIRED))));
 			}
 			MessengerUpload upload = MessengerUpload.receive(userId, MessengerSource.KAKAOTALK, 0);
-			upload.complete(anchor, anchor);
+			upload.complete(anchor, anchor.plusDays(1)); // 원문이 월 · 화요일이에요
 			upload = uploads.saveAndFlush(upload);
 			summaries.saveAndFlush(MessengerWeeklySummary.create(upload.getId(), anchor, crypto.encrypt("요약"), crypto.encrypt("짧은 반말"),
 				crypto.encrypt("[\"오늘 피곤\"]"), upload.getExpiresAt()));
@@ -82,7 +82,7 @@ class PersonaAnalysisDbTest {
 				.extracting(DatedText::text).containsExactly("월요일 한 말", "화요일 한 말");
 			assertThat(uploads.findById(uploadId).orElseThrow().getStatus()).isEqualTo(upload.getStatus()); // 다른 컬럼은 그대로
 
-			// 시점 분석은 고른 주의 업로드 원문을 모아요. 하루 단위는 그날의 말만 써요
+			// 시점 분석은 날짜마다 그날을 담은 가장 최근 업로드의 원문을 모아요. 하루 단위는 그날의 말만 써요
 			PersonaInput aroundInput = collector.collect(userId, PersonaRange.of(PersonaScope.AROUND, anchor, Kst.today()));
 			assertThat(aroundInput.originals()).extracting(PersonaInput.OriginalEntry::uploadId).containsExactly(uploadId);
 			assertThat(service.rawLines(aroundInput)).extracting(DatedText::text).containsExactly("월요일 한 말", "화요일 한 말");
@@ -96,7 +96,7 @@ class PersonaAnalysisDbTest {
 			assertThat(window.level()).isEqualTo(RecordLevel.ENOUGH);
 			PersonaWindowResponse day = windows.window(userId, PersonaScope.DAY, anchor);
 			assertThat(day.diaryCount()).isEqualTo(1);
-			assertThat(day.messengerWeeks()).isEqualTo(1); // 그날이 속한 주(= anchor의 주)의 말투 분석
+			assertThat(day.messengerWeeks()).isEqualTo(1); // 그날을 올린 업로드의 말투 분석
 			assertThat(day.emotions()).containsExactly(Emotion.TIRED);
 
 			// 처음에는 분석해서 저장

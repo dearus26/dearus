@@ -2,7 +2,6 @@ package com.dearus.persona;
 
 import com.dearus.common.CryptoService;
 import com.dearus.common.Kst;
-import com.dearus.common.Weeks;
 import com.dearus.common.ai.AiProperties;
 import com.dearus.persona.PersonaAnalyzer.DiaryView;
 import com.dearus.persona.PersonaAnalyzer.Prompt;
@@ -21,6 +20,7 @@ import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
+import java.util.TreeSet;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -146,7 +146,7 @@ public class PersonaAnalysisService {
 		byte[] encrypted = crypto.encrypt(content.toJson());
 		UUID id = save(userId, input, digest, encrypted);
 		log.info("시점 분석 완료 userId={} scope={} diaries={} weeks={} rawLines={}", userId, range.scope(), input.diaries().size(),
-			input.weeks().size(), raw.size());
+			input.messengerWeeks(), raw.size());
 		return new Result(content, id, false);
 	}
 
@@ -159,9 +159,9 @@ public class PersonaAnalysisService {
 				PersonaAnalysis row = analyses.findByUserIdAndAnchorDateAndWindowDays(userId, range.anchor(), windowDays).orElse(null);
 				if (row == null) {
 					row = PersonaAnalysis.create(userId, range.anchor(), range.scope(), encrypted, digest,
-						input.diaries().size(), input.weeks().size(), aiProperties.model());
+						input.diaries().size(), input.messengerWeeks(), aiProperties.model());
 				} else {
-					row.replace(encrypted, digest, input.diaries().size(), input.weeks().size(), aiProperties.model());
+					row.replace(encrypted, digest, input.diaries().size(), input.messengerWeeks(), aiProperties.model());
 				}
 				return analyses.save(row).getId();
 			});
@@ -173,7 +173,8 @@ public class PersonaAnalysisService {
 
 	/**
 	 * 메신저 원문 중 이 구간(start~end)의 말만 골라요. 하루 단위(DAY)는 start = end라서 그날의 말만 들어가요(그날 뒤의 일이 새지 않아요).
-	 * 업로드마다 그 업로드에서 고른 주의 말만 써서, 같은 주를 여러 번 올려도 겹치지 않아요. 글자 수는 MessengerRawPicker가 묶어요.
+	 * 업로드마다 그 업로드가 주인인 날(그날을 담은 가장 최근 업로드)의 말만 써서, 같은 날을 여러 번 올려도 겹치지 않아요.
+	 * 글자 수는 MessengerRawPicker가 묶어요.
 	 */
 	List<DatedText> rawLines(PersonaInput input) {
 		PersonaRange range = input.range();
@@ -181,7 +182,7 @@ public class PersonaAnalysisService {
 		for (OriginalEntry original : input.originals()) {
 			for (DatedText line : MessengerOriginal.fromJson(crypto.decrypt(original.originalEnc()))) {
 				boolean inRange = !line.date().isBefore(range.start()) && !line.date().isAfter(range.end());
-				if (inRange && original.weekStarts().contains(Weeks.startOf(line.date()))) {
+				if (inRange && original.dates().contains(line.date())) {
 					lines.add(line);
 				}
 			}
@@ -194,9 +195,9 @@ public class PersonaAnalysisService {
 	private WeekView weekView(PersonaScope scope, WeekEntry week) {
 		String traits = crypto.decrypt(week.traitsEnc());
 		if (scope == PersonaScope.DAY) {
-			return new WeekView(week.weekStart(), null, traits, null);
+			return new WeekView(week.from(), week.to(), null, traits, null);
 		}
-		return new WeekView(week.weekStart(), crypto.decrypt(week.summaryEnc()), traits,
+		return new WeekView(week.from(), week.to(), crypto.decrypt(week.summaryEnc()), traits,
 			PersonaAnalyzer.samplesFrom(crypto.decrypt(week.sampleEnc())));
 	}
 
@@ -210,8 +211,8 @@ public class PersonaAnalysisService {
 	}
 
 	/**
-	 * 분석에 쓴 기록과 분석 방식이 같은지 보는 지문이에요. 구간 안 일기와 메신저 요약의 id · 수정 시각,
-	 * 프롬프트 버전, 모델 이름이 하나라도 달라지면 달라져요(일기를 고치거나 지우거나 캡처를 새로 올리거나 프롬프트를 바꾼 경우).
+	 * 분석에 쓴 기록과 분석 방식이 같은지 보는 지문이에요. 구간 안 일기와 메신저 요약의 id · 수정 시각, 원문을 쓰는 업로드와 그 날짜,
+	 * 프롬프트 버전, 모델 이름이 하나라도 달라지면 달라져요(일기를 고치거나 지우거나 메신저를 새로 올리거나 지우거나 프롬프트를 바꾼 경우).
 	 */
 	String digest(PersonaInput input) {
 		StringBuilder source = new StringBuilder("v").append(PersonaAnalyzer.PROMPT_VERSION)
@@ -223,6 +224,8 @@ public class PersonaAnalysisService {
 		for (WeekEntry week : input.weeks()) {
 			source.append(";w:").append(week.id()).append(':').append(week.createdAt().toInstant());
 		}
+		input.originals().stream().sorted(Comparator.comparing(original -> original.uploadId().toString())).forEach(original ->
+			source.append(";o:").append(original.uploadId()).append(':').append(new TreeSet<>(original.dates())));
 		try {
 			return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(source.toString().getBytes(StandardCharsets.UTF_8)));
 		} catch (NoSuchAlgorithmException e) {

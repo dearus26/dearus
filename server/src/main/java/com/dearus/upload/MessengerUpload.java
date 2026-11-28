@@ -11,6 +11,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.Period;
 import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -59,10 +60,19 @@ public class MessengerUpload {
 	@Column(name = "period_end")
 	private LocalDate periodEnd;
 
-	@Column(name = "expires_at", nullable = false, updatable = false)
+	/**
+	 * 원문과 요약이 지워지는 시각이에요. 받을 때는 업로드 1년 뒤로 두고, 요약이 끝나면(complete) 대화한 날 기준으로 당겨요(2026.11.28).
+	 */
+	@Column(name = "expires_at", nullable = false)
 	private OffsetDateTime expiresAt;
 
-	/** 받은 직후의 업로드예요. txt만 받아서 photoCount는 0이에요. 업로드 1년 뒤에 원문과 요약이 지워져요. */
+	/**
+	 * 대화한 마지막 날 뒤로 원문을 더 두는 기간이에요. 과거의 나는 365일 전까지 고를 수 있고 "1년 전" 바로가기가 전후 2주를 써서,
+	 * 대화한 날로부터 1년 2주가 지나면 그날의 말은 분석에 다시 쓰이지 않아요.
+	 */
+	static final Period KEEP_AFTER_CHAT = Period.ofYears(1).plusDays(14);
+
+	/** 받은 직후의 업로드예요. txt만 받아서 photoCount는 0이에요. 지워지는 시각은 요약이 끝날 때 정해져요(complete). */
 	public static MessengerUpload receive(UUID userId, MessengerSource source, int photoCount) {
 		MessengerUpload upload = new MessengerUpload();
 		upload.userId = userId;
@@ -74,11 +84,23 @@ public class MessengerUpload {
 		return upload;
 	}
 
+	/** 요약이 끝났어요. 지워지는 시각을 대화한 날 기준으로 정해요(expiryFor). 요약 행도 이 시각을 그대로 써요. */
 	public void complete(LocalDate periodStart, LocalDate periodEnd) {
 		this.status = MessengerStatus.DONE;
 		this.failureCode = null;
 		this.periodStart = periodStart;
 		this.periodEnd = periodEnd;
+		this.expiresAt = expiryFor(uploadedAt, periodEnd);
+	}
+
+	/**
+	 * 원문과 요약이 지워지는 시각(2026.11.28 결정): 대화한 마지막 날 + 1년 2주가 지난 자정(한국 시간)이에요.
+	 * 다만 올린 날부터 1년보다 오래 두지는 않아요(방침의 "최대 1년" 약속). 오래된 날의 대화를 올릴수록 일찍 지워져요.
+	 */
+	static OffsetDateTime expiryFor(OffsetDateTime uploadedAt, LocalDate lastChatDate) {
+		OffsetDateTime byChat = lastChatDate.plus(KEEP_AFTER_CHAT).plusDays(1).atStartOfDay(Kst.ZONE).toOffsetDateTime();
+		OffsetDateTime byUpload = uploadedAt.plusYears(1);
+		return byChat.isBefore(byUpload) ? byChat : byUpload;
 	}
 
 	public void fail(String failureCode) {

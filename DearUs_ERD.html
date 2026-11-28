@@ -552,13 +552,13 @@
         </ul>
       </div>
       <div class="card-box">
-        <h3>사진은 받지 않고, 내 말 원문은 암호화해 1년 보관</h3>
+        <h3>사진은 받지 않고, 내 말 원문은 암호화해 대화한 날부터 약 1년 보관</h3>
         <p><code>messenger_uploads</code>에는 사진 파일을 담는 컬럼이 없습니다. 이미지 장수(<code>photo_count</code>, txt만 받게 되어 늘 0), 내 말 원문(<code>original_enc</code>, 암호화)과 주 단위 요약(<code>summary_enc</code>, <code>traits_enc</code>, <code>sample_enc</code>)만 남습니다. <code>status</code>는 <code>PROCESSING</code> · <code>DONE</code> · <code>FAILED</code>이고 실패하면 <code>failure_code</code>에 이유(<code>AI_UNAVAILABLE</code> 등)가 들어갑니다.</p>
         <ul>
           <li>txt는 앱이 폰 안에서 내 이름의 말만 추려 글자(JSON)로 보내고, 상대 말은 폰에서 버려져 서버에 오지 않습니다. 스크린샷(이미지) 올리기는 2026.11.11에 하지 않기로 했습니다.</li>
           <li>글자를 가리는 처리(마스킹)는 하지 않습니다. 받은(또는 읽어낸) 내 말 원문은 <code>[{date, text}]</code> JSON을 암호화해 <code>original_enc</code>에 담고, 요약이 끝나 <code>DONE</code>이 될 때 채웁니다. 실패하면 비어 있습니다.</li>
           <li>시점 분석은 주간 요약에 더해 그 구간의 원문 일부(약 1만 자까지)도 씁니다. 하루 단위는 그날의 원문만 씁니다(2026.11.9 결정).</li>
-          <li><code>expires_at</code> = 업로드일 + 1년. 배치가 지난 행을 지우고, 업로드 행을 지우면 원문과 요약이 함께 지워집니다(동의 철회 30일 뒤, 회원 탈퇴 때도 같습니다).</li>
+          <li><code>expires_at</code> = 대화한 마지막 날(<code>period_end</code>) + 1년 2주가 지난 자정, 다만 업로드일 + 1년보다 늦지 않게(2026.11.28, 예전에는 업로드일 + 1년). 요약이 끝날 때 정하고, 요약 행도 같은 값이에요. 배치가 지난 행을 지우고, 업로드 행을 지우면 원문과 요약이 함께 지워집니다(동의 철회 30일 뒤, 회원 탈퇴 때도 같습니다).</li>
         </ul>
       </div>
       <div class="card-box">
