@@ -23,9 +23,20 @@ import org.springframework.web.bind.annotation.RestController;
 public class DiaryController {
 
 	private final DiaryService diaryService;
+	private final CalendarService calendarService;
 
-	public DiaryController(DiaryService diaryService) {
+	public DiaryController(DiaryService diaryService, CalendarService calendarService) {
 		this.diaryService = diaryService;
+		this.calendarService = calendarService;
+	}
+
+	/** GET /calendar?from&to — 홈 캘린더: 일기를 쓴 날과 메신저를 올린 날(AI 추천 감정 · 한 줄 요약), 2026.11.28 */
+	@GetMapping("/calendar")
+	public CalendarResponse calendar(
+		@AuthenticationPrincipal Jwt jwt,
+		@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+		@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+		return calendarService.days(CurrentUser.id(jwt), from, to);
 	}
 
 	/** GET /diaries?from&to — 기간별 일기 (홈 캘린더) */

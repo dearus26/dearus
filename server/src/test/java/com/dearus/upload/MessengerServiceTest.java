@@ -42,6 +42,8 @@ class MessengerServiceTest {
 	private final UserRepository users = mock(UserRepository.class);
 	private final MessengerUploadRepository uploads = mock(MessengerUploadRepository.class);
 	private final MessengerWeeklySummaryRepository summaries = mock(MessengerWeeklySummaryRepository.class);
+	private final MessengerDayNoteRepository dayNotes = mock(MessengerDayNoteRepository.class);
+	private final List<MessengerDayNote> savedNotes = new ArrayList<>();
 	private final AiClient ai = mock(AiClient.class);
 	private final CryptoService crypto = new CryptoService(new CryptoProperties(Base64.getEncoder().encodeToString(new byte[32])));
 	private final List<AiRequest> aiRequests = new ArrayList<>();
@@ -74,7 +76,11 @@ class MessengerServiceTest {
 
 		Executor direct = Runnable::run; // 뒤에서 하는 일을 테스트에서는 바로 실행해요
 		TransactionTemplate tx = new TransactionTemplate(mock(PlatformTransactionManager.class));
-		MessengerSummaryJob job = new MessengerSummaryJob(new WeeklySummarizer(ai), crypto, uploads, summaries, tx, direct);
+		when(dayNotes.save(any())).thenAnswer(call -> {
+			savedNotes.add(call.getArgument(0));
+			return call.getArgument(0);
+		});
+		MessengerSummaryJob job = new MessengerSummaryJob(new WeeklySummarizer(ai), crypto, uploads, summaries, dayNotes, tx, direct);
 		service = new MessengerService(users, uploads, summaries, job, direct, new com.dearus.common.LimitProperties(200, 100, 5, 20, 10, 120));
 	}
 
@@ -258,6 +264,33 @@ class MessengerServiceTest {
 		service.accept(userId, request(msg(Kst.today().minusDays(365).toString(), "일 년 전 오늘")));
 
 		assertThat(saved.getStatus()).isEqualTo(MessengerStatus.DONE);
+	}
+
+	@Test
+	void 날마다_추천_감정과_한_줄_요약을_암호화해_저장해요() {
+		// 2026.11.28: 요약하는 같은 AI 호출이 날마다 감정과 한 줄 요약도 줘요(홈 캘린더)
+		when(ai.complete(any())).thenReturn(new AiResult(GOOD.substring(0, GOOD.length() - 1)
+			+ ",\"days\":[{\"date\":\"09-28\",\"emotions\":[\"TIRED\",\"모르는감정\",\"SAD\",\"JOY\"],\"line\":\"과제를 하느라 피곤했어요.\"},"
+			+ "{\"date\":\"09-29\",\"emotions\":[],\"line\":\"글이 없는 날\"}]}", 1, 1));
+
+		service.accept(userId, request(msg("2026-09-28", "월요일 피곤"), msg("2026-09-30", "수요일")));
+
+		assertThat(saved.getStatus()).isEqualTo(MessengerStatus.DONE);
+		// 글이 없는 날(09-29)은 버리고, 감정은 아는 이름만 2개까지예요
+		assertThat(savedNotes).singleElement().satisfies(note -> {
+			assertThat(note.getUploadId()).isEqualTo(uploadId);
+			assertThat(note.getDay()).isEqualTo(LocalDate.of(2026, 9, 28));
+			assertThat(note.emotionList()).containsExactly(com.dearus.diary.Emotion.TIRED, com.dearus.diary.Emotion.SAD);
+			assertThat(crypto.decrypt(note.getLineEnc())).isEqualTo("과제를 하느라 피곤했어요.");
+		});
+	}
+
+	@Test
+	void 날마다_기록이_빠진_답도_업로드는_성공해요() {
+		service.accept(userId, request(msg("2026-09-28", "월요일 피곤")));
+
+		assertThat(saved.getStatus()).isEqualTo(MessengerStatus.DONE);
+		assertThat(savedNotes).isEmpty();
 	}
 
 	@Test

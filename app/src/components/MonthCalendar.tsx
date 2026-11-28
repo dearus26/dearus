@@ -19,6 +19,11 @@ type Props = {
   month: number;
   /** 'YYYY-MM-DD' → 그날의 감정 태그. 일기가 있는 날만 넣어요(점이 찍혀요). 태그가 없는 일기는 빈 배열 */
   markers: Record<string, Emotion[] | undefined>;
+  /**
+   * 'YYYY-MM-DD' → AI가 추천한 감정(2026.11.28). 일기는 없고 메신저만 올린 날만 넣어요.
+   * 꽉 찬 점 대신 테두리 점으로 보여서, 직접 고른 감정과 구분돼요. markers에 있는 날은 markers가 먼저예요.
+   */
+  suggested?: Record<string, Emotion[] | undefined>;
   /** 오늘 날짜(진한 동그라미로 표시) */
   today: string;
   /** 지금 골라 둔 날짜(금색 바탕으로 표시). 없으면 표시하지 않아요. */
@@ -62,6 +67,7 @@ export function MonthCalendar({
   year,
   month,
   markers,
+  suggested = {},
   today,
   selectedDate,
   onSelectDate,
@@ -144,6 +150,7 @@ export function MonthCalendar({
                 isSelected={date === selectedDate}
                 selectable={isSelectable(date)}
                 emotions={markers[date]}
+                suggested={markers[date] ? undefined : suggested[date]}
                 onPress={() => onSelectDate(date)}
               />
             );
@@ -221,15 +228,18 @@ type DateCellProps = {
   isSelected: boolean;
   selectable: boolean;
   emotions: Emotion[] | undefined;
+  /** AI 추천 감정(메신저만 올린 날). 테두리 점이에요 */
+  suggested: Emotion[] | undefined;
   onPress: () => void;
 };
 
-function DateCell({ date, day, dims, column, isToday, isSelected, selectable, emotions, onPress }: DateCellProps) {
+function DateCell({ date, day, dims, column, isToday, isSelected, selectable, emotions, suggested, onPress }: DateCellProps) {
   const dotColor = emotions && emotions.length > 0 ? emotionColors[emotions[0]] : colors.gold;
+  const ringColor = suggested && suggested.length > 0 ? emotionColors[suggested[0]] : colors.gold;
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${formatMonthDay(date)}${emotions ? ', 기록 있음' : ''}`}
+      accessibilityLabel={`${formatMonthDay(date)}${emotions || suggested ? ', 기록 있음' : ''}`}
       accessibilityState={{ disabled: !selectable, selected: isSelected }}
       disabled={!selectable}
       onPress={onPress}
@@ -250,6 +260,13 @@ function DateCell({ date, day, dims, column, isToday, isSelected, selectable, em
           style={[
             styles.dot,
             { width: dims.dot, height: dims.dot, borderRadius: dims.dot / 2, backgroundColor: dotColor },
+          ]}
+        />
+      ) : suggested ? (
+        <View
+          style={[
+            styles.dot,
+            { width: dims.dot, height: dims.dot, borderRadius: dims.dot / 2, borderWidth: 1.5, borderColor: ringColor },
           ]}
         />
       ) : null}

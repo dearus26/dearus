@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { createDiary, deleteDiary, listDiaries, updateDiary, type Diary } from '@/api/diaries';
+import { createDiary, deleteDiary, getCalendar, listDiaries, updateDiary, type CalendarDay, type Diary } from '@/api/diaries';
+import { calendarKey } from '@/features/diary/keys';
 import { personaKeys } from '@/features/past/hooks';
 import { monthRange } from '@/lib/date';
 import type { Emotion } from '@/theme/colors';
@@ -8,7 +9,20 @@ import type { Emotion } from '@/theme/colors';
 export const diaryKeys = {
   all: ['diaries'] as const,
   month: (year: number, month: number) => ['diaries', 'month', year, month] as const,
+  /** 홈 캘린더(일기 + 메신저 날). 'diaries'로 시작해서 일기가 바뀌면 함께 다시 받아요 */
+  calendar: (year: number, month: number) => [...calendarKey, year, month] as const,
 };
+
+/** 한 달치 홈 캘린더(GET /calendar, 2026.11.28): 일기를 쓴 날과 메신저를 올린 날(AI 추천 감정 · 한 줄 요약). */
+export function useMonthCalendar(year: number, month: number) {
+  return useQuery({
+    queryKey: diaryKeys.calendar(year, month),
+    queryFn: async (): Promise<CalendarDay[]> => {
+      const { from, to } = monthRange(year, month);
+      return (await getCalendar(from, to)).items;
+    },
+  });
+}
 
 /** 한 달치 일기. 홈 캘린더의 점과 날짜 시트, 일기 쓰기 화면(이미 쓴 날인지 확인)이 함께 써요. */
 export function useMonthDiaries(year: number, month: number) {

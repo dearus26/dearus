@@ -13,6 +13,9 @@ const T = [
     ['id', 'uuid', 'PK'], ['upload_id', 'uuid', 'FK'], ['week_start', 'date', ''],
     ['summary_enc', 'bytea', 'ENC'], ['traits_enc', 'bytea', 'ENC'], ['sample_enc', 'bytea', 'ENC'],
     ['created_at', 'timestamptz', ''], ['expires_at', 'timestamptz', ''] ] },
+  { id: 'messenger_day_notes', x: 30, y: 880, kind: 'rec', cols: [
+    ['id', 'uuid', 'PK'], ['upload_id', 'uuid', 'FK'], ['day', 'date', ''],
+    ['emotions', 'varchar', ''], ['line_enc', 'bytea?', 'ENC'], ['created_at', 'timestamptz', ''] ] },
 
   { id: 'couple_members', x: 300, y: 40, kind: 'couple', cols: [
     ['couple_id', 'uuid', 'PF'], ['user_id', 'uuid', 'PF'], ['role', 'varchar', ''],
@@ -92,6 +95,7 @@ const E = [
   { d: 'M300,340 H265', l: [['1', 294, 334, 'e'], ['N', 271, 334, 's']] },
   { d: 'M360,526 V650', l: [['1', 366, 542, 's'], ['N', 366, 644, 's']] },
   { d: 'M300,710 H265', l: [['1', 294, 704, 'e'], ['N', 271, 704, 's']] },
+  { d: 'M300,895 H265', l: [['1', 294, 889, 'e'], ['N', 271, 889, 's']] },
   { d: 'M420,290 V196', l: [['1', 426, 284, 's'], ['N', 426, 212, 's']] },
   { d: 'M535,80 H570', l: [['N', 541, 74, 's'], ['1', 564, 74, 'e']] },
   { d: 'M535,340 H570', l: [['1', 541, 334, 's'], ['N', 564, 334, 'e']] },
@@ -112,7 +116,7 @@ function edgeSvg(e) {
   return s;
 }
 
-const svg = `<svg viewBox="0 0 1110 960" role="img" aria-label="열두 개 테이블의 관계도. users를 중심으로 일기, 메신저 업로드(개수와 요약만), 페르소나 분석, 대화, 커플 테이블이 연결되고, 사진을 담는 테이블은 없다">
+const svg = `<svg viewBox="0 0 1110 1060" role="img" aria-label="열세 개 테이블의 관계도. users를 중심으로 일기, 메신저 업로드(개수와 요약만), 페르소나 분석, 대화, 커플 테이블이 연결되고, 사진을 담는 테이블은 없다">
 ${T.map(tableSvg).join('')}
 ${E.map(edgeSvg).join('')}
 <text class="lane" x="560" y="677">chat_sessions.user_id — 대화하는 사람</text>
@@ -187,7 +191,7 @@ const html = `<!doctype html>
 </head>
 <body>
 <main>
-  <h1>Dear Us ERD<small>PostgreSQL 17 · 테이블 12개 · 기획서와 <a href="DearUs_기능블록도.html" style="color:#6F5139">기능 블록도</a> 기준 초안</small></h1>
+  <h1>Dear Us ERD<small>PostgreSQL 17 · 테이블 13개 · 기획서와 <a href="DearUs_기능블록도.html" style="color:#6F5139">기능 블록도</a> 기준 초안</small></h1>
   <p class="lede">일기, 메신저 요약, 페르소나 분석(재사용 저장), 대화, 커플 접근 제어가 어떻게 연결되는지 한 장에 모았습니다. 사진을 담는 테이블이 없다는 점이 이 설계의 핵심입니다(메신저는 카카오톡 txt에서 추린 내 말만 받고, 남는 것은 암호화한 내 말 원문과 요약입니다). 2026.10.14 스토리보드와 2026.11.11 결정(메신저는 txt만, 글자 가림 없음) 기준입니다.</p>
 
   <section>
@@ -247,6 +251,7 @@ ${svg}
         <h3>삭제와 보관</h3>
         <ul>
           <li>답변 신고(<code>message_reports</code>, V11)는 신고한 메시지가 지워지면 <code>ON DELETE CASCADE</code>로 함께 지워집니다. 그래서 탈퇴하면 바로, 동의를 철회하면 30일 뒤, 커플을 해제하면 그 커플 대화와 함께 사라집니다. 관리자가 확인하면 <code>reviewed_at</code>을 채웁니다.</li>
+          <li>메신저 하루 기록(<code>messenger_day_notes</code>, V13, 2026.11.28)은 업로드를 요약하는 같은 AI 호출이 만든 날짜별 추천 감정(<code>emotions</code>, 쉼표로 이은 이름)과 한 줄 요약(<code>line_enc</code>, 암호화)입니다. 홈 캘린더가 메신저 올린 날을 보여 줄 때 씁니다. 업로드를 지우면(사용자 · 1년 만료 · 동의 철회 30일 뒤 · 탈퇴) <code>ON DELETE CASCADE</code>로 함께 지워집니다.</li>
           <li>회원 탈퇴 시 <code>users</code> 행을 지우면 모든 테이블이 <code>ON DELETE CASCADE</code>로 즉시 지워집니다.</li>
           <li>AI 분석 동의를 철회하면 바로 지우지 않고, 철회 시각(<code>users.ai_revoked_at</code>)부터 30일 뒤에 그 사용자의 대화 세션(메시지 포함) · 시점 분석 · 메신저 업로드(주간 요약 포함)를 서버가 지웁니다. 그 안에 다시 동의하면 철회 시각이 비워져 그대로 이어서 씁니다. 일기는 지우지 않습니다.</li>
           <li>예외로 <code>chat_sessions.analysis_id</code>는 <code>ON DELETE SET NULL</code>입니다. 분석 행이 재분석으로 바뀌어도 대화 기록은 남기 위해서입니다.</li>

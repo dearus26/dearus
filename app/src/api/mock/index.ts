@@ -2,7 +2,7 @@ import { ApiError, UNAUTHORIZED_MESSAGE } from '@/api/errors';
 import { deleteCoupleChats, findMyCoupleChat, handleChatRoute, resetChatMock, streamChatMessage } from '@/api/mock/chat';
 import { handleCoupleRoute, resetCoupleMock } from '@/api/mock/couple';
 import { NOT_HANDLED, notFound, sortedEmotions, validationFailed, wait } from '@/api/mock/helpers';
-import { handleUploadRoute, resetUploadMock } from '@/api/mock/uploads';
+import { handleUploadRoute, resetUploadMock, uploadedDates } from '@/api/mock/uploads';
 import type { components } from '@/api/schema';
 import type { SseEvent } from '@/api/sse';
 import {
@@ -218,6 +218,30 @@ export async function mockRequest<T>(
     const items = store()
       .filter((diary) => diary.date >= from && diary.date <= to)
       .sort((a, b) => a.date.localeCompare(b.date));
+    return { items } as T;
+  }
+
+  // GET /calendar — 홈 캘린더: 일기 날 + 메신저 올린 날(서버 2026.11.28과 같은 모양, 추천 감정 · 한 줄 요약은 가짜 값)
+  if (method === 'GET' && path === '/calendar') {
+    const { from, to } = query;
+    if (!isValidDateString(from) || !isValidDateString(to)) {
+      throw validationFailed([{ field: 'from', reason: '날짜 형식이 올바르지 않아요' }]);
+    }
+    if (from > to) throw validationFailed([{ field: 'from', reason: '시작 날짜가 끝 날짜보다 늦을 수 없어요' }]);
+    if (daysBetween(from, to) + 1 > MAX_RANGE_DAYS) {
+      throw validationFailed([{ field: 'to', reason: `한 번에 ${MAX_RANGE_DAYS}일까지만 볼 수 있어요` }]);
+    }
+    const days = new Map<string, components['schemas']['CalendarDay']>();
+    for (const diary of store()) {
+      if (diary.date < from || diary.date > to) continue;
+      days.set(diary.date, { date: diary.date, hasDiary: true, emotions: diary.emotions, hasMessenger: false, suggestedEmotions: [], messengerLine: null });
+    }
+    for (const date of uploadedDates()) {
+      if (date < from || date > to) continue;
+      const day = days.get(date) ?? { date, hasDiary: false, emotions: [], hasMessenger: false, suggestedEmotions: [], messengerLine: null };
+      days.set(date, { ...day, hasMessenger: true, suggestedEmotions: ['TIRED'], messengerLine: '메신저로 이런저런 이야기를 나눴어요. (가짜 요약)' });
+    }
+    const items = [...days.values()].sort((a, b) => a.date.localeCompare(b.date));
     return { items } as T;
   }
 

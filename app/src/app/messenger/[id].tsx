@@ -12,6 +12,7 @@ import { Card } from '@/components/Card';
 import { Icon } from '@/components/Icon';
 import { useMessengerUpload, useStartUpload } from '@/features/messenger/hooks';
 import { getPendingUpload, setPendingUpload } from '@/features/messenger/pending';
+import { calendarKey } from '@/features/diary/keys';
 import { personaKeys } from '@/features/past/hooks';
 import { dateStringOf, formatYearMonthDay } from '@/lib/date';
 import { notifyApiError } from '@/lib/apiErrors';
@@ -53,11 +54,12 @@ export default function MessengerUploadStatusScreen() {
   const data = upload.data;
   const done = data?.status === 'DONE';
 
-  // 끝나면 폰에 들고 있던 올린 내용은 필요 없고, 시점 고르기의 메신저 기록량은 달라졌어요
+  // 끝나면 폰에 들고 있던 올린 내용은 필요 없고, 시점 고르기의 메신저 기록량과 홈 캘린더의 메신저 날이 달라졌어요
   useEffect(() => {
     if (!done) return;
     setPendingUpload(null);
     void queryClient.invalidateQueries({ queryKey: personaKeys.all });
+    void queryClient.invalidateQueries({ queryKey: calendarKey });
   }, [done, queryClient]);
 
   let body;

@@ -10,7 +10,7 @@ import { AppText } from '@/components/AppText';
 import { EmotionLegend } from '@/components/EmotionLegend';
 import { MonthCalendar } from '@/components/MonthCalendar';
 import { DayPanel } from '@/features/diary/DayPanel';
-import { useDeleteDiary, useMonthDiaries } from '@/features/diary/hooks';
+import { useDeleteDiary, useMonthCalendar, useMonthDiaries } from '@/features/diary/hooks';
 import { addMonths, formatKoreanDate, parseDateString, todayString } from '@/lib/date';
 import { confirm, notify } from '@/lib/dialog';
 import { useSession } from '@/session/SessionProvider';
@@ -19,6 +19,7 @@ import { colors, type Emotion } from '@/theme/colors';
 /**
  * 스토리보드 A-3 홈: 일기 중심 화면. 감정 색 점이 찍힌 캘린더(좌우로 쓸어 달 넘기기)와,
  * 그 아래에 고른 날의 일기 패널이 붙어 있어요. 처음에는 오늘이 골라져 있어요.
+ * 메신저만 올린 날도 AI가 추천한 감정 색의 테두리 점으로 보여요(GET /calendar, 2026.11.28).
  */
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
@@ -38,11 +39,24 @@ export default function HomeScreen() {
   const selected = parseDateString(selectedDate);
   const selectedMonthDiaries = useMonthDiaries(selected.year, selected.month);
   const deleteDiary = useDeleteDiary();
+  // 홈 캘린더(2026.11.28): 일기 날은 꽉 찬 점(직접 고른 감정), 메신저만 올린 날은 테두리 점(AI 추천 감정)이에요
+  const viewCalendar = useMonthCalendar(view.year, view.month);
+  const selectedMonthCalendar = useMonthCalendar(selected.year, selected.month);
 
   const markers: Record<string, Emotion[]> = {};
-  for (const diary of viewDiaries.data ?? []) markers[diary.date] = diary.emotions;
+  const suggested: Record<string, Emotion[]> = {};
+  if (viewCalendar.data) {
+    for (const day of viewCalendar.data) {
+      if (day.hasDiary) markers[day.date] = day.emotions;
+      else if (day.hasMessenger) suggested[day.date] = day.suggestedEmotions;
+    }
+  } else {
+    // 캘린더를 못 받으면(예: 서버가 아직 예전 버전) 일기 점만이라도 보여요
+    for (const diary of viewDiaries.data ?? []) markers[diary.date] = diary.emotions;
+  }
 
   const selectedDiary = selectedMonthDiaries.data?.find((diary) => diary.date === selectedDate);
+  const selectedCalendarDay = selectedMonthCalendar.data?.find((day) => day.date === selectedDate);
   const canGoNext = view.year * 12 + view.month < thisYear * 12 + thisMonth;
 
   function openDiary(date: string) {
@@ -99,6 +113,7 @@ export default function HomeScreen() {
           year={view.year}
           month={view.month}
           markers={markers}
+          suggested={suggested}
           today={today}
           selectedDate={selectedDate}
           canGoNext={canGoNext}
@@ -117,6 +132,7 @@ export default function HomeScreen() {
           style={styles.panel}
           date={selectedDate}
           diary={selectedDiary}
+          calendarDay={selectedCalendarDay}
           loading={selectedMonthDiaries.isPending}
           failed={selectedMonthDiaries.isError}
           deleting={deleteDiary.isPending}

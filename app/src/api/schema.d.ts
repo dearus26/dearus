@@ -129,7 +129,7 @@ export interface paths {
         /**
          * 기간별 일기 목록
          * @description 홈 캘린더가 한 달치를 받아 작성한 날에 ●를 표시하고, 날짜를 누르면 같은 응답의 내용을 보여줘요.
-         *     앱에서 쓴 일기만 나와요. 메신저만 올린 날은 포함되지 않아요.
+         *     앱에서 쓴 일기만 나와요. 메신저만 올린 날은 포함되지 않아요(캘린더 점은 `GET /calendar`가 일기와 메신저 날을 함께 줘요, 2026.11.28).
          *     기간은 최대 93일이에요.
          */
         get: operations["listDiaries"];
@@ -169,6 +169,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/calendar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 홈 캘린더 (일기 · 메신저 올린 날)
+         * @description 홈 캘린더가 한 달치를 받아 기록이 있는 날에 점을 찍어요(2026.11.28). 기록은 일기를 쓴 날, 또는 그날 메신저로 내 말을 올린 날이에요.
+         *     메신저 날은 시점 분석과 같은 규칙으로 세요(날짜마다 그날을 담은 가장 최근 업로드, 그날 쓴 말이 실제로 있어야 해요).
+         *     `emotions`는 일기에 직접 고른 감정이고, `suggestedEmotions`는 그날 올린 메신저로 AI가 추천한 감정이에요(업로드를 요약하는 같은 AI 호출이 만들어서 이 API는 AI를 부르지 않아요).
+         *     앱은 직접 고른 감정을 먼저 보여 주고, 일기가 없는 날은 추천 감정을 "AI 추천"으로 구분해서 보여줘요.
+         *     `messengerLine`은 그날 메신저로 AI가 만든 한 줄 요약이에요. 2026.11.28 전에 올린 업로드에는 추천 감정과 한 줄 요약이 없어요(빈 배열 · null).
+         *     일기 본문은 넣지 않아요(그날을 누르면 `GET /diaries`의 내용을 보여줘요). 기간은 최대 93일이에요.
+         */
+        get: operations["getCalendar"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/uploads/messenger": {
         parameters: {
             query?: never;
@@ -187,7 +212,7 @@ export interface paths {
          * @description 카카오톡 대화 내보내기 **txt**로 올려요(2026.11.11부터 txt만 받아요). 앱이 폰 안에서 txt를 읽어(말한 사람 · 날짜 · 내용) 사용자가 고른 내 이름의 말만 이 API로 보내요. 상대 말은 폰에서 버려요. 글자를 가리는 처리는 앱 · 서버 모두 하지 않아요.
          *     스크린샷(이미지)은 받지 않아요. 이 API에 이미지나 `multipart/form-data`를 보내면 415예요.
          *
-         *     서버는 받은 글자를 주 단위로 묶어 AI로 요약하고 암호화해 저장해요. 시간이 걸릴 수 있어서 **202**로 바로 응답하고, 결과는 `GET /uploads/messenger/{uploadId}`를 1~2초 간격으로 조회해서 `status`가 `DONE` 또는 `FAILED`가 될 때까지 기다려요.
+         *     서버는 받은 글자를 주 단위로 묶어 AI로 요약하고 암호화해 저장해요. 같은 AI 호출이 글이 있는 날마다 추천 감정과 한 줄 요약도 만들어서 홈 캘린더(`GET /calendar`)에 보여요(2026.11.28). 시간이 걸릴 수 있어서 **202**로 바로 응답하고, 결과는 `GET /uploads/messenger/{uploadId}`를 1~2초 간격으로 조회해서 `status`가 `DONE` 또는 `FAILED`가 될 때까지 기다려요.
          *
          *     `messages[].date`는 앱이 txt의 날짜 줄에서 읽어요. 읽지 못한 줄은 앱이 사용자에게 알리고 빼고 보내요. 오늘부터 365일 전 ~ 오늘의 날짜만 받아요(과거의 나로 고를 수 있는 날, 2026.11.28). 그보다 오래되거나 미래인 날짜가 있으면 400이에요.
          *     `DONE`이 되면 받은 내 말 원문을 암호화해(`messenger_uploads.original_enc`) 요약과 함께 보관해요. 지워지는 시각(`expiresAt`)은 대화한 마지막 날 + 1년 2주가 지난 자정(한국 시간)이고, 올린 날 + 1년보다 늦지 않아요(2026.11.28). `FAILED`면 원문도 요약도 남기지 않아요. 서버가 다시 시작되거나 10분이 지나도 끝나지 않으면 `FAILED`(`PROCESSING_TIMEOUT`)가 되니, 앱은 `DONE`을 받을 때까지 추린 글자를 폰에 갖고 있다가 필요하면 다시 보내요.
@@ -909,6 +934,36 @@ export interface components {
         };
         DiaryList: {
             items: components["schemas"]["Diary"][];
+        };
+        /**
+         * @example {
+         *       "date": "2026-10-04",
+         *       "hasDiary": false,
+         *       "emotions": [],
+         *       "hasMessenger": true,
+         *       "suggestedEmotions": [
+         *         "EXCITED",
+         *         "ANXIOUS"
+         *       ],
+         *       "messengerLine": "동아리 MT 짐을 싸면서 설레기도 하고 내일 아침이 걱정되기도 했어요."
+         *     }
+         */
+        CalendarDay: {
+            /** Format: date */
+            date: string;
+            /** @description 그날 일기를 썼는지 */
+            hasDiary: boolean;
+            /** @description 일기에 직접 고른 감정. 일기가 없으면 빈 배열이에요 */
+            emotions: components["schemas"]["Emotion"][];
+            /** @description 그날 메신저로 내 말을 올렸는지 */
+            hasMessenger: boolean;
+            /** @description 그날 올린 메신저로 AI가 추천한 감정(0~2개). 메신저가 없거나 2026.11.28 전 업로드면 빈 배열이에요 */
+            suggestedEmotions: components["schemas"]["Emotion"][];
+            /** @description 그날 메신저로 AI가 만든 한 줄 요약("~했어요" 체, 80자까지). 없으면 null이에요 */
+            messengerLine?: string | null;
+        };
+        CalendarDayList: {
+            items: components["schemas"]["CalendarDay"][];
         };
         /**
          * @description 어느 메신저의 대화인지. 내 말을 구분하는 방법이 메신저마다 달라요.
@@ -1896,6 +1951,36 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    getCalendar: {
+        parameters: {
+            query: {
+                /** @example 2026-10-01 */
+                from: string;
+                /**
+                 * @description 이 날짜를 포함해요
+                 * @example 2026-10-31
+                 */
+                to: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 기록이 있는 날만 날짜 오름차순 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CalendarDayList"];
+                };
+            };
+            400: components["responses"]["ValidationFailed"];
+            401: components["responses"]["Unauthorized"];
         };
     };
     listMessengerUploads: {

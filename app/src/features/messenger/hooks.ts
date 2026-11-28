@@ -6,6 +6,7 @@ import {
   listMessengerUploads,
   uploadMessengerTxt,
 } from '@/api/uploads';
+import { calendarKey } from '@/features/diary/keys';
 import type { PendingUpload } from '@/features/messenger/pending';
 import { personaKeys } from '@/features/past/hooks';
 
@@ -34,6 +35,7 @@ export function useDeleteUpload() {
       Promise.all([
         queryClient.invalidateQueries({ queryKey: uploadKeys.all }),
         queryClient.invalidateQueries({ queryKey: personaKeys.all }),
+        queryClient.invalidateQueries({ queryKey: calendarKey }), // 지운 날의 메신저 점이 홈 캘린더에서 빠져요
       ]),
   });
 }

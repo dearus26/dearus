@@ -66,14 +66,14 @@
 </head>
 <body>
 <main>
-  <h1>Dear Us ERD<small>PostgreSQL 17 · 테이블 12개 · 기획서와 <a href="DearUs_기능블록도.html" style="color:#6F5139">기능 블록도</a> 기준 초안</small></h1>
+  <h1>Dear Us ERD<small>PostgreSQL 17 · 테이블 13개 · 기획서와 <a href="DearUs_기능블록도.html" style="color:#6F5139">기능 블록도</a> 기준 초안</small></h1>
   <p class="lede">일기, 메신저 요약, 페르소나 분석(재사용 저장), 대화, 커플 접근 제어가 어떻게 연결되는지 한 장에 모았습니다. 사진을 담는 테이블이 없다는 점이 이 설계의 핵심입니다(메신저는 카카오톡 txt에서 추린 내 말만 받고, 남는 것은 암호화한 내 말 원문과 요약입니다). 2026.10.14 스토리보드와 2026.11.11 결정(메신저는 txt만, 글자 가림 없음) 기준입니다.</p>
 
   <section>
     <h2><span>1</span>관계도</h2>
     <figure>
       <div class="scroll">
-<svg viewBox="0 0 1110 960" role="img" aria-label="열두 개 테이블의 관계도. users를 중심으로 일기, 메신저 업로드(개수와 요약만), 페르소나 분석, 대화, 커플 테이블이 연결되고, 사진을 담는 테이블은 없다">
+<svg viewBox="0 0 1110 1060" role="img" aria-label="열세 개 테이블의 관계도. users를 중심으로 일기, 메신저 업로드(개수와 요약만), 페르소나 분석, 대화, 커플 테이블이 연결되고, 사진을 담는 테이블은 없다">
 <g>
 <rect class="tbl" x="30" y="40" width="235" height="76" rx="10"/>
 <path class="th th-rec" d="M30,70 V50 Q30,40 40,40 H255 Q265,40 265,50 V70 Z"/>
@@ -153,6 +153,34 @@
 <line class="sep" x1="38" y1="820" x2="257" y2="820"/>
 <text class="cname mono" x="66" y="834.2">expires_at</text>
 <text class="ctype" x="255" y="834">timestamptz</text>
+</g>
+<g>
+<rect class="tbl" x="30" y="880" width="235" height="156" rx="10"/>
+<path class="th th-rec" d="M30,910 V890 Q30,880 40,880 H255 Q265,880 265,890 V910 Z"/>
+<text class="tname tname-rec mono" x="42" y="900">messenger_day_notes</text>
+<rect class="bdg bdg-PK" x="38" y="914" width="22" height="12" rx="3"/>
+<text class="btxt btxt-PK" x="49" y="923.2">PK</text>
+<text class="cname mono" x="66" y="924.2">id</text>
+<text class="ctype" x="255" y="924">uuid</text>
+<line class="sep" x1="38" y1="930" x2="257" y2="930"/>
+<rect class="bdg bdg-FK" x="38" y="934" width="22" height="12" rx="3"/>
+<text class="btxt btxt-FK" x="49" y="943.2">FK</text>
+<text class="cname mono" x="66" y="944.2">upload_id</text>
+<text class="ctype" x="255" y="944">uuid</text>
+<line class="sep" x1="38" y1="950" x2="257" y2="950"/>
+<text class="cname mono" x="66" y="964.2">day</text>
+<text class="ctype" x="255" y="964">date</text>
+<line class="sep" x1="38" y1="970" x2="257" y2="970"/>
+<text class="cname mono" x="66" y="984.2">emotions</text>
+<text class="ctype" x="255" y="984">varchar</text>
+<line class="sep" x1="38" y1="990" x2="257" y2="990"/>
+<rect class="bdg bdg-ENC" x="38" y="994" width="28" height="12" rx="3"/>
+<text class="btxt btxt-ENC" x="52" y="1003.2">ENC</text>
+<text class="cname mono" x="72" y="1004.2">line_enc</text>
+<text class="ctype" x="255" y="1004">bytea?</text>
+<line class="sep" x1="38" y1="1010" x2="257" y2="1010"/>
+<text class="cname mono" x="66" y="1024.2">created_at</text>
+<text class="ctype" x="255" y="1024">timestamptz</text>
 </g>
 <g>
 <rect class="tbl" x="300" y="40" width="235" height="156" rx="10"/>
@@ -491,6 +519,9 @@
 <path class="edge" d="M300,710 H265"/>
 <text class="card" x="294" y="704" text-anchor="end">1</text>
 <text class="card" x="271" y="704" text-anchor="start">N</text>
+<path class="edge" d="M300,895 H265"/>
+<text class="card" x="294" y="889" text-anchor="end">1</text>
+<text class="card" x="271" y="889" text-anchor="start">N</text>
 <path class="edge" d="M420,290 V196"/>
 <text class="card" x="426" y="284" text-anchor="start">1</text>
 <text class="card" x="426" y="212" text-anchor="start">N</text>
@@ -577,6 +608,7 @@
         <h3>삭제와 보관</h3>
         <ul>
           <li>답변 신고(<code>message_reports</code>, V11)는 신고한 메시지가 지워지면 <code>ON DELETE CASCADE</code>로 함께 지워집니다. 그래서 탈퇴하면 바로, 동의를 철회하면 30일 뒤, 커플을 해제하면 그 커플 대화와 함께 사라집니다. 관리자가 확인하면 <code>reviewed_at</code>을 채웁니다.</li>
+          <li>메신저 하루 기록(<code>messenger_day_notes</code>, V13, 2026.11.28)은 업로드를 요약하는 같은 AI 호출이 만든 날짜별 추천 감정(<code>emotions</code>, 쉼표로 이은 이름)과 한 줄 요약(<code>line_enc</code>, 암호화)입니다. 홈 캘린더가 메신저 올린 날을 보여 줄 때 씁니다. 업로드를 지우면(사용자 · 1년 만료 · 동의 철회 30일 뒤 · 탈퇴) <code>ON DELETE CASCADE</code>로 함께 지워집니다.</li>
           <li>회원 탈퇴 시 <code>users</code> 행을 지우면 모든 테이블이 <code>ON DELETE CASCADE</code>로 즉시 지워집니다.</li>
           <li>AI 분석 동의를 철회하면 바로 지우지 않고, 철회 시각(<code>users.ai_revoked_at</code>)부터 30일 뒤에 그 사용자의 대화 세션(메시지 포함) · 시점 분석 · 메신저 업로드(주간 요약 포함)를 서버가 지웁니다. 그 안에 다시 동의하면 철회 시각이 비워져 그대로 이어서 씁니다. 일기는 지우지 않습니다.</li>
           <li>예외로 <code>chat_sessions.analysis_id</code>는 <code>ON DELETE SET NULL</code>입니다. 분석 행이 재분석으로 바뀌어도 대화 기록은 남기 위해서입니다.</li>

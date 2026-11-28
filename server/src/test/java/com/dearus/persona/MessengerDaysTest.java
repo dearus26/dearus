@@ -9,6 +9,8 @@ import static org.mockito.Mockito.when;
 import com.dearus.common.CryptoProperties;
 import com.dearus.common.CryptoService;
 import com.dearus.common.Kst;
+import com.dearus.upload.MessengerDayNote;
+import com.dearus.upload.MessengerDayNoteRepository;
 import com.dearus.upload.MessengerOriginal;
 import com.dearus.upload.MessengerSource;
 import com.dearus.upload.MessengerUpload;
@@ -30,7 +32,8 @@ class MessengerDaysTest {
 
 	private final MessengerUploadRepository uploads = mock(MessengerUploadRepository.class);
 	private final CryptoService crypto = new CryptoService(new CryptoProperties(Base64.getEncoder().encodeToString(new byte[32])));
-	private final MessengerDays days = new MessengerDays(uploads, crypto);
+	private final MessengerDayNoteRepository dayNotes = mock(MessengerDayNoteRepository.class);
+	private final MessengerDays days = new MessengerDays(uploads, dayNotes, crypto);
 	private final UUID userId = UUID.randomUUID();
 	private final LocalDate d1 = Kst.today().minusDays(40);
 	private final LocalDate d2 = d1.plusDays(1);
@@ -79,6 +82,27 @@ class MessengerDaysTest {
 		upload(d2, d2, new DatedText(d2, "  "));
 
 		assertThat(days.withLines(userId, d1, d2)).containsExactly(d1);
+	}
+
+	@Test
+	void 날마다_그날_주인_업로드의_추천_감정과_한_줄_요약을_줘요() {
+		upload(d1, d1, new DatedText(d1, "예전에 올린 말"));
+		UUID oldUpload = uploaded.get(0).getId();
+		upload(d1, d2, new DatedText(d1, "다시 올린 말"), new DatedText(d2, "둘째 날 말"));
+		UUID newUpload = uploaded.get(0).getId();
+		MessengerDayNote oldNote = MessengerDayNote.create(oldUpload, d1, List.of(com.dearus.diary.Emotion.JOY), crypto.encrypt("예전 요약"));
+		MessengerDayNote newNote = MessengerDayNote.create(newUpload, d1, List.of(com.dearus.diary.Emotion.TIRED), crypto.encrypt("새 요약"));
+		when(dayNotes.findByUploadIdInAndDayBetween(any(), any(), any())).thenReturn(List.of(oldNote, newNote));
+
+		Map<LocalDate, MessengerDays.Day> result = days.days(userId, d1, d2);
+
+		assertThat(result).containsOnlyKeys(d1, d2);
+		// d1은 최근 업로드가 주인이라 그 업로드의 기록만 써요
+		assertThat(result.get(d1).suggestedEmotions()).containsExactly(com.dearus.diary.Emotion.TIRED);
+		assertThat(crypto.decrypt(result.get(d1).lineEnc())).isEqualTo("새 요약");
+		// d2는 기록이 없는 업로드(2026.11.28 전)라 추천 감정이 비어 있어요
+		assertThat(result.get(d2).suggestedEmotions()).isEmpty();
+		assertThat(result.get(d2).lineEnc()).isNull();
 	}
 
 	@Test
