@@ -49,9 +49,9 @@ export default function HomeScreen() {
     router.push({ pathname: '/diary/[date]', params: { date } });
   }
 
-  function openChat(_date: string) {
-    // 과거의 나와 대화(시점 분석 → 채팅)는 다음 단계에서 연결해요
-    notify('곧 열려요', '이 날의 나와 대화하는 기능은 다음 단계에서 연결할게요.');
+  /** 시점 고르기를 그날 하루(DAY)가 골라진 채로 열어요. 기록량 확인과 "만나러 가기"는 그 화면에서 해요. */
+  function openChat(date: string) {
+    router.push({ pathname: '/persona/pick', params: { date } });
   }
 
   async function removeDiary(diary: Diary) {

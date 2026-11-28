@@ -131,6 +131,14 @@ export function monthRange(year: number, month: number): { from: string; to: str
   return { from: toDateString(year, month, 1), to: toDateString(year, month, daysInMonth(year, month)) };
 }
 
+/** 과거의 나로 고를 수 있는 가장 오래된 날까지의 일수(명세 anchorDate: 365일 전 ~ 오늘) */
+export const MAX_PAST_DAYS = 365;
+
+/** 과거의 나로 고를 수 있는 날인지(365일 전 ~ 오늘). 메신저도 이 안의 날만 올려요(더 오래된 날은 만날 수 없어요). */
+export function isPickablePastDate(value: string, today: string = todayString()): boolean {
+  return value <= today && value >= addDays(today, -MAX_PAST_DAYS);
+}
+
 /** 날짜 문자열은 연-월-일 순서라서 글자 비교가 곧 날짜 비교예요. */
 export function isFuture(value: string, today: string = todayString()): boolean {
   return value > today;

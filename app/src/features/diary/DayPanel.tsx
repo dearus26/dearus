@@ -4,7 +4,7 @@ import type { Diary } from '@/api/diaries';
 import { AppText } from '@/components/AppText';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
-import { formatKoreanDate } from '@/lib/date';
+import { formatKoreanDate, isPickablePastDate } from '@/lib/date';
 import { colors, emotionColors, emotionLabels, type Emotion } from '@/theme/colors';
 
 type Props = {
@@ -30,8 +30,10 @@ type Props = {
  * 홈 캘린더 아래에 늘 붙어 있는 날짜 패널이에요(처음에는 팝업 시트였어요).
  * 고른 날의 일기를 보여주고, 내용이 길면 이 안에서만 스크롤돼요. 버튼은 한 줄에 나란히 둬서 작게 했어요.
  * 스토리보드에는 날짜를 누르면 그날의 나와 대화한다고만 있어서, 일기 보기 · 고치기 · 지우기를 함께 두었어요(가정).
+ * "이 날의 나와 대화"는 일기가 없는 날에도 보여요(일기 대신 메신저를 올린 날, 2026.11.28). 1년보다 오래된 날은 고를 수 없어서 숨겨요.
  */
 export function DayPanel({ date, diary, loading, failed, deleting, onRetry, onWrite, onDelete, onChat, style }: Props) {
+  const canChat = isPickablePastDate(date);
   return (
     <Card style={[styles.panel, style]}>
       <View style={styles.head}>
@@ -60,7 +62,9 @@ export function DayPanel({ date, diary, loading, failed, deleting, onRetry, onWr
               이 날은 쓴 일기가 없어요.
             </AppText>
             <AppText size={12} lineHeight={18} color={colors.brown} style={styles.emptyHint}>
-              일기나 올린 메신저 대화가 있는 날은 그날의 나와 대화할 수 있어요
+              {canChat
+                ? '이 날의 메신저 대화를 올렸다면 그날의 나와 대화할 수 있어요'
+                : '1년보다 오래된 날은 그날의 나와 대화할 수 없어요'}
             </AppText>
           </>
         )}
@@ -73,9 +77,11 @@ export function DayPanel({ date, diary, loading, failed, deleting, onRetry, onWr
           </View>
         ) : diary ? (
           <>
-            <View style={styles.chatButton}>
-              <Button size="small" label="이 날의 나와 대화" onPress={() => onChat(date)} />
-            </View>
+            {canChat ? (
+              <View style={styles.chatButton}>
+                <Button size="small" label="이 날의 나와 대화" onPress={() => onChat(date)} />
+              </View>
+            ) : null}
             <View style={styles.sideButton}>
               <Button size="small" label="수정" variant="line" onPress={() => onWrite(date)} />
             </View>
@@ -84,9 +90,17 @@ export function DayPanel({ date, diary, loading, failed, deleting, onRetry, onWr
             </View>
           </>
         ) : (
-          <View style={styles.fullButton}>
-            <Button size="small" label="일기 쓰기" disabled={loading} onPress={() => onWrite(date)} />
-          </View>
+          <>
+            <View style={styles.fullButton}>
+              <Button size="small" label="일기 쓰기" disabled={loading} onPress={() => onWrite(date)} />
+            </View>
+            {/* 일기가 없어도 그날 올린 메신저로 만날 수 있어요. 기록이 있는지는 시점 고르기 카드가 알려줘요 */}
+            {canChat ? (
+              <View style={styles.fullButton}>
+                <Button size="small" label="이 날의 나와 대화" variant="line" disabled={loading} onPress={() => onChat(date)} />
+              </View>
+            ) : null}
+          </>
         )}
       </View>
     </Card>

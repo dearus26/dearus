@@ -2,7 +2,7 @@ import { ApiError } from '@/api/errors';
 import type { MockContext } from '@/api/mock/chat';
 import { NOT_HANDLED, notFound, validationFailed } from '@/api/mock/helpers';
 import type { components } from '@/api/schema';
-import { isValidDateString, mondayOf, todayString } from '@/lib/date';
+import { isPickablePastDate, isValidDateString, mondayOf, parseDateString, todayString } from '@/lib/date';
 
 type MessengerUpload = components['schemas']['MessengerUpload'];
 
@@ -25,6 +25,8 @@ type MockUpload = {
   periodEnd: string;
   /** 요약된 주의 월요일들 */
   weeks: string[];
+  /** 내 말이 있는 날들(하루 단위 기록량은 그날 올린 말이 있는지로 정해요, 서버 2026.11.28) */
+  dates: string[];
   readyAt: number;
 };
 
@@ -40,11 +42,19 @@ export function uploadedWeekStarts(): string[] {
   return uploads.filter((upload) => Date.now() >= upload.readyAt).flatMap((upload) => upload.weeks);
 }
 
+/** 분석이 끝난(DONE) 업로드에 내 말이 있는 날들. 하루 단위(DAY)의 기록 수준에 써요. */
+export function uploadedDates(): string[] {
+  return uploads.filter((upload) => Date.now() >= upload.readyAt).flatMap((upload) => upload.dates);
+}
+
 function toResponse(upload: MockUpload): MessengerUpload {
   const done = Date.now() >= upload.readyAt;
-  const uploaded = new Date(upload.uploadedAt);
-  const expires = new Date(uploaded);
-  expires.setFullYear(expires.getFullYear() + 1);
+  // 서버와 같아요(2026.11.28): 받은 직후에는 올린 날 + 1년, DONE이면 대화한 마지막 날 + 1년 2주가 지난 자정(한국 시간)으로 당겨요
+  const byUpload = new Date(upload.uploadedAt);
+  byUpload.setFullYear(byUpload.getFullYear() + 1);
+  const { year, month, day } = parseDateString(upload.periodEnd);
+  const byChat = new Date(Date.UTC(year + 1, month - 1, day + 15) - 9 * 3_600_000); // 그날 자정(한국 시간 = UTC+9)
+  const expires = done && byChat < byUpload ? byChat : byUpload;
   return {
     id: upload.id,
     format: 'TXT',
@@ -71,7 +81,7 @@ function checkReady(ctx: MockContext, input: { consent?: unknown }) {
   }
 }
 
-function add(weeks: string[], periodStart: string, periodEnd: string): MockUpload {
+function add(weeks: string[], dates: string[], periodStart: string, periodEnd: string): MockUpload {
   const now = Date.now();
   const upload: MockUpload = {
     id: `mock-upload-${++uploadSeq}`,
@@ -79,6 +89,7 @@ function add(weeks: string[], periodStart: string, periodEnd: string): MockUploa
     periodStart,
     periodEnd,
     weeks,
+    dates,
     readyAt: now + PROCESS_MS,
   };
   uploads.push(upload);
@@ -100,8 +111,9 @@ export function handleUploadRoute(method: string, path: string, body: unknown, c
     }
     const today = todayString();
     for (const [index, message] of messages.entries()) {
-      if (!isValidDateString(message.date) || message.date > today) {
-        throw validationFailed([{ field: `messages[${index}].date`, reason: '올바른 지난 날짜여야 해요' }]);
+      // 오늘부터 365일 전 ~ 오늘만 받아요(서버 2026.11.28과 같아요)
+      if (!isValidDateString(message.date) || !isPickablePastDate(message.date, today)) {
+        throw validationFailed([{ field: `messages[${index}].date`, reason: '오늘부터 1년 안의 지난 날짜여야 해요' }]);
       }
       if (typeof message.text !== 'string' || message.text.trim().length === 0 || message.text.length > MAX_TEXT) {
         throw validationFailed([{ field: `messages[${index}].text`, reason: `1자 이상 ${MAX_TEXT}자 이하여야 해요` }]);
@@ -112,7 +124,7 @@ export function handleUploadRoute(method: string, path: string, body: unknown, c
     if (weeks.length > MAX_WEEKS) {
       throw validationFailed([{ field: 'messages', reason: `한 번에 ${MAX_WEEKS}주(약 1년)까지만 올릴 수 있어요` }]);
     }
-    return toResponse(add(weeks, dates[0], dates[dates.length - 1]));
+    return toResponse(add(weeks, [...new Set(dates)], dates[0], dates[dates.length - 1]));
   }
 
   // GET /uploads/messenger — 목록(최신순)

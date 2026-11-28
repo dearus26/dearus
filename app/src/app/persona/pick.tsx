@@ -1,5 +1,5 @@
 import type { UseQueryResult } from '@tanstack/react-query';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View, useWindowDimensions, type ScrollViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,12 +18,9 @@ import { MonthCalendar } from '@/components/MonthCalendar';
 import { useMonthDiaries } from '@/features/diary/hooks';
 import { useCreateChat, usePersonaPreview, useShortcuts } from '@/features/past/hooks';
 import { levelNote, personaTitle, shortcutLabels, shortcutOrder, windowText } from '@/features/past/labels';
-import { addDays, addMonths, parseDateString, todayString } from '@/lib/date';
+import { MAX_PAST_DAYS, addDays, addMonths, isPickablePastDate, isValidDateString, parseDateString, todayString } from '@/lib/date';
 import { notifyApiError } from '@/lib/apiErrors';
 import { colors, type Emotion } from '@/theme/colors';
-
-/** 오늘로부터 이만큼 전까지 고를 수 있어요(명세 anchorDate: 365일 전 ~ 오늘) */
-const MAX_DAYS_AGO = 365;
 
 /** 바로가기 칩 하나, 아니면 캘린더에서 고른 하루. 둘 중 하나만 골라져 있어요. */
 type Choice = { kind: 'shortcut'; key: ShortcutKey } | { kind: 'day'; date: string };
@@ -31,23 +28,26 @@ type Choice = { kind: 'shortcut'; key: ShortcutKey } | { kind: 'day'; date: stri
 /**
  * 스토리보드 B-2 시점 고르기. 1개월 · 6개월 · 1년 전 바로가기(전후 2주)를 고르거나,
  * 캘린더에서 날짜를 직접 골라요(그날 하루). 고르면 그 무렵 기록이 얼마나 있는지 보여주고 "만나러 가기"로 대화를 시작해요.
+ * 홈의 "이 날의 나와 대화"는 `date`를 넘겨서, 그날 하루가 골라진 채로 열려요(고를 수 없는 날이면 아무것도 고르지 않아요).
  */
 export default function PickScreen() {
   const insets = useSafeAreaInsets();
+  const params = useLocalSearchParams<{ date?: string }>();
   // 위쪽(제목 · 칩)과 아래쪽(요약 카드 · 버튼)이 길어서, 낮은 폰에서는 달력 줄을 줄여요. 화면은 스크롤돼요.
   const { height: windowHeight } = useWindowDimensions();
   const calendarSize = windowHeight >= 700 ? 'compact' : 'tight';
 
   const today = todayString();
-  const earliest = addDays(today, -MAX_DAYS_AGO);
+  const earliest = addDays(today, -MAX_PAST_DAYS);
   const thisMonth = monthIndex(parseDateString(today));
   const firstMonth = monthIndex(parseDateString(earliest));
+  const initialDate = isValidDateString(params.date) && isPickablePastDate(params.date, today) ? params.date : null;
 
   const [view, setView] = useState(() => {
-    const { year, month } = parseDateString(today);
+    const { year, month } = parseDateString(initialDate ?? today);
     return { year, month };
   });
-  const [choice, setChoice] = useState<Choice | null>(null);
+  const [choice, setChoice] = useState<Choice | null>(() => (initialDate ? { kind: 'day', date: initialDate } : null));
 
   const shortcuts = useShortcuts();
   const monthDiaries = useMonthDiaries(view.year, view.month);
@@ -147,7 +147,7 @@ export default function PickScreen() {
           size={calendarSize}
           canGoNext={monthIndex(view) < thisMonth}
           canGoPrev={monthIndex(view) > firstMonth}
-          isSelectable={(date) => date <= today && date >= earliest}
+          isSelectable={(date) => isPickablePastDate(date, today)}
           onChangeMonth={(delta) => setView((current) => addMonths(current.year, current.month, delta))}
           onSelectDate={(date) => setChoice({ kind: 'day', date })}
         />

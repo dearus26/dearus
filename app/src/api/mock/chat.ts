@@ -8,7 +8,7 @@ import {
   type CoupleChatInfo,
 } from '@/api/mock/couple';
 import { NOT_HANDLED, notFound, sortedEmotions, validationFailed, wait } from '@/api/mock/helpers';
-import { uploadedWeekStarts } from '@/api/mock/uploads';
+import { uploadedDates, uploadedWeekStarts } from '@/api/mock/uploads';
 import type { components } from '@/api/schema';
 import type { SseEvent } from '@/api/sse';
 import {
@@ -107,9 +107,9 @@ function shortcutAnchor(key: ShortcutKey, today: string): string {
 }
 
 /** 기록 수준 초안 기준(명세 RecordLevel 표)대로예요. */
-function recordLevel(scope: PersonaScope, diaryCount: number, messengerWeeks: number): RecordLevel {
-  // 그날 일기가 있으면 충분, 일기 없이 그 주 메신저만 있으면 부족(서버 2026.11.25와 같아요), 둘 다 없으면 없음
-  if (scope === 'DAY') return diaryCount > 0 ? 'ENOUGH' : messengerWeeks > 0 ? 'LOW' : 'NONE';
+function recordLevel(scope: PersonaScope, diaryCount: number, messengerWeeks: number, dayUploaded: boolean): RecordLevel {
+  // 그날 일기가 있으면 충분, 일기 없이 그날 올린 메신저 말만 있으면 부족, 둘 다 없으면 없음(같은 주의 다른 날만 올렸어도 없음, 서버 2026.11.28과 같아요)
+  if (scope === 'DAY') return diaryCount > 0 ? 'ENOUGH' : dayUploaded ? 'LOW' : 'NONE';
   if (diaryCount >= 10) return 'RICH';
   if (diaryCount >= 5 || messengerWeeks >= 1) return 'ENOUGH';
   return diaryCount >= 1 ? 'LOW' : 'NONE';
@@ -132,7 +132,10 @@ function personaWindow(diaries: Diary[], anchorDate: string, scope: PersonaScope
   const after = addDays(anchorDate, AROUND_DAYS);
   const windowEnd = scope === 'DAY' ? anchorDate : after > today ? today : after;
   const inRange = diaries.filter((diary) => diary.date >= windowStart && diary.date <= windowEnd);
-  const messengerWeeks = messengerWeeksIn(scope, anchorDate, windowStart, windowEnd).length;
+  const dayUploaded = scope === 'DAY' && uploadedDates().includes(anchorDate);
+  const weekCount = messengerWeeksIn(scope, anchorDate, windowStart, windowEnd).length;
+  // 하루 단위는 말투를 붙일 때만 1이에요: 그날을 올렸거나, 그날 일기가 있고 그 주에 올린 날이 있을 때(서버와 같아요)
+  const messengerWeeks = scope === 'DAY' ? (dayUploaded || (inRange.length > 0 && weekCount > 0) ? 1 : 0) : weekCount;
   return {
     anchorDate,
     scope,
@@ -141,7 +144,7 @@ function personaWindow(diaries: Diary[], anchorDate: string, scope: PersonaScope
     diaryCount: inRange.length,
     messengerWeeks,
     emotions: scope === 'DAY' ? sortedEmotions(inRange[0]?.emotions) : undefined,
-    level: recordLevel(scope, inRange.length, messengerWeeks),
+    level: recordLevel(scope, inRange.length, messengerWeeks, dayUploaded),
   };
 }
 

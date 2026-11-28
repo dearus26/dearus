@@ -11,7 +11,7 @@ import { CheckBox } from '@/components/CheckBox';
 import { Icon } from '@/components/Icon';
 import { parseKakaoTxt } from '@/features/messenger/kakaoTxt';
 import { setParsedChat, setTargetDate } from '@/features/messenger/pending';
-import { formatKoreanDate, isValidDateString, todayString } from '@/lib/date';
+import { formatKoreanDate, isPickablePastDate, isValidDateString, todayString } from '@/lib/date';
 import { notify } from '@/lib/dialog';
 import { colors } from '@/theme/colors';
 
@@ -30,6 +30,8 @@ export default function MessengerUploadScreen() {
   const params = useLocalSearchParams<{ date?: string }>();
   const today = todayString();
   const date = isValidDateString(params.date) && params.date <= today ? params.date : today;
+  // 과거의 나로는 최근 1년의 날만 고를 수 있어서, 그보다 오래된 날은 올려도 만날 수 없어요. 그래서 올리지 않아요.
+  const tooOld = !isPickablePastDate(date, today);
   const [agreed, setAgreed] = useState(false);
   const [reading, setReading] = useState(false);
 
@@ -93,8 +95,10 @@ export default function MessengerUploadScreen() {
           <AppText serif weight="bold" size={20} lineHeight={28}>
             {formatKoreanDate(date)}
           </AppText>
-          <AppText size={12.5} lineHeight={19} color={colors.brown}>
-            이 날에 나눈 내 말만 올려요. 다른 날은 홈 캘린더에서 날짜를 골라 주세요
+          <AppText size={12.5} lineHeight={19} color={tooOld ? colors.ink : colors.brown}>
+            {tooOld
+              ? '1년보다 오래된 날은 올릴 수 없어요. 과거의 나는 최근 1년 안의 날만 만날 수 있어요. 홈 캘린더에서 다른 날을 골라 주세요'
+              : '이 날에 나눈 내 말만 올려요. 다른 날은 홈 캘린더에서 날짜를 골라 주세요'}
           </AppText>
         </Card>
 
@@ -112,7 +116,7 @@ export default function MessengerUploadScreen() {
             분석 전에 확인해 주세요
           </AppText>
           <Bullet>고른 날의 내 말만 서버로 보내요. 다른 날과 상대 말은 폰에서 버려요</Bullet>
-          <Bullet>내 말은 암호화해서 1년 보관하고, 요약도 암호화해서 저장해요</Bullet>
+          <Bullet>내 말은 암호화해서 대화한 날부터 약 1년 보관하고, 요약도 암호화해서 저장해요</Bullet>
           <Bullet>글자를 가리지 않고 AI로 보내요. 학습에는 쓰이지 않아요</Bullet>
           <Pressable
             accessibilityRole="checkbox"
@@ -129,8 +133,8 @@ export default function MessengerUploadScreen() {
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
-        <Button label="txt 파일 고르기" disabled={!agreed || reading} loading={reading} onPress={() => void pickTxt()} />
-        {!agreed ? (
+        <Button label="txt 파일 고르기" disabled={tooOld || !agreed || reading} loading={reading} onPress={() => void pickTxt()} />
+        {!agreed && !tooOld ? (
           <AppText size={12} lineHeight={18} color={colors.brown} style={styles.agreeHint}>
             위 내용에 동의하면 올릴 수 있어요
           </AppText>

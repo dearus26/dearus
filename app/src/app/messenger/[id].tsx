@@ -188,7 +188,7 @@ function DoneView({ upload, bottomInset }: { upload: MessengerUpload; bottomInse
       </Card>
 
       <AppText size={12.5} lineHeight={20} color={colors.brown} style={styles.centered}>
-        {`요약과 내 말 원문은 암호화해서 보관하고,\n1년 뒤(${expires})에 자동으로 지워져요.\n캘린더에는 표시되지 않아요.`}
+        {`요약과 내 말 원문은 암호화해서 보관하고,\n대화한 날부터 약 1년 뒤(${expires})에 자동으로 지워져요.\n캘린더에는 표시되지 않아요.`}
       </AppText>
 
       <View style={styles.doneButton}>
