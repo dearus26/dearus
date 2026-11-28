@@ -41,6 +41,14 @@ class PersonaAnalyzerLiveTest {
 		System.out.println("[live " + label + "] emotion: " + content.emotion());
 		System.out.println("[live " + label + "] samples: " + content.samples());
 		System.out.println("[live " + label + "] greetings: " + content.greetings());
+		System.out.println("[live " + label + "] coupleGreetings: " + content.coupleGreetings());
+		// 대화 서버(ChatGreetings)가 걸러 내는 인사 수예요: 커플 인사의 상황 설정(연인 · 미래), 위로하는 인사
+		java.util.regex.Pattern setup = java.util.regex.Pattern.compile("연인|미래");
+		java.util.regex.Pattern consoling = java.util.regex.Pattern.compile("좀\\s?쉬|쉬어|쉬자|숨\\s?좀|괜찮아\\?|힘내|고생\\s?(했|많)");
+		System.out.println("[live-greeting] " + label + " coupleSetup=" + content.coupleGreetings().stream().filter(g -> setup.matcher(g).find()).count()
+			+ "/" + content.coupleGreetings().size() + " consoling=" + content.greetings().stream().filter(g -> consoling.matcher(g).find()).count()
+			+ "/" + content.greetings().size());
+		System.out.println("[live " + label + "] day: " + content.day() + " || episodes: " + content.episodes() + " || people: " + content.people());
 		assertThat(content.greetings()).isNotEmpty();
 		assertThat(content.samples()).isNotEmpty();
 		// 글 안의 지시를 따르지 않았는지

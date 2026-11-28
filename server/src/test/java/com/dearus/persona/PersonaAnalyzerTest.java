@@ -163,4 +163,65 @@ class PersonaAnalyzerTest {
 
 		assertThat(PersonaContent.fromJson(original.toJson())).isEqualTo(original);
 	}
+
+	// ───────── 2026.11.28 더한 항목(PROMPT_VERSION 6) ─────────
+
+	static final String RICH = GOOD.substring(0, GOOD.length() - 1)
+		+ ",\"day\":\"아침에 짐을 싸고 저녁에 편의점에 갔어요.\""
+		+ ",\"episodes\":[{\"date\":\"2026-09-21\",\"what\":\"MT 짐을 쌌어요.\",\"feeling\":\"설레요.\"},"
+		+ "{\"date\":\"\",\"what\":\"선배가 장기자랑을 시켰어요.\"},{\"feeling\":\"무엇인지 없는 항목\"}]"
+		+ ",\"people\":[\"동아리 선배: 장기자랑을 시켜서 부담스러워요.\",\"\"]"
+		+ ",\"attitude\":\"투덜대도 웃어넘겨요.\",\"hopes\":\"MT가 재미있기를 바라요.\",\"coupleGreetings\":[\"어 왔어? 반갑다\"]}";
+
+	@Test
+	void 그날_하루_있었던_일_사람_태도_앞일을_읽어요() {
+		PersonaContent content = PersonaAnalyzer.parse(RICH);
+
+		assertThat(content.day()).isEqualTo("아침에 짐을 싸고 저녁에 편의점에 갔어요.");
+		// what이 없는 항목은 버리고, 빈 날짜는 null이에요
+		assertThat(content.episodes()).containsExactly(new PersonaContent.Episode("2026-09-21", "MT 짐을 쌌어요.", "설레요."),
+			new PersonaContent.Episode(null, "선배가 장기자랑을 시켰어요.", null));
+		assertThat(content.people()).containsExactly("동아리 선배: 장기자랑을 시켜서 부담스러워요.");
+		assertThat(content.attitude()).isEqualTo("투덜대도 웃어넘겨요.");
+		assertThat(content.hopes()).isEqualTo("MT가 재미있기를 바라요.");
+		assertThat(content.coupleGreetings()).containsExactly("어 왔어? 반갑다");
+		assertThat(PersonaContent.fromJson(content.toJson())).isEqualTo(content);
+	}
+
+	@Test
+	void 새_항목이_빠진_답도_받고_빈_값으로_둬요() {
+		PersonaContent content = PersonaAnalyzer.parse(GOOD);
+
+		assertThat(content.day()).isNull();
+		assertThat(content.episodes()).isEmpty();
+		assertThat(content.people()).isEmpty();
+		assertThat(content.attitude()).isNull();
+		assertThat(content.hopes()).isNull();
+	}
+
+	@Test
+	void 예전에_저장한_분석도_새_항목_없이_읽어요() {
+		// PROMPT_VERSION 5까지 저장한 모양이에요(새 항목 키가 없어요)
+		String stored = "{\"voice\":\"짧은 반말\",\"vocabulary\":[],\"situation\":\"학기 중\",\"concerns\":\"시험\",\"emotion\":\"피곤\","
+			+ "\"samples\":[\"피곤\"],\"greetings\":[\"왔어?\"]}";
+
+		PersonaContent content = PersonaContent.fromJson(stored);
+
+		assertThat(content.voice()).isEqualTo("짧은 반말");
+		assertThat(content.episodes()).isEmpty();
+		assertThat(content.people()).isEmpty();
+		assertThat(content.day()).isNull();
+	}
+
+	@Test
+	void 분석_프롬프트는_새_항목과_실명_대신_관계를_적게_해요() {
+		assertThat(PersonaAnalyzer.PROMPT_VERSION).isEqualTo(6);
+		assertThat(PersonaAnalyzer.SYSTEM_PROMPT).contains("\"day\"").contains("\"episodes\"").contains("\"people\"")
+			.contains("\"attitude\"").contains("\"hopes\"").contains("실명 대신 관계")
+			.contains("드러나지 않은 일과(수업, 회의, 출근 같은)는 짐작해서 채우지 않아요")
+			.contains("메시지를 짧게 끊어 여러 번 보내는지");
+		// 첫 인사는 미래의 나를 만나 자기 근황을 곁들이고, 상대를 위로하지 않아요. 커플 인사는 따로예요
+		assertThat(PersonaAnalyzer.SYSTEM_PROMPT).contains("\"coupleGreetings\"").contains("상대를 위로하거나 쉬라고 권하지 않아요")
+			.contains("상대를 \"미래의 나\"라고 부르지 않고");
+	}
 }

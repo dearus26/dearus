@@ -72,7 +72,7 @@ public class ChatPreparationJob {
 		session.ready(result == null ? null : result.analysisId());
 		sessions.save(session);
 		messages.save(ChatMessage.create(sessionId, 1, ChatRole.PERSONA,
-			ChatGreetings.pick(result == null ? null : result.content().greetings())));
+			ChatGreetings.pick(result == null ? null : result.content(), session.isCouple())));
 		log.info("대화 준비 완료 sessionId={} reused={}", sessionId, result != null && result.reused());
 	}
 

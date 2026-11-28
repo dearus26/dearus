@@ -30,8 +30,13 @@ public class PersonaAnalyzer {
 	 * 3: 일기를 가리지 않고 보내게 되어 가려진 표시([이름] 등) 안내를 뺐어요(2026.11.9).
 	 * 4: 말투(voice)를 비워 두지 않고, 첫 인사가 원문 문장을 따라 하지 않게 했어요(2026.11.25).
 	 * 5: 메신저 요약이 한 주에 여럿일 수 있어서(하루치씩 올려요) 요약이 담은 날짜(start ~ end)를 붙였어요(2026.11.28).
+	 * 6: 대화가 그날의 나답게 구체적인 이야기를 하도록 day · episodes · people · attitude · hopes를 더하고 말투(voice)에 메시지 습관을 더했어요.
+	 *    첫 인사는 미래의 나를 만나 놀라며 자기 근황을 곁들이게 바꾸고, 커플 모드용 인사(coupleGreetings)를 따로 만들어요(2026.11.28).
 	 */
-	public static final int PROMPT_VERSION = 5;
+	public static final int PROMPT_VERSION = 6;
+
+	/** episodes는 이만큼까지만 둬요(대화 프롬프트가 너무 길어지지 않게요). */
+	static final int MAX_EPISODES = 8;
 
 	/** AI로 보내는 일기 한 편. content는 가리지 않은 일기 원문이에요. */
 	public record DiaryView(LocalDate date, List<Emotion> emotions, String content) {
@@ -66,22 +71,41 @@ public class PersonaAnalyzer {
 		- situation · concerns · emotion에서 근거가 부족한 항목은 "기록이 적어서 알 수 없어요"라고만 써요.
 		- voice는 비워 두지 않아요. 글이 적어도 보이는 만큼 써요. 일기에 "~했다"처럼 글말만 있고 대화 말투를 알 수 없으면 "담백한 반말을 써요"처럼 반말로 적어요.
 		- 이 결과는 나중에 이 사람처럼 대화하는 데 그대로 쓰여요. "일기에 따르면", "메신저 분석에 따르면", "감정 표시는"처럼 어디서 알았는지 출처를 말하지 말고, 그 사람에 대해 직접 서술해요.
+		- 사람은 실명 대신 관계(친구, 팀원, 엄마, 남자친구, 회사 선배)로 적어요. 학교 · 회사 이름, 위치도 적지 않아요.
 		- 아래 JSON 한 개만 출력해요. 설명, 마크다운, 코드 블록은 쓰지 않아요.
 
-		{"voice": "...", "vocabulary": ["...", "..."], "situation": "...", "concerns": "...", "emotion": "...", "samples": ["...", "..."], "greetings": ["...", "...", "..."]}
+		{"voice": "...", "vocabulary": ["...", "..."], "situation": "...", "concerns": "...", "emotion": "...", "day": "...", \
+		"episodes": [{"date": "YYYY-MM-DD", "what": "...", "feeling": "..."}], "people": ["...", "..."], "attitude": "...", "hopes": "...", \
+		"samples": ["...", "..."], "greetings": ["...", "...", "..."], "coupleGreetings": ["...", "...", "..."]}
 
-		- voice: 말투의 특징을 한국어 3~6문장으로 써요. 반말인지 존댓말인지, 문장 길이, 자주 쓰는 말버릇 · 웃음 표현 · 이모티콘, 말끝 습관을 포함해요.
+		- voice: 말투의 특징을 한국어 3~6문장으로 써요. 반말인지 존댓말인지, 문장 길이, 자주 쓰는 말버릇 · 웃음 표현 · 이모티콘, 말끝 습관을 포함해요. \
+		메시지를 짧게 끊어 여러 번 보내는지 한 번에 길게 쓰는지 같은 메시지 습관도 보이면 적어요.
 		- vocabulary: 자주 쓰는 표현이나 단어 3~10개를 글자 그대로 담아요.
 		- situation: 이 무렵의 생활과 상황(학교, 일, 관계 등)을 2~4문장으로 써요.
 		- concerns: 이 무렵의 고민을 2~4문장으로 써요.
 		- emotion: 이 무렵의 주된 감정과 그 흐름을 1~3문장으로 써요.
-		- samples: 말투가 잘 드러나는 원문 문장 2~8개를 글자 그대로 담아요. 실명, 학교 · 회사 이름, 위치처럼 사람을 알아볼 수 있는 내용이 든 문장은 고르지 않아요.
+		- day: <period scope="DAY">일 때만 써요. 그날 하루에 무엇을 했고 어떤 기분이었는지 시간 순서대로 2~5문장으로 써요. \
+		그날의 <diary> · <messenger_raw>에 드러난 일만 쓰고, 드러나지 않은 일과(수업, 회의, 출근 같은)는 짐작해서 채우지 않아요. \
+		근거가 없으면 "기록이 적어서 알 수 없어요"라고만 써요. scope가 AROUND면 빈 문자열("")이에요.
+		- episodes: 이 기간에 있었던 구체적인 일 0~8개를 날짜 순서로 담아요. what은 무슨 일이 있었는지 한 문장, feeling은 그때 기분을 짧게 써요. \
+		<diary> · <messenger_raw>에 실제로 드러난 일만 담고, 날짜를 알 수 없으면 date는 ""예요. 드러난 일이 없으면 빈 배열이에요.
+		- people: 자주 나오는 사람 0~5명을 "관계: 어떤 사이이고 요즘 어떤지" 한 줄로 담아요(예: "팀원들: 회의를 자꾸 미뤄서 서운해요"). 없으면 빈 배열이에요.
+		- attitude: 이 사람이 대화할 때의 태도를 1~3문장으로 써요. 장난스러운지 진지한지, 투덜대는지, 힘든 일을 어떻게 말하는지(웃어넘기는지, 털어놓는지)를 담아요.
+		- hopes: 이 무렵 기대하거나 걱정하던 앞일을 1~2문장으로 써요. 근거가 없으면 "기록이 적어서 알 수 없어요"라고만 써요.
+		- samples: 말투가 잘 드러나는 원문 문장 2~12개를 글자 그대로 담아요. 실명, 학교 · 회사 이름, 위치처럼 사람을 알아볼 수 있는 내용이 든 문장은 고르지 않아요.
 		- greetings: 이 사람이 그때의 말투로 건네는 첫 인사 정확히 3개예요. 각각 1~2문장이고, 그 무렵의 분위기를 살짝 담되 기록에 없는 일을 지어내지 않아요. \
-		인사하는 사람은 이 기간을 지금 살고 있는 이 사람이에요. 이 기간의 일은 지금 겪는 일처럼 말하고 "그때", "그 무렵", "요즘은 좀 괜찮아?"처럼 지난 일을 돌아보는 말은 쓰지 않아요. \
-		<messenger_raw> · <diary>의 문장을 그대로 옮기거나 조금만 바꿔 쓰지 말고, 반가움이나 안부처럼 처음 건네는 말로 새로 써요.""";
+		인사하는 사람은 이 기간을 지금 살고 있는 이 사람이고, 인사받는 사람은 갑자기 찾아온 미래의 자기 자신이에요. \
+		미래의 자신을 만나 놀라거나 반가워하는 말에, 자기가 지금 겪는 일 한 조각을 곁들여요(예: "헐 미래의 나야? 나 지금 [지금 겪는 일] 때문에 정신없는데 ㅋㅋ"). \
+		이 기간의 일은 지금 겪는 일처럼 말하고 "그때", "그 무렵", "요즘은 좀 괜찮아?"처럼 지난 일을 돌아보는 말은 쓰지 않아요. \
+		자기 일을 상대가 겪는 일처럼 묻지 않고("요즘 팀플 때문에 정신없지?"처럼 쓰지 않아요), 상대를 위로하거나 쉬라고 권하지 않아요("좀 쉬어", "숨 좀 돌리자"처럼 쓰지 않아요). \
+		<messenger_raw> · <diary>의 문장을 그대로 옮기거나 조금만 바꿔 쓰지 말고, 처음 건네는 말로 새로 써요. 다른 사람은 실명 대신 관계(친구, 팀원)로 불러요.
+		- coupleGreetings: 같은 사람이 연인에게 그때의 말투로 건네는 첫 인사 정확히 3개예요. 각각 1~2문장이에요. \
+		평소 연인을 만났을 때처럼 반가워하는 말에 자기가 지금 겪는 일 한 조각을 곁들여요(예: "어 왔어? 나 지금 [지금 겪는 일] 때문에 정신없었는데 너 보니까 좋다"). \
+		"연인", "미래", "찾아왔다"처럼 상황을 설명하는 말은 넣지 않고, 상대를 "미래의 나"라고 부르지 않고, 위로하거나 쉬라고 권하지 않아요. \
+		greetings와 같은 규칙으로 지난 일을 돌아보는 말이나 원문을 옮긴 문장은 쓰지 않아요.""";
 
 	/** 생각(thinking)이 max_tokens 안에 들어가요. 분석은 시점마다 한 번만 하고 결과를 재사용하니 MEDIUM으로 해요. */
-	private static final int MAX_TOKENS = 4096;
+	private static final int MAX_TOKENS = 8192; // 6에서 항목이 늘어 답이 길어져서 4096에서 올렸어요(2026.11.28)
 	private static final JsonMapper MAPPER = JsonMapper.builder().build();
 
 	private final AiClient ai;
@@ -154,8 +178,47 @@ public class PersonaAnalyzer {
 		}
 		List<String> samples = strings(root, "samples", 1);
 		List<String> greetings = strings(root, "greetings", 1);
+		// 2026.11.28에 더한 항목은 빠져 있어도 분석 전체를 실패로 보지 않고 빈 값으로 둬요
 		return new PersonaContent(text(root, "voice"), strings(root, "vocabulary", 0), text(root, "situation"),
-			text(root, "concerns"), text(root, "emotion"), samples, greetings);
+			text(root, "concerns"), text(root, "emotion"), samples, greetings,
+			optionalText(root, "day"), episodes(root), optionalStrings(root, "people"), optionalText(root, "attitude"),
+			optionalText(root, "hopes"), optionalStrings(root, "coupleGreetings"));
+	}
+
+	/** 없거나 비었으면 null이에요. */
+	private static String optionalText(JsonNode root, String field) {
+		JsonNode node = root.get(field);
+		return node != null && node.isString() && !node.asString().isBlank() ? node.asString().strip() : null;
+	}
+
+	private static List<String> optionalStrings(JsonNode root, String field) {
+		JsonNode node = root.get(field);
+		if (node == null || !node.isArray()) {
+			return List.of();
+		}
+		List<String> list = new ArrayList<>();
+		for (JsonNode item : node) {
+			if (item.isString() && !item.asString().isBlank()) {
+				list.add(item.asString().strip());
+			}
+		}
+		return List.copyOf(list);
+	}
+
+	/** episodes는 {"date", "what", "feeling"} 목록이에요. what이 없는 항목은 버려요. 최대 8개만 둬요. */
+	private static List<PersonaContent.Episode> episodes(JsonNode root) {
+		JsonNode node = root.get("episodes");
+		if (node == null || !node.isArray()) {
+			return List.of();
+		}
+		List<PersonaContent.Episode> list = new ArrayList<>();
+		for (JsonNode item : node) {
+			String what = item.isObject() ? optionalText(item, "what") : null;
+			if (what != null && list.size() < MAX_EPISODES) {
+				list.add(new PersonaContent.Episode(optionalText(item, "date"), what, optionalText(item, "feeling")));
+			}
+		}
+		return List.copyOf(list);
 	}
 
 	/** 저장된 메신저 대표 문장(JSON 배열 문자열)을 목록으로 읽어요. */

@@ -126,6 +126,11 @@ public class ChatSession {
 		return windowDays == 0 ? PersonaScope.DAY : PersonaScope.AROUND;
 	}
 
+	/** 커플 모드 세션이에요(대화 상대가 그날의 연인이에요). */
+	public boolean isCouple() {
+		return coupleId != null;
+	}
+
 	public boolean isPreparing() {
 		return status == ChatStatus.PREPARING;
 	}

@@ -103,11 +103,11 @@ public class ChatService {
 			: ChatSession.start(userId, request.anchorDate(), request.scope(), request.shortcutKey(), lookup.level());
 
 		if (lookup.level() == RecordLevel.NONE) {
-			return ChatSessionResponse.from(startReady(session, null, ChatGreetings.pick(null)), null);
+			return ChatSessionResponse.from(startReady(session, null, ChatGreetings.pick(null, forCouple)), null);
 		}
 		if (lookup.reusable() != null) {
 			return ChatSessionResponse.from(
-				startReady(session, lookup.reusable().analysisId(), ChatGreetings.pick(lookup.reusable().content().greetings())), null);
+				startReady(session, lookup.reusable().analysisId(), ChatGreetings.pick(lookup.reusable().content(), forCouple)), null);
 		}
 
 		// 분석이 필요해요. 먼저 PREPARING으로 저장해서 돌려주고 뒤에서 분석해요.
