@@ -13,7 +13,10 @@ java {
 	}
 }
 
+// Google이 운영하는 Maven Central 미러를 먼저 써요(2026.11.28). Render 빌드 서버의 IP가 Maven Central에서 429(요청이 너무 많음)로
+// 계속 막혀서 배포가 실패했어요. 미러는 Maven Central과 같은 파일이고, 미러에 없으면 원래 Maven Central에서 받아요.
 repositories {
+	maven { url = 'https://maven-central.storage-download.googleapis.com/maven2/' }
 	mavenCentral()
 }
 

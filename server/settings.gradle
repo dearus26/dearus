@@ -1,1 +1,9 @@
+// 플러그인도 Google의 Maven Central 미러에서 먼저 받아요(아래 build.gradle의 repositories와 같은 이유, 2026.11.28)
+pluginManagement {
+	repositories {
+		maven { url = 'https://maven-central.storage-download.googleapis.com/maven2/' }
+		gradlePluginPortal()
+	}
+}
+
 rootProject.name = 'dearus-server'
