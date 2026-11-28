@@ -71,7 +71,7 @@ function dayTitle(date: string): string {
 }
 
 /**
- * 스토리보드 C-3 함께 볼 날 고르기. 두 사람의 일기가 모두 있는 날만 비교할 수 있고, 감정이 엇갈린 날(특히 다툰 날)은
+ * 스토리보드 C-3 함께 볼 날 고르기. 두 사람의 기록(일기 또는 그날 올린 메신저 대화)이 모두 있는 날만 비교할 수 있고, 감정이 엇갈린 날(특히 다툰 날)은
  * 서버가 추천해서 맨 위 카드로 보여줘요. 1개월 · 6개월 · 1년 전 바로가기나 "직접 고르기"(캘린더)로 다른 시점도 고를 수 있어요.
  * 고르고 "두 시점 비교하러 가기"를 누르면 두 시점 비교 화면(C-4)에서 각자 그날의 연인과 대화를 시작해요.
  */
@@ -224,7 +224,7 @@ export function DayPickView({ state, refreshing, onRefresh, onRevoke }: Props) {
       {manual ? (
         <View style={styles.calendar}>
           <AppText size={12.5} lineHeight={19} color={colors.brown} style={styles.calendarNote}>
-            두 사람의 일기가 모두 있는 날만 누를 수 있어요
+            두 사람의 기록이 모두 있는 날만 누를 수 있어요
           </AppText>
           <MonthCalendar
             year={view.year}

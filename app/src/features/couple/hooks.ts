@@ -42,7 +42,7 @@ export function useCouple(enabled = true) {
   });
 }
 
-/** 함께 볼 수 있는 날(두 사람의 일기가 모두 있는 날). 비교가 열리지 않았으면(enabled false) 부르지 않아요. */
+/** 함께 볼 수 있는 날(두 사람의 기록이 모두 있는 날, 일기 또는 그날 올린 메신저). 비교가 열리지 않았으면(enabled false) 부르지 않아요. */
 export function useCoupleDays(from: string, to: string, enabled: boolean) {
   return useQuery({
     queryKey: coupleKeys.days(from, to),

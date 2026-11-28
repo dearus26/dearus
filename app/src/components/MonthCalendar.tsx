@@ -229,7 +229,7 @@ function DateCell({ date, day, dims, column, isToday, isSelected, selectable, em
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${formatMonthDay(date)}${emotions ? ', 일기 있음' : ''}`}
+      accessibilityLabel={`${formatMonthDay(date)}${emotions ? ', 기록 있음' : ''}`}
       accessibilityState={{ disabled: !selectable, selected: isSelected }}
       disabled={!selectable}
       onPress={onPress}

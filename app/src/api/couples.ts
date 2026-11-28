@@ -33,7 +33,7 @@ export function giveCoupleConsent() {
 }
 
 /**
- * GET /couples/days — 두 사람의 일기가 모두 있는 날(오늘부터 1년 전까지, 한 번에 최대 93일). 감정이 엇갈린 날은 recommended예요.
+ * GET /couples/days — 두 사람의 기록(일기 또는 그날 올린 메신저)이 모두 있는 날(오늘부터 1년 전까지, 한 번에 최대 93일). 감정이 엇갈린 날은 recommended예요.
  * 403 COUPLE_ACCESS_DENIED(연결 · 양측 동의가 아니거나 철회함)
  */
 export function listCoupleDays(from: string, to: string) {

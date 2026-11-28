@@ -1,5 +1,6 @@
 import { ApiError } from '@/api/errors';
 import { NOT_HANDLED, validationFailed } from '@/api/mock/helpers';
+import { uploadedDates } from '@/api/mock/uploads';
 import type { components } from '@/api/schema';
 import { addDays, daysBetween, isValidDateString, todayString } from '@/lib/date';
 
@@ -263,7 +264,7 @@ export function handleCoupleRoute(
     return coupleState(user);
   }
 
-  // GET /couples/days?from&to — 두 사람의 일기가 모두 있는 날
+  // GET /couples/days?from&to — 두 사람의 기록이 모두 있는 날(내 쪽은 일기 또는 그날 올린 메신저, 서버 2026.11.28과 같아요)
   if (method === 'GET' && path === '/couples/days') {
     const from = checkDate(query.from, 'from');
     const to = checkDate(query.to, 'to');
@@ -276,16 +277,14 @@ export function handleCoupleRoute(
     const today = todayString();
     const earliest = addDays(today, -MAX_ANCHOR_DAYS);
     const items: CoupleDay[] = [];
-    for (const diary of diaries) {
-      if (diary.date < from || diary.date > to || diary.date > today || diary.date < earliest) continue;
-      const theirs = partnerEmotionsOn(diary.date);
+    // 가짜 연인은 일기만 있어요. 내 쪽은 일기가 없어도 그날 메신저를 올렸으면 기록이 있는 날이고, 감정은 비어 있어요
+    const myDays = new Map<string, Emotion[]>(diaries.map((diary) => [diary.date, diary.emotions]));
+    for (const date of uploadedDates()) if (!myDays.has(date)) myDays.set(date, []);
+    for (const [date, mine] of myDays) {
+      if (date < from || date > to || date > today || date < earliest) continue;
+      const theirs = partnerEmotionsOn(date);
       if (!theirs) continue;
-      items.push({
-        date: diary.date,
-        myEmotions: diary.emotions,
-        partnerEmotions: theirs,
-        recommended: isRecommended(diary.emotions, theirs),
-      });
+      items.push({ date, myEmotions: mine, partnerEmotions: theirs, recommended: isRecommended(mine, theirs) });
     }
     items.sort((a, b) => a.date.localeCompare(b.date));
     return { items };

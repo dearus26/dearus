@@ -5,6 +5,7 @@ import com.dearus.common.Kst;
 import com.dearus.diary.Diary;
 import com.dearus.diary.DiaryRepository;
 import com.dearus.diary.Emotion;
+import com.dearus.persona.MessengerDays;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -13,6 +14,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -20,8 +22,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 함께 볼 날 고르기(GET /couples/days)예요. 두 사람의 일기가 모두 있는 날만 돌려주고, 감정이 엇갈린 날을 추천해요.
- * 대화를 시작할 수 있는 날(오늘부터 1년 전까지)만 돌려줘요. DB만 읽어서 빨라요(AI를 부르지 않아요).
+ * 함께 볼 날 고르기(GET /couples/days)예요. 두 사람의 기록이 모두 있는 날만 돌려주고, 감정이 엇갈린 날을 추천해요.
+ * 기록은 일기, 또는 그날 메신저로 올린 내 말이에요(2026.11.28, 일기 대신 txt를 올린 날도 기록이 있는 날이에요. MessengerDays).
+ * 메신저만 있는 사람의 감정은 비어 있어서, 감정으로 고르는 추천은 일기가 있는 날에서만 나와요.
+ * 대화를 시작할 수 있는 날(오늘부터 1년 전까지)만 돌려줘요. DB만 읽어요(AI를 부르지 않아요).
  */
 @Service
 public class CoupleDayService {
@@ -35,10 +39,12 @@ public class CoupleDayService {
 
 	private final CoupleAccess access;
 	private final DiaryRepository diaries;
+	private final MessengerDays messengerDays;
 
-	public CoupleDayService(CoupleAccess access, DiaryRepository diaries) {
+	public CoupleDayService(CoupleAccess access, DiaryRepository diaries, MessengerDays messengerDays) {
 		this.access = access;
 		this.diaries = diaries;
+		this.messengerDays = messengerDays;
 	}
 
 	@Transactional(readOnly = true)
@@ -59,19 +65,23 @@ public class CoupleDayService {
 		if (end.isBefore(start)) {
 			return new CoupleDayListResponse(List.of());
 		}
+		UUID partnerId = link.partner().getId();
 		Map<LocalDate, Diary> mine = byDate(diaries.findByUserIdAndDiaryDateBetweenOrderByDiaryDateAsc(userId, start, end));
-		Map<LocalDate, Diary> theirs = byDate(diaries.findByUserIdAndDiaryDateBetweenOrderByDiaryDateAsc(link.partner().getId(), start, end));
+		Map<LocalDate, Diary> theirs = byDate(diaries.findByUserIdAndDiaryDateBetweenOrderByDiaryDateAsc(partnerId, start, end));
+		Set<LocalDate> myRecordDays = new TreeSet<>(mine.keySet());
+		myRecordDays.addAll(messengerDays.withLines(userId, start, end));
+		Set<LocalDate> theirRecordDays = new TreeSet<>(theirs.keySet());
+		theirRecordDays.addAll(messengerDays.withLines(partnerId, start, end));
+
 		List<CoupleDayResponse> items = new ArrayList<>();
-		for (Map.Entry<LocalDate, Diary> entry : mine.entrySet()) {
-			Diary partnerDiary = theirs.get(entry.getKey());
-			if (partnerDiary == null) {
+		for (LocalDate date : myRecordDays) { // 날짜 오름차순이에요
+			if (!theirRecordDays.contains(date)) {
 				continue;
 			}
-			List<Emotion> myEmotions = sorted(entry.getValue().getEmotions());
-			List<Emotion> partnerEmotions = sorted(partnerDiary.getEmotions());
-			items.add(new CoupleDayResponse(entry.getKey(), myEmotions, partnerEmotions, recommended(myEmotions, partnerEmotions)));
+			List<Emotion> myEmotions = emotionsOf(mine.get(date));
+			List<Emotion> partnerEmotions = emotionsOf(theirs.get(date));
+			items.add(new CoupleDayResponse(date, myEmotions, partnerEmotions, recommended(myEmotions, partnerEmotions)));
 		}
-		items.sort((a, b) -> a.date().compareTo(b.date()));
 		return new CoupleDayListResponse(items);
 	}
 
@@ -88,6 +98,11 @@ public class CoupleDayService {
 
 	private static Map<LocalDate, Diary> byDate(List<Diary> list) {
 		return list.stream().collect(Collectors.toMap(Diary::getDiaryDate, Function.identity(), (a, b) -> a));
+	}
+
+	/** 일기가 없는 날(메신저만 올린 날)은 감정 태그가 없어요. */
+	private static List<Emotion> emotionsOf(Diary diary) {
+		return diary == null ? List.of() : sorted(diary.getEmotions());
 	}
 
 	private static List<Emotion> sorted(Collection<Emotion> emotions) {

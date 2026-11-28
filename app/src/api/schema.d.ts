@@ -559,7 +559,7 @@ export interface paths {
         };
         /**
          * 함께 볼 수 있는 날
-         * @description "함께 볼 날 고르기" 화면이에요. 두 사람의 일기가 모두 있는 날만 돌려줘요(오늘부터 1년 전까지, 대화를 시작할 수 있는 날만). 그중 감정이 엇갈린 날을 서버가 먼저 추천해요(`recommended: true`).
+         * @description "함께 볼 날 고르기" 화면이에요. 두 사람의 기록이 모두 있는 날만 돌려줘요(오늘부터 1년 전까지, 대화를 시작할 수 있는 날만). 기록은 그날의 일기, 또는 그날 메신저로 올린 내 말이에요(2026.11.28, 일기 대신 카톡 txt를 올린 날도 기록이 있는 날이에요). 메신저만 있는 사람의 감정(`myEmotions` · `partnerEmotions`)은 빈 배열이에요. 그중 감정이 엇갈린 날을 서버가 먼저 추천해요(`recommended: true`).
          *     추천 규칙(2026.11.11, 간단하게 시작해요): 두 사람 중 한쪽이라도 화남 · 슬픔 · 불안이 있고, 두 사람의 감정 태그가 다르거나 둘 다 화남인 날이에요.
          *     한 달치를 받아 캘린더에 표시하고, 추천한 날은 맨 위 카드로 보여줘요. 연결됨 + 양측 동의 + 철회 없음일 때만 열려요(아니면 403 `COUPLE_ACCESS_DENIED`).
          *     1개월 · 6개월 · 1년 전으로 비교하는 경우는 `GET /personas/shortcuts`의 바로가기를 같이 써요(`scope: AROUND`).
@@ -2562,7 +2562,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 두 사람의 일기가 모두 있는 날 (날짜 오름차순) */
+            /** @description 두 사람의 기록(일기 또는 그날 올린 메신저 말)이 모두 있는 날 (날짜 오름차순) */
             200: {
                 headers: {
                     [name: string]: unknown;
